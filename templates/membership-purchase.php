@@ -177,7 +177,7 @@ if (!defined('ABSPATH')) {
                 if ('paypal' === flow) {
                     say('<?php echo esc_js(mluc_ui_label('buy_pp_goto', __('Please complete the PayPal payment below.', 'moonlight-user-center'))); ?>');
                     mountPayPal(res.data.order_id);
-                } else if ('stripe' === flow && res.data.redirect) {
+                } else if (res.data.redirect) {
                     window.location.href = res.data.redirect;
                 } else {
                     say(res.message);

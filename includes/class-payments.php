@@ -2,9 +2,11 @@
 /**
  * 用户中心独立支付：未启用 moonlight-shop 时，提供内置的会员购买与收款流程。
  *
- * - 网关：内置「線下轉帳 / 管理員確認收款」（mluc_payment_gateways 过滤器可扩展）。
- * - 订单：CPT mluc_order（非公开），状态存 meta _mluc_pay_status：pending / paid / cancelled。
- * - 开通：管理员在订单编辑页「確認收款並開通」→ MLUC_Membership::grant_level（只升不降、按等级有效期）。
+ * - 网关：统一经 MLUC_Payment_Manager 注册表分派（manual / paypal / stripe / alipay，
+ *   MLUC_Payment_Gateway_Interface 实现，mluc_payment_gateways_registered 可扩展）。
+ * - 订单：CPT mluc_order（非公开），状态存 meta _mluc_pay_status：pending / paid / cancelled；
+ *   统一订单要素 _mluc_pay_order_no（服务端订单号）与 _mluc_pay_currency（币种）。
+ * - 开通：complete_order 原子完单（回跳 / webhook / 管理员确认共用），支付日志落 _mluc_pay_log。
  * - 双插件同装时不启用本流程：账户中心会员 Tab 自动改走商城升级购买（MLSHOP_Membership_UI）。
  *
  * @package Moonlight_User_Center
@@ -34,15 +36,19 @@ class MLUC_Payments
         add_action('add_meta_boxes_' . self::CPT, array($this, 'register_meta_box'));
         add_action('admin_post_mluc_pay_confirm', array($this, 'admin_confirm'));
         add_action('admin_post_mluc_pay_cancel', array($this, 'admin_cancel'));
+        add_action('admin_post_mluc_alipay_refund', array($this, 'admin_alipay_refund'));
         // 商城未启用时接管账户中心「升级购买」区
         add_action('mluc_membership_purchase', array($this, 'render_purchase_card'));
-        // 在线网关（PayPal / Stripe）
+        // 在线网关（PayPal / Stripe / Alipay）
         add_filter('mluc_payment_gateways', array($this, 'filter_gateways'));
         add_action('wp_ajax_mluc_paypal_create', array('MLUC_PayPal', 'ajax_create'));
         add_action('wp_ajax_mluc_paypal_capture', array('MLUC_PayPal', 'ajax_capture'));
         add_action('wp_ajax_mluc_stripe_checkout', array('MLUC_Stripe', 'ajax_checkout'));
         add_action('rest_api_init', array('MLUC_Stripe', 'register_webhook'));
         add_action('init', array('MLUC_Stripe', 'maybe_handle_return'));
+        // 支付宝：异步通知 + 回跳复核（网关实例按需经注册表加载）
+        add_action('rest_api_init', array('MLUC_Gateway_Alipay', 'register_notify'));
+        add_action('init', array('MLUC_Gateway_Alipay', 'maybe_handle_return'));
     }
 
     /**
@@ -138,6 +144,7 @@ class MLUC_Payments
             if ('' !== $gateway) {
                 update_post_meta($order_id, '_mluc_pay_gateway_paid', $gateway);
             }
+            MLUC_Payment_Log::write($order_id, $gateway, 'complete', 'paid', array('trade_no' => $txn));
             do_action('mluc_payment_completed', $order_id, $user_id, 'paywall:' . $pw_post);
             return true;
         }
@@ -167,6 +174,7 @@ class MLUC_Payments
         if ('' !== $gateway) {
             update_post_meta($order_id, '_mluc_pay_gateway_paid', $gateway);
         }
+        MLUC_Payment_Log::write($order_id, $gateway, 'complete', 'paid', array('trade_no' => $txn));
         do_action('mluc_payment_completed', $order_id, $user_id, $level);
         return true;
     }
@@ -264,21 +272,13 @@ class MLUC_Payments
     }
 
     /**
-     * 可用网关（id => title）。内置线下转账（后台可开关）；PayPal / Stripe 各有启用开关。
+     * 可用网关（id => title）。来自 MLUC_Payment_Manager 注册表（内置 + 第三方实例），
+     * mluc_payment_gateways 过滤器保留兼容第三方扩展。
      * 网关名称前台可见，走 mluc_ui_label 英文默认 + 后台可自定义。
      */
     public static function get_gateways()
     {
-        $gateways = array();
-        if (!empty(mluc_get_option('manual_enabled', 1))) {
-            $gateways['manual'] = mluc_ui_label('buy_gateway_manual', 'Bank Transfer (admin confirms payment)');
-        }
-        if (class_exists('MLUC_PayPal') && MLUC_PayPal::enabled()) {
-            $gateways['paypal'] = mluc_ui_label('buy_gateway_paypal', 'PayPal (Online Payment)');
-        }
-        if (class_exists('MLUC_Stripe') && MLUC_Stripe::enabled()) {
-            $gateways['stripe'] = mluc_ui_label('buy_gateway_stripe', 'Stripe (Credit Card)');
-        }
+        $gateways = MLUC_Payment_Manager::get_instance()->get_available();
         return apply_filters('mluc_payment_gateways', $gateways);
     }
 
@@ -392,6 +392,13 @@ class MLUC_Payments
         if ('' === $gw || !isset($gateways[$gw])) {
             mluc_send_json(false, mluc_ui_label('buy_invalid_gateway', 'Invalid payment method.'));
         }
+        // 网关可用性 + 能力（币种等）校验：下单前失败，避免遗留孤儿订单。
+        $gateway = MLUC_Payment_Manager::get_instance()->get_available_gateway($gw);
+        if (is_wp_error($gateway)) {
+            mluc_send_json(false, 'mluc_invalid_gateway' === $gateway->get_error_code()
+                ? mluc_ui_label('buy_invalid_gateway', 'Invalid payment method.')
+                : $gateway->get_error_message());
+        }
         // 限流：同一用户 10 分钟内最多 10 单，防止脚本反复点击刷出大量 pending 订单。
         $rl_key = 'mluc_buy_rl_' . $user_id;
         $hits   = (int) get_transient($rl_key);
@@ -415,35 +422,29 @@ class MLUC_Payments
         update_post_meta($order_id, '_mluc_pay_price', $price);
         update_post_meta($order_id, '_mluc_pay_gateway', $gw);
         update_post_meta($order_id, '_mluc_pay_status', 'pending');
+        // 统一订单要素：服务端生成的订单号（支付宝 out_trade_no 等）+ 结算币种。
+        update_post_meta($order_id, '_mluc_pay_order_no', MLUC_Payment_Manager::generate_order_no());
+        update_post_meta($order_id, '_mluc_pay_currency', self::currency_code());
 
         do_action('mluc_payment_order_created', $order_id, $user_id, $level, $gw);
 
-        // 在线网关分流：PayPal 返回流程标记，Stripe 直接建会话返回跳转地址。
-        if ('paypal' === $gw) {
-            mluc_send_json(true, mluc_ui_label('buy_order_paypal', 'Order created. Please complete the PayPal payment.'), array(
-                'order_id' => (int) $order_id,
-                'flow'     => 'paypal',
-            ));
+        // 统一网关分派：process_payment 返回 flow / 提示文案 / 跳转地址等，核心不再硬编码网关分支。
+        $result = $gateway->process_payment($order_id);
+        if (is_wp_error($result)) {
+            // 网关侧发起失败：订单作废，避免遗留孤儿 pending 单。
+            update_post_meta($order_id, '_mluc_pay_status', 'cancelled');
+            MLUC_Payment_Log::write($order_id, $gw, 'order', 'fail', array('message' => $result->get_error_message()));
+            mluc_send_json(false, $result->get_error_message());
         }
-        if ('stripe' === $gw) {
-            $session = MLUC_Stripe::create_session($order_id);
-            if (is_wp_error($session)) {
-                // 会话创建失败：订单作废，避免遗留孤儿 pending 单。
-                update_post_meta($order_id, '_mluc_pay_status', 'cancelled');
-                mluc_send_json(false, $session->get_error_message());
-            }
-            update_post_meta($order_id, '_mluc_pay_txn_ref', $session['id']);
-            mluc_send_json(true, mluc_ui_label('buy_order_stripe', 'Order created. Redirecting to Stripe…'), array(
-                'order_id' => (int) $order_id,
-                'flow'     => 'stripe',
-                'redirect' => $session['url'],
-            ));
-        }
+        MLUC_Payment_Log::write($order_id, $gw, 'order', 'pending');
 
-        mluc_send_json(true, mluc_ui_label('buy_order_manual', 'Order created. Please complete the transfer as instructed. Your membership will be activated once the administrator confirms your payment.'), array(
-            'order_id' => (int) $order_id,
-            'instructions' => self::get_instructions(),
-        ));
+        $data = array('order_id' => (int) $order_id);
+        foreach (array('flow', 'redirect', 'instructions') as $key) {
+            if (isset($result[$key])) {
+                $data[$key] = $result[$key];
+            }
+        }
+        mluc_send_json(true, isset($result['message']) ? $result['message'] : '', $data);
     }
 
     /**
@@ -512,6 +513,41 @@ class MLUC_Payments
                 <button type="submit" class="button"><?php esc_html_e('取消訂單', 'moonlight-user-center'); ?></button>
             </form>
         <?php endif; ?>
+
+        <?php if ('paid' === $status && 'alipay' === $gw) : ?>
+            <?php $refunded = (string) get_post_meta($post->ID, '_mluc_pay_refunded', true); ?>
+            <?php if ('' === $refunded) : ?>
+                <form method="post" action="<?php echo esc_url(admin_url('admin-post.php')); ?>" style="margin-top:8px;"
+                      onsubmit="return confirm('<?php echo esc_js(__('确认通过支付宝原路全额退款？', 'moonlight-user-center')); ?>');">
+                    <?php wp_nonce_field('mluc_alipay_refund'); ?>
+                    <input type="hidden" name="action" value="mluc_alipay_refund">
+                    <input type="hidden" name="order_id" value="<?php echo (int) $post->ID; ?>">
+                    <button type="submit" class="button button-link-delete"><?php esc_html_e('支付宝退款（全额，原路退回）', 'moonlight-user-center'); ?></button>
+                </form>
+            <?php else : ?>
+                <p style="margin-top:8px;color:#d63638;"><?php echo esc_html(sprintf(__('已于 %s 退款。', 'moonlight-user-center'), $refunded)); ?></p>
+            <?php endif; ?>
+        <?php endif; ?>
+
+        <?php
+        // 支付日志（只读，最近 10 条）。
+        $pay_log = array_slice(array_reverse(MLUC_Payment_Log::read($post->ID)), 0, 10);
+        if ($pay_log) :
+            ?>
+            <h4 style="margin:14px 0 4px;"><?php esc_html_e('支付日志', 'moonlight-user-center'); ?></h4>
+            <table class="widefat striped" style="max-width:640px;">
+                <tbody>
+                <?php foreach ($pay_log as $entry) : ?>
+                    <tr>
+                        <td style="width:150px;"><?php echo esc_html($entry['created_at']); ?></td>
+                        <td style="width:90px;"><?php echo esc_html($entry['gateway']); ?></td>
+                        <td style="width:90px;"><?php echo esc_html($entry['event']); ?></td>
+                        <td><?php echo esc_html($entry['status']); ?></td>
+                    </tr>
+                <?php endforeach; ?>
+                </tbody>
+            </table>
+        <?php endif; ?>
         <?php
     }
 
@@ -552,6 +588,41 @@ class MLUC_Payments
         $redirect = wp_get_referer() ?: admin_url('edit.php?post_type=' . self::CPT);
         if ($order_id && get_post_type($order_id) === self::CPT) {
             update_post_meta($order_id, '_mluc_pay_status', 'cancelled');
+        }
+        wp_safe_redirect($redirect);
+        exit;
+    }
+
+    /**
+     * 管理员发起支付宝退款（仅支付宝已支付订单；退款后按产品政策撤销关联 License）。
+     */
+    public function admin_alipay_refund()
+    {
+        if (!current_user_can('manage_options') || !check_admin_referer('mluc_alipay_refund')) {
+            wp_die(esc_html__('權限不足或校驗失敗。', 'moonlight-user-center'));
+        }
+        $order_id = isset($_POST['order_id']) ? (int) $_POST['order_id'] : 0;
+        $redirect = wp_get_referer() ?: admin_url('post.php?post=' . $order_id . '&action=edit');
+        if ($order_id && get_post_type($order_id) === self::CPT
+            && 'paid' === (string) get_post_meta($order_id, '_mluc_pay_status', true)
+            && 'alipay' === (string) get_post_meta($order_id, '_mluc_pay_gateway', true)) {
+            $gateways = MLUC_Payment_Manager::get_instance()->get_all();
+            $result = isset($gateways['alipay'])
+                ? $gateways['alipay']->refund($order_id)
+                : new WP_Error('mluc_no_gateway', __('支付宝网关不可用。', 'moonlight-user-center'));
+            if (is_wp_error($result)) {
+                set_transient('mluc_admin_notice_' . get_current_user_id(), array(
+                    'success' => false,
+                    'message' => $result->get_error_message(),
+                ), 60);
+            } else {
+                // 退款 → License 撤销（§44：退款后 License revoked，具体规则见产品政策）。
+                do_action('mluc_order_refunded', $order_id);
+                set_transient('mluc_admin_notice_' . get_current_user_id(), array(
+                    'success' => true,
+                    'message' => __('退款成功，订单已标记退款。', 'moonlight-user-center'),
+                ), 60);
+            }
         }
         wp_safe_redirect($redirect);
         exit;

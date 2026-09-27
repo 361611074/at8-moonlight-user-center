@@ -856,7 +856,7 @@ class MLUC_Paywall
                         setTimeout(function () { window.location.reload(); }, 900);
                         return;
                     }
-                    if ('stripe' === d.flow && d.redirect) {
+                    if (d.redirect) {
                         say(card, CFG.i18n.stripe_goon);
                         window.location.href = d.redirect;
                         return;
@@ -961,30 +961,44 @@ class MLUC_Paywall
         }
         update_post_meta($order_id, '_mluc_pay_status', 'pending');
 
-        if ('paypal' === $gw) {
-            mluc_send_json(true, mluc_ui_label('buy_order_paypal', 'Order created. Please complete the PayPal payment.'), array(
-                'order_id' => (int) $order_id,
-                'flow'     => 'paypal',
-            ));
+        // 统一网关分派：manual / paypal / stripe / alipay 走同一注册表（MLUC_Payment_Manager）。
+        if (!class_exists('MLUC_Payment_Manager')) {
+            mluc_send_json(false, mluc_ui_label('buy_module_missing', 'Membership module is not loaded.'));
         }
-        if ('stripe' === $gw) {
-            $session = MLUC_Stripe::create_session($order_id);
-            if (is_wp_error($session)) {
-                update_post_meta($order_id, '_mluc_pay_status', 'cancelled');
-                mluc_send_json(false, $session->get_error_message());
-            }
-            update_post_meta($order_id, '_mluc_pay_txn_ref', $session['id']);
-            mluc_send_json(true, mluc_ui_label('pw_order_stripe', 'Order created. Redirecting to Stripe…'), array(
-                'order_id' => (int) $order_id,
-                'flow'     => 'stripe',
-                'redirect' => $session['url'],
-            ));
+        $gateway = MLUC_Payment_Manager::get_instance()->get_available_gateway($gw);
+        if (is_wp_error($gateway)) {
+            update_post_meta($order_id, '_mluc_pay_status', 'cancelled');
+            mluc_send_json(false, 'mluc_invalid_gateway' === $gateway->get_error_code()
+                ? mluc_ui_label('buy_invalid_gateway', 'Invalid payment method.')
+                : $gateway->get_error_message());
+        }
+        $result = $gateway->process_payment($order_id);
+        if (is_wp_error($result)) {
+            // 网关侧发起失败：订单作废，避免遗留孤儿 pending 单。
+            update_post_meta($order_id, '_mluc_pay_status', 'cancelled');
+            MLUC_Payment_Log::write($order_id, $gw, 'order', 'fail', array('message' => $result->get_error_message()));
+            mluc_send_json(false, $result->get_error_message());
+        }
+        MLUC_Payment_Log::write($order_id, $gw, 'order', 'pending');
+
+        $flow = isset($result['flow']) ? (string) $result['flow'] : 'manual';
+        $data = array('order_id' => (int) $order_id, 'flow' => $flow);
+        if (isset($result['redirect'])) {
+            $data['redirect'] = $result['redirect'];
+        }
+        if ('paypal' === $flow) {
+            mluc_send_json(true, mluc_ui_label('buy_order_paypal', 'Order created. Please complete the PayPal payment.'), $data);
+        }
+        if ('stripe' === $flow) {
+            mluc_send_json(true, mluc_ui_label('pw_order_stripe', 'Order created. Redirecting to Stripe…'), $data);
+        }
+        if ('alipay' === $flow) {
+            mluc_send_json(true, mluc_ui_label('pw_order_alipay', 'Order created. Redirecting to Alipay…'), $data);
         }
 
-        mluc_send_json(true, mluc_ui_label('pw_order_manual', 'Order created. Please complete the bank transfer as instructed. The content will be unlocked once the administrator confirms your payment.'), array(
-            'order_id'     => (int) $order_id,
-            'instructions' => class_exists('MLUC_Payments') ? MLUC_Payments::get_instructions() : '',
-        ));
+        // manual（线下转账）默认分支：展示付款说明。
+        $data['instructions'] = class_exists('MLUC_Payments') ? MLUC_Payments::get_instructions() : '';
+        mluc_send_json(true, mluc_ui_label('pw_order_manual', 'Order created. Please complete the bank transfer as instructed. The content will be unlocked once the administrator confirms your payment.'), $data);
     }
 
     /* ---------- Meta Box ---------- */

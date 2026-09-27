@@ -183,6 +183,49 @@ class MLUC_PayPal
     }
 
     /**
+     * Token 获取的公共入口（网关适配器查询订单时复用）。
+     */
+    public static function get_token_public()
+    {
+        return self::get_token();
+    }
+
+    /**
+     * 查询 PayPal 订单状态（对账 / 回跳复核用）。
+     *
+     * @param string $pp_order_id PayPal 订单 ID。
+     * @param string $token       可选，已获取的 OAuth token。
+     * @return string|WP_Error 订单状态（如 APPROVED / COMPLETED）。
+     */
+    public static function query_order($pp_order_id, $token = '')
+    {
+        $pp_order_id = sanitize_text_field($pp_order_id);
+        if ('' === $pp_order_id) {
+            return new WP_Error('mluc_pp_sid', __('PayPal 订单号无效。', 'moonlight-user-center'));
+        }
+        if ('' === $token) {
+            $token = self::get_token();
+            if (is_wp_error($token)) {
+                return $token;
+            }
+        }
+        $res = wp_remote_get(self::base() . '/v2/checkout/orders/' . rawurlencode($pp_order_id), array(
+            'timeout' => 30,
+            'headers' => array(
+                'Authorization' => 'Bearer ' . $token,
+            ),
+        ));
+        if (is_wp_error($res)) {
+            return $res;
+        }
+        $body = json_decode(wp_remote_retrieve_body($res), true);
+        if ((int) wp_remote_retrieve_response_code($res) >= 300 || empty($body['status'])) {
+            return new WP_Error('mluc_pp_query', __('PayPal 订单查询失败。', 'moonlight-user-center'));
+        }
+        return (string) $body['status'];
+    }
+
+    /**
      * AJAX：为本地订单创建 PayPal 订单（返回 PayPal order id 供 JS SDK）。
      */
     public static function ajax_create()
