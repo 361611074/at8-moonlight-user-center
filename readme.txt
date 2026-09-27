@@ -10,22 +10,34 @@ License URI: https://www.gnu.org/licenses/gpl-2.0.html
 Author: 漫步白月光
 Author URI: https://www.at8.fun/
 
-轻量、主题无关的 WordPress 用户中心，兼容 Astra 主题与 Elementor 页面构建器。
+轻量、主题无关的 WordPress 用户中心，兼容 Astra 主题与 Elementor 页面构建器。支持 Free + Pro 商业化体系与支付宝 / PayPal / Stripe 收款。
 
 == 功能 ==
 * 前端登录 / 注册 / 找回密码（短代码驱动，任意主题可用）
-* 账户中心仪表盘：侧栏导航 + 概览 / 资料编辑 / 退出
+* 账户中心仪表盘：侧栏导航 + 概览 / 资料编辑 / 我的订单 / 我的 License / 退出
 * 资料编辑：昵称、个人网站、简介、密码修改
 * 前端头像上传
-* Elementor 组件：登录表单、注册表单、用户资料卡
+* Elementor 组件：登录表单、注册表单、用户资料卡（Pro 可扩展更多组件）
 * 账户 Tab 通过过滤器 `mluc_account_tabs` 可扩展（如挂接商城订单）
+* 统一支付抽象层：manual / PayPal / Stripe / Alipay 网关注册表，`mluc_payment_gateways_registered` 可扩展
+* License 授权体系：签发 / 激活 / 停用 / 验证 / 宽限期 / 撤销 / 续期，支付成功可自动颁发
 
 == 在线支付 ==
 * 后台「用户中心 → 设置 → 在线支付」配置 PayPal（Smart Buttons，服务端 capture）与 Stripe（Checkout 托管结账）
+* 支付宝（电脑网站支付）：RSA2 签名，异步 notify 四重校验（签名 / 商户 / 订单号 / 金额），回跳以服务端 alipay.trade.query 复核为准，仅支持 CNY
 * PayPal：前台弹窗付款，服务端捕获并校验金额后自动开通会员
 * Stripe：跳转 Stripe 托管页支付，回跳自动校验开通；可选 Webhook（checkout.session.completed）兜底，端点 /wp-json/mluc/v1/stripe-webhook
+* 支付宝异步通知端点：/wp-json/mluc/v1/alipay/notify
 * 货币代码后台可配（默认 USD），零小数货币（JPY/KRW 等）自动处理
+* 结构化支付日志随订单记录（调试上下文可开关）
 * 线下转账流程保持不变；双插件同装走商城支付时本流程不启用
+
+== License / Pro ==
+* 本插件为 Free 核心；Pro 扩展（pro/moonlight-user-center-pro/）作为独立插件安装，提供 License 激活管理、Elementor 会员状态卡、订单 CSV 导出
+* 后台「用户中心 → License 管理」手工签发 / 撤销 / 续期 License
+* 「设置 → License / Pro」可配置支付成功自动颁发 License 的会员等级与远程 License Server 地址（可选；远程验证缓存 12h，断网宽限 7 天，Server 故障不影响 Free）
+* 订单与 License 严格分离：续费复用同一 License 叠加有效期；退款自动撤销关联 License
+* 后台「用户中心 → 系统状态」可体检环境 / 网关 / 回调地址
 
 == 配置说明 ==
 【第 0 步：通用设置】
@@ -33,6 +45,16 @@ Author URI: https://www.at8.fun/
 2. 「货币代码」填 ISO 4217 三位代码（如 USD / EUR / HKD / JPY），两个网关共用；
    务必与会员等级价格的币种一致，否则金额校验会拒绝开通。
 3. 勾选要启用的网关，保存后会员购买卡片才会出现对应支付按钮。
+
+【第 0.5 步：支付宝（仅 CNY）】
+1. 支付宝开放平台创建「电脑网站支付」应用并通过审核，获取 App ID；
+2. 「接口加签方式」选 RSA2：上传应用公钥后，把「支付宝公钥」复制到后台
+   （注意是平台生成的支付宝公钥，不是你的应用公钥），应用私钥填入后台
+   （PKCS#1 / PKCS#8 均可，密钥仅存本站数据库，后台脱敏显示）；
+3. 「环境」按开放平台应用类型选择沙盒 / 正式（正式环境涉及真实收款，请谨慎）；
+4. 通知地址无需在开放平台手工配置，下单时自动携带 notify_url：
+   https://你的域名/wp-json/mluc/v1/alipay/notify（服务器需可公网访问）；
+5. 结算货币须为 CNY，否则前台不出现支付宝选项。
 
 【第 1 步：PayPal 凭据获取】
 A. 沙盒测试（sandbox）：
