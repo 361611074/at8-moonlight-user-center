@@ -24,9 +24,10 @@ foreach (array('account_page_id', 'login_page_id', 'register_page_id') as $opt) 
     }
 }
 
-// 取消计划任务（Pending 订单自动关闭）
+// 取消计划任务（Pending 订单自动关闭 / License 到期提醒）
 if (function_exists('wp_clear_scheduled_hook')) {
     wp_clear_scheduled_hook('mluc_pay_autoclose');
+    wp_clear_scheduled_hook('mluc_license_expiry_check');
 }
 
 // 删除订单数据（mluc_order 为交易凭证，随插件一同移除）
@@ -39,6 +40,18 @@ $orders = get_posts(array(
 ));
 foreach ($orders as $order_id) {
     wp_delete_post((int) $order_id, true);
+}
+
+// 删除 License 数据（mluc_license 随插件一同移除）
+$licenses = get_posts(array(
+    'post_type'      => 'mluc_license',
+    'post_status'    => 'any',
+    'posts_per_page' => -1,
+    'fields'         => 'ids',
+    'no_found_rows'  => true,
+));
+foreach ($licenses as $license_id) {
+    wp_delete_post((int) $license_id, true);
 }
 
 // 清理本插件写入的用户资料（会员等级 / 到期 / 付费解锁 / 第三方绑定 / 头像 / 下载计数）

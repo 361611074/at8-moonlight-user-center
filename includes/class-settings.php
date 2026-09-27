@@ -183,6 +183,51 @@ class MLUC_Settings
             'mluc_payment_online'
         );
 
+        // 在线支付（支付宝）
+        add_settings_section(
+            'mluc_payment_alipay',
+            __('在线支付（支付宝）', 'moonlight-user-center'),
+            '__return_false',
+            'mluc-settings'
+        );
+        add_settings_field(
+            'mluc_payment_alipay',
+            __('支付宝配置', 'moonlight-user-center'),
+            array($this, 'render_alipay_field'),
+            'mluc-settings',
+            'mluc_payment_alipay'
+        );
+
+        // License / Pro
+        add_settings_section(
+            'mluc_license',
+            __('License / Pro', 'moonlight-user-center'),
+            '__return_false',
+            'mluc-settings'
+        );
+        add_settings_field(
+            'mluc_license',
+            __('授权设置', 'moonlight-user-center'),
+            array($this, 'render_license_field'),
+            'mluc-settings',
+            'mluc_license'
+        );
+
+        // 邮件通知
+        add_settings_section(
+            'mluc_email',
+            __('邮件通知', 'moonlight-user-center'),
+            '__return_false',
+            'mluc-settings'
+        );
+        add_settings_field(
+            'mluc_email',
+            __('通知开关', 'moonlight-user-center'),
+            array($this, 'render_email_field'),
+            'mluc-settings',
+            'mluc_email'
+        );
+
         // 订单管理（所有支付方式通用）
         add_settings_section(
             'mluc_orders',
@@ -479,7 +524,13 @@ class MLUC_Settings
             <label for="mluc_pay_autoclose"><?php esc_html_e('Pending 订单自动关闭', 'moonlight-user-center'); ?></label>
             <input type="number" id="mluc_pay_autoclose" class="small-text" name="mluc_options[order_auto_close_hours]" value="<?php echo esc_attr($auto_hours); ?>" min="0" max="8760">
             <?php esc_html_e('小时（0 = 不自动关闭）', 'moonlight-user-center'); ?>
-            <span class="description"><?php esc_html_e('创建后超过该时长仍未完成支付的 Pending 订单将自动置为 Cancelled。对线下转账、PayPal、Stripe 全部生效，与上方各网关的启用开关无关。建议不小于 24 小时，以免误伤正在进行的在线支付。', 'moonlight-user-center'); ?></span>
+            <span class="description"><?php esc_html_e('创建后超过该时长仍未完成支付的 Pending 订单将自动置为 Cancelled。对线下转账、PayPal、Stripe、支付宝全部生效，与上方各网关的启用开关无关。建议不小于 24 小时，以免误伤正在进行的在线支付。', 'moonlight-user-center'); ?></span>
+        </p>
+        <p>
+            <label>
+                <input type="checkbox" name="mluc_options[pay_debug_log]" value="1" <?php checked(!empty(mluc_get_option('pay_debug_log', 0))); ?>>
+                <?php esc_html_e('支付调试日志（在订单内记录网关交互上下文，排查用，平时建议关闭）', 'moonlight-user-center'); ?>
+            </label>
         </p>
         <?php
     }
@@ -576,6 +627,8 @@ class MLUC_Settings
                 'tab_profile' => array('t' => '个人资料（侧栏）', 'd' => 'Profile'),
                 'tab_membership' => array('t' => '會員等級（侧栏）', 'd' => 'Membership Level'),
                 'tab_purchases' => array('t' => '已購內容（侧栏）', 'd' => 'Purchased Content'),
+                'tab_orders' => array('t' => '我的订单（侧栏）', 'd' => 'My Orders'),
+                'tab_licenses' => array('t' => '我的 License（侧栏）', 'd' => 'My Licenses'),
                 'tab_logout' => array('t' => '退出登录（侧栏）', 'd' => 'Log Out'),
                 'no_member' => array('t' => '未開通會員', 'd' => 'Non-member'),
                 'permanent' => array('t' => '永久有效', 'd' => 'Permanent'),
@@ -671,6 +724,7 @@ class MLUC_Settings
                 'buy_gateway_manual' => array('t' => '线下转账（网关名称）', 'd' => 'Bank Transfer (admin confirms payment)'),
                 'buy_gateway_paypal' => array('t' => 'PayPal（网关名称）', 'd' => 'PayPal (Online Payment)'),
                 'buy_gateway_stripe' => array('t' => 'Stripe（网关名称）', 'd' => 'Stripe (Credit Card)'),
+                'buy_gateway_alipay' => array('t' => '支付宝（网关名称）', 'd' => 'Alipay (支付宝)'),
                 'buy_login_required' => array('t' => '请先登录提示', 'd' => 'Please log in first.'),
                 'buy_use_shop' => array('t' => '请使用商城购买提示', 'd' => 'Please use the shop upgrade flow to purchase membership.'),
                 'buy_module_missing' => array('t' => '会员模块未加载提示', 'd' => 'Membership module is not loaded.'),
@@ -683,6 +737,7 @@ class MLUC_Settings
                 'buy_order_failed' => array('t' => '订单创建失败提示', 'd' => 'Failed to create the order. Please try again later.'),
                 'buy_order_paypal' => array('t' => '订单已建立（PayPal）提示', 'd' => 'Order created. Please complete the PayPal payment.'),
                 'buy_order_stripe' => array('t' => '订单已建立（Stripe）提示', 'd' => 'Order created. Redirecting to Stripe…'),
+                'buy_order_alipay' => array('t' => '订单已建立（支付宝）提示', 'd' => 'Order created. Redirecting to Alipay…'),
                 'buy_order_manual' => array('t' => '订单已建立（线下转账）提示', 'd' => 'Order created. Please complete the transfer as instructed. Your membership will be activated once the administrator confirms your payment.'),
                 'buy_history' => array('t' => '我的購買記錄（标题）', 'd' => 'My Purchase History'),
                 'buy_th_order' => array('t' => '訂單（表头）', 'd' => 'Order'),
@@ -696,6 +751,24 @@ class MLUC_Settings
                 'buy_pp_error' => array('t' => 'PayPal 付款异常提示', 'd' => 'PayPal payment error. Please try again or contact the administrator.'),
                 'buy_pp_goto' => array('t' => '请完成 PayPal 付款提示', 'd' => 'Please complete the PayPal payment below.'),
                 'buy_net_error' => array('t' => '網絡異常提示', 'd' => 'Network error. Please try again later.'),
+            ),
+            __('我的订单 / 我的 License 页', 'moonlight-user-center') => array(
+                'od_title' => array('t' => '我的订单（标题）', 'd' => 'My Orders'),
+                'od_empty' => array('t' => '无订单提示', 'd' => 'You have no orders yet.'),
+                'od_th_no' => array('t' => '订单号（表头）', 'd' => 'Order No.'),
+                'od_th_item' => array('t' => '商品（表头）', 'd' => 'Item'),
+                'od_th_gateway' => array('t' => '支付方式（表头）', 'd' => 'Method'),
+                'lic_title' => array('t' => '我的 License（标题）', 'd' => 'My Licenses'),
+                'lic_empty' => array('t' => '无 License 提示', 'd' => 'You have no licenses yet. Purchase a Pro plan to get one.'),
+                'lic_th_key' => array('t' => 'License（表头）', 'd' => 'License'),
+                'lic_th_product' => array('t' => '产品（表头）', 'd' => 'Product'),
+                'lic_th_site' => array('t' => '授权站点（表头）', 'd' => 'Site'),
+                'lic_th_expires' => array('t' => '到期（表头）', 'd' => 'Expires'),
+                'lic_st_active' => array('t' => '有效', 'd' => 'Active'),
+                'lic_st_inactive' => array('t' => '未激活', 'd' => 'Inactive'),
+                'lic_st_expired' => array('t' => '已过期', 'd' => 'Expired'),
+                'lic_st_revoked' => array('t' => '已撤销', 'd' => 'Revoked'),
+                'lic_st_suspended' => array('t' => '已暂停', 'd' => 'Suspended'),
             ),
             __('隐藏内容锁定卡（hidecontent）', 'moonlight-user-center') => array(
                 'hc_title_reply' => array('t' => '评论后可查看（卡片标题）', 'd' => 'Comment to View'),
@@ -724,6 +797,7 @@ class MLUC_Settings
                 'pw_unit_month' => array('t' => '时效单位：个月', 'd' => 'month(s)'),
                 'pw_order_manual' => array('t' => '订单已建立（线下转账）提示', 'd' => 'Order created. Please complete the bank transfer as instructed. The content will be unlocked once the administrator confirms your payment.'),
                 'pw_order_stripe' => array('t' => '订单已建立（Stripe）提示', 'd' => 'Order created. Redirecting to Stripe…'),
+                'pw_order_alipay' => array('t' => '订单已建立（支付宝）提示', 'd' => 'Order created. Redirecting to Alipay…'),
                 'pw_instructions_title' => array('t' => '付款说明（标题）', 'd' => 'Payment Instructions'),
                 'pw_dl_default_btn' => array('t' => '下载按钮默认文字', 'd' => 'Download'),
                 'pw_dl_invalid' => array('t' => '下载链接无效提示', 'd' => 'This download link is invalid or has expired.'),
@@ -958,6 +1032,124 @@ class MLUC_Settings
     }
 
     /**
+     * 支付宝配置：启用开关 / 模式 / App ID / 应用私钥 / 支付宝公钥。
+     * 密钥脱敏：已配置时输入框留空 = 保持不变；绝不回显明文（§18）。
+     */
+    public function render_alipay_field()
+    {
+        $enabled   = mluc_get_option('alipay_enabled', 0);
+        $mode      = mluc_get_option('alipay_mode', 'sandbox');
+        $app_id    = mluc_get_option('alipay_app_id', '');
+        $priv_set  = '' !== trim((string) mluc_get_option('alipay_private_key', ''));
+        $pub_set   = '' !== trim((string) mluc_get_option('alipay_public_key', ''));
+        $priv_hint = $priv_set
+            ? sprintf(__('已配置（尾 4 位 …%s），留空保持不变', 'moonlight-user-center'), esc_html(self::key_tail(mluc_get_option('alipay_private_key', ''))))
+            : __('未配置', 'moonlight-user-center');
+        $pub_hint = $pub_set
+            ? sprintf(__('已配置（尾 4 位 …%s），留空保持不变', 'moonlight-user-center'), esc_html(self::key_tail(mluc_get_option('alipay_public_key', ''))))
+            : __('未配置', 'moonlight-user-center');
+        ?>
+        <p>
+            <label>
+                <input type="checkbox" name="mluc_options[alipay_enabled]" value="1" <?php checked($enabled, 1); ?>>
+                <?php esc_html_e('启用支付宝（电脑网站支付，跳转式，仅支持 CNY）', 'moonlight-user-center'); ?>
+            </label>
+        </p>
+        <p>
+            <label for="mluc_ali_mode"><?php esc_html_e('环境', 'moonlight-user-center'); ?></label>
+            <select id="mluc_ali_mode" name="mluc_options[alipay_mode]">
+                <option value="sandbox" <?php selected($mode, 'sandbox'); ?>><?php esc_html_e('沙盒（Sandbox）', 'moonlight-user-center'); ?></option>
+                <option value="production" <?php selected($mode, 'production'); ?>><?php esc_html_e('正式（Production）', 'moonlight-user-center'); ?></option>
+            </select>
+            <span class="description"><?php esc_html_e('生产环境涉及真实收款，切换前请确认应用与密钥均为正式环境。', 'moonlight-user-center'); ?></span>
+        </p>
+        <p>
+            <label for="mluc_ali_appid"><strong><?php esc_html_e('App ID', 'moonlight-user-center'); ?></strong></label><br>
+            <input type="text" id="mluc_ali_appid" class="regular-text code" name="mluc_options[alipay_app_id]" value="<?php echo esc_attr($app_id); ?>" autocomplete="off">
+        </p>
+        <p>
+            <label for="mluc_ali_priv"><strong><?php esc_html_e('应用私钥（RSA2）', 'moonlight-user-center'); ?></strong></label><br>
+            <textarea id="mluc_ali_priv" class="large-text code" rows="4" name="mluc_options[alipay_private_key]" placeholder="<?php echo esc_attr($priv_hint); ?>" autocomplete="new-password"></textarea>
+            <span class="description"><?php echo esc_html__('支持 PKCS#1 / PKCS#8，可带或不含 PEM 头。仅保存在本站数据库，不写入代码与日志。', 'moonlight-user-center'); ?></span>
+        </p>
+        <p>
+            <label for="mluc_ali_pub"><strong><?php esc_html_e('支付宝公钥（RSA2）', 'moonlight-user-center'); ?></strong></label><br>
+            <textarea id="mluc_ali_pub" class="large-text code" rows="4" name="mluc_options[alipay_public_key]" placeholder="<?php echo esc_attr($pub_hint); ?>" autocomplete="new-password"></textarea>
+            <span class="description"><?php echo esc_html__('注意：填支付宝公钥（开放平台「接口加签方式」页查看），不是应用公钥。', 'moonlight-user-center'); ?></span>
+        </p>
+        <p class="description">
+            <?php
+            echo esc_html(sprintf(
+                /* translators: %s: notify URL */
+                __('在支付宝开放平台无需手动配置异步地址，本插件下单时自动携带 notify_url：%s（服务器需可公网访问）。', 'moonlight-user-center'),
+                MLUC_Gateway_Alipay::notify_url()
+            ));
+            ?>
+        </p>
+        <p class="description">
+            <?php
+            echo esc_html(sprintf(
+                /* translators: %s: 当前货币代码 */
+                __('支付宝仅支持 CNY 结算。当前货币代码为 %1$s，需改为 CNY 后前台才会出现支付宝选项。', 'moonlight-user-center'),
+                MLUC_Payments::currency_code()
+            ));
+            ?>
+        </p>
+        <?php
+    }
+
+    /**
+     * 取密钥尾 4 位（脱敏展示用）。
+     */
+    private static function key_tail($raw)
+    {
+        $body = preg_replace('/\s+/', '', (string) $raw);
+        return substr($body, -4);
+    }
+
+    /**
+     * License / Pro 设置：远程 License Server + 支付自动颁发等级。
+     */
+    public function render_license_field()
+    {
+        $server      = mluc_get_option('license_server_url', '');
+        $auto_levels = (array) mluc_get_option('license_auto_levels', array());
+        ?>
+        <p>
+            <label for="mluc_lic_server"><strong><?php esc_html_e('License Server 地址（可选）', 'moonlight-user-center'); ?></strong></label><br>
+            <input type="url" id="mluc_lic_server" class="large-text code" name="mluc_options[license_server_url]" value="<?php echo esc_attr($server); ?>" placeholder="https://license.example.com">
+            <span class="description"><?php echo esc_html__('留空 = 本地验证模式（License 存本站）。配置后走远程验证：结果缓存 12 小时；网络失败进入 7 天宽限期，期间 Pro 功能照常，绝不因 Server 故障影响 Free 功能。', 'moonlight-user-center'); ?></span>
+        </p>
+        <p>
+            <label for="mluc_lic_auto"><strong><?php esc_html_e('支付成功自动颁发 License 的会员等级', 'moonlight-user-center'); ?></strong></label><br>
+            <input type="text" id="mluc_lic_auto" class="regular-text code" name="mluc_options[license_auto_levels_csv]" value="<?php echo esc_attr(implode(',', $auto_levels)); ?>" placeholder="monthly,gold">
+            <span class="description"><?php echo esc_html__('填等级标识（后台「会员等级定义」中的 key），英文逗号分隔，留空 = 不自动颁发。用户购买这些等级并支付成功后，自动为其创建 / 续期 moonlight-user-center-pro License（到期时长跟随等级有效期）。', 'moonlight-user-center'); ?></span>
+        </p>
+        <?php
+    }
+
+    /**
+     * 邮件通知开关。
+     */
+    public function render_email_field()
+    {
+        ?>
+        <p>
+            <label>
+                <input type="checkbox" name="mluc_options[email_purchase_enabled]" value="1" <?php checked(!empty(mluc_get_option('email_purchase_enabled', 1))); ?>>
+                <?php esc_html_e('支付成功后向购买用户发送邮件', 'moonlight-user-center'); ?>
+            </label>
+        </p>
+        <p>
+            <label>
+                <input type="checkbox" name="mluc_options[email_license_reminder_enabled]" value="1" <?php checked(!empty(mluc_get_option('email_license_reminder_enabled', 1))); ?>>
+                <?php esc_html_e('License 到期前 7 天发送续费提醒邮件（每日检查一次）', 'moonlight-user-center'); ?>
+            </label>
+        </p>
+        <?php
+    }
+
+    /**
      * 清洗提交值。复选框未勾选时不提交，必须显式记为 0。
      */
     public function sanitize_options($input)
@@ -998,6 +1190,38 @@ class MLUC_Settings
         $options['stripe_pk']         = isset($input['stripe_pk']) ? sanitize_text_field(wp_unslash($input['stripe_pk'])) : '';
         $options['stripe_sk']         = isset($input['stripe_sk']) ? sanitize_text_field(wp_unslash($input['stripe_sk'])) : '';
         $options['stripe_webhook_secret'] = isset($input['stripe_webhook_secret']) ? sanitize_text_field(wp_unslash($input['stripe_webhook_secret'])) : '';
+
+        // 在线支付（支付宝）。密钥脱敏：留空 = 保持既有配置；绝不写空值覆盖。
+        $options['alipay_enabled'] = !empty($input['alipay_enabled']) ? 1 : 0;
+        $ali_mode = sanitize_key(wp_unslash($input['alipay_mode'] ?? 'sandbox'));
+        $options['alipay_mode']    = in_array($ali_mode, array('sandbox', 'production'), true) ? $ali_mode : 'sandbox';
+        $options['alipay_app_id']  = isset($input['alipay_app_id']) ? sanitize_text_field(wp_unslash($input['alipay_app_id'])) : '';
+        foreach (array('alipay_private_key', 'alipay_public_key') as $ali_key) {
+            $val = isset($input[$ali_key]) ? trim((string) wp_unslash($input[$ali_key])) : '';
+            if ('' !== $val) {
+                $options[$ali_key] = sanitize_textarea_field($val);
+            }
+        }
+
+        // License / Pro
+        $options['license_server_url'] = isset($input['license_server_url'])
+            ? esc_url_raw(trim((string) wp_unslash($input['license_server_url']))) : '';
+        $auto_csv = isset($input['license_auto_levels_csv']) ? (string) wp_unslash($input['license_auto_levels_csv']) : '';
+        $auto_levels = array();
+        foreach (explode(',', $auto_csv) as $lv) {
+            $lv = sanitize_key(trim($lv));
+            if ('' !== $lv) {
+                $auto_levels[] = $lv;
+            }
+        }
+        $options['license_auto_levels'] = array_values(array_unique($auto_levels));
+
+        // 邮件通知开关
+        $options['email_purchase_enabled']       = !empty($input['email_purchase_enabled']) ? 1 : 0;
+        $options['email_license_reminder_enabled'] = !empty($input['email_license_reminder_enabled']) ? 1 : 0;
+
+        // 支付调试日志（排查用）
+        $options['pay_debug_log'] = !empty($input['pay_debug_log']) ? 1 : 0;
 
         // 界面文案（数组，逐项清洗；空值回退默认由 mluc_ui_label 处理）
         $options['ui_labels'] = array();
