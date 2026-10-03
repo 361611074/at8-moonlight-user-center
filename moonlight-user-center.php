@@ -3,7 +3,7 @@
  * Plugin Name:      漫步白月光用户中心
  * Plugin URI:       https://www.at8.fun/
  * Description:       轻量、主题无关的 WordPress 用户中心，兼容 Astra 主题与 Elementor 页面构建器。提供前端登录、注册、找回密码、账户仪表盘、资料编辑、头像上传等功能。
- * Version:          2.0.0
+ * Version:          2.1.0
  * Author:           漫步白月光
  * Author URI:       https://www.at8.fun/
  * License:          GPL-2.0-or-later
@@ -19,10 +19,25 @@ if (!defined('ABSPATH')) {
     exit;
 }
 
-define('MLUC_VERSION', '2.0.0');
-define('MLUC_PLUGIN_DIR', plugin_dir_path(__FILE__));
-define('MLUC_PLUGIN_URL', plugin_dir_url(__FILE__));
-define('MLUC_PLUGIN_FILE', __FILE__);
+// 并入兼容标记（v3.0 Phase A）：本插件激活时置位，moonlight-shop 中的并入模块
+// （includes/user/ 的 MLUC_ 单例）据此整体让位，两插件共存时行为与现状完全一致。
+define('MLUC_LEGACY_ACTIVE', true);
+
+// 守卫式定义（Phase E 事故修复）：插件加载顺序由 active_plugins 决定，
+// 商城侧 v3.0.1 起只在旧插件缺席时才补齐这些常量；此处再加守卫，
+// 保证任何加载顺序下零警告、零冲突。
+if (!defined('MLUC_VERSION')) {
+    define('MLUC_VERSION', '2.1.0');
+}
+if (!defined('MLUC_PLUGIN_DIR')) {
+    define('MLUC_PLUGIN_DIR', plugin_dir_path(__FILE__));
+}
+if (!defined('MLUC_PLUGIN_URL')) {
+    define('MLUC_PLUGIN_URL', plugin_dir_url(__FILE__));
+}
+if (!defined('MLUC_PLUGIN_FILE')) {
+    define('MLUC_PLUGIN_FILE', __FILE__);
+}
 
 /**
  * 自动加载插件内部类。
@@ -81,6 +96,12 @@ add_action('plugins_loaded', function () {
     MLUC_Email_Notifications::get_instance();
     MLUC_System_Status::get_instance();
 
+    // 积分与余额（v2.1.0）：充值比例 / 兑换比例全部后台可自定义；
+    // 与 Moonlight Shop 同装时商城积分模块优先，本模块自动让位。
+    MLUC_Credit_UI::get_instance();
+    MLUC_Credit_Admin::get_instance();
+    MLUC_Checkin::get_instance();
+
     if (did_action('elementor/loaded')) {
         MLUC_Elementor::get_instance();
     }
@@ -89,4 +110,35 @@ add_action('plugins_loaded', function () {
      * 插件加载完成：Pro 扩展与第三方在此挂载（Pro 通过本钩子介入，Free 不反向依赖）。
      */
     do_action('mluc_loaded');
+});
+
+/* -----------------------------------------------------------------
+ * 退役提示（Phase E）：功能已并入 Moonlight Shop 2.2+。
+ * 仅当商城插件已激活时提示；数据全部保留，停用本插件后商城自动接管。
+ * ----------------------------------------------------------------- */
+add_action('admin_notices', function () {
+    if (!class_exists('MLSHOP_Order') || !current_user_can('manage_options')) {
+        return;
+    }
+    if (get_user_meta(get_current_user_id(), 'mluc_retire_notice_dismissed', true)) {
+        return;
+    }
+    $dismiss = wp_nonce_url(admin_url('admin-post.php?action=mluc_retire_notice_dismiss'), 'mluc_retire_notice_dismiss');
+    ?>
+    <div class="notice notice-info is-dismissible">
+        <p>
+            <?php esc_html_e('「用户中心」功能已并入 Moonlight Shop 2.2+：账户、会员、License 等由商城插件直接提供。建议在「迁移状态」页核对数据后停用本插件——停用不会删除任何数据。', 'moonlight-user-center'); ?>
+            <a class="button button-small" style="margin-left:8px;" href="<?php echo esc_url($dismiss); ?>"><?php esc_html_e('不再提示', 'moonlight-user-center'); ?></a>
+        </p>
+    </div>
+    <?php
+});
+
+add_action('admin_post_mluc_retire_notice_dismiss', function () {
+    if (!current_user_can('manage_options') || !check_admin_referer('mluc_retire_notice_dismiss')) {
+        wp_die(__('权限不足。', 'moonlight-user-center'), '', array('response' => 403));
+    }
+    update_user_meta(get_current_user_id(), 'mluc_retire_notice_dismissed', 1);
+    wp_safe_redirect(wp_get_referer() ?: admin_url('plugins.php'));
+    exit;
 });

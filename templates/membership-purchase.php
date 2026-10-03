@@ -99,7 +99,13 @@ if (!defined('ABSPATH')) {
                         ?>
                         <tr>
                             <td><?php echo esc_html($o['title']); ?></td>
-                            <td><?php echo esc_html(MLUC_Membership::get_level_label($o['level'])); ?></td>
+                            <td><?php echo esc_html('recharge' === ($o['type'] ?? '')
+                                ? sprintf(
+                                    __('%1$s充值（%2$s）', 'moonlight-user-center'),
+                                    function_exists('mluc_get_credit_name') ? mluc_get_credit_name() : __('积分', 'moonlight-user-center'),
+                                    number_format((float) ($o['credit'] ?? 0), 0)
+                                )
+                                : MLUC_Membership::get_level_label($o['level'])); ?></td>
                             <td><?php echo esc_html($symbol . number_format($o['price'], 2)); ?></td>
                             <td><span class="mluc-pill mluc-pill-<?php echo esc_attr($o['status']); ?>"><?php echo esc_html($st); ?></span></td>
                             <td><?php echo esc_html($o['date']); ?></td>
@@ -181,6 +187,8 @@ if (!defined('ABSPATH')) {
                     window.location.href = res.data.redirect;
                 } else {
                     say(res.message);
+                    // 余额 / 积分等即时网关：支付已完成，刷新展示新等级。
+                    if (res.data && res.data.reload) { setTimeout(function () { window.location.reload(); }, 1200); }
                 }
             })
             .catch(function () {

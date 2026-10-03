@@ -57,10 +57,15 @@ class MLUC_Account_Orders
         foreach ($q as $oid) {
             $oid  = (int) $oid;
             $type = (string) get_post_meta($oid, '_mluc_pay_type', true);
-            $item = '';
             if ('paywall' === $type) {
                 $pw_post = (int) get_post_meta($oid, '_mluc_pay_post', true);
                 $item    = $pw_post ? get_the_title($pw_post) : __('付费内容', 'moonlight-user-center');
+            } elseif ('recharge' === $type) {
+                $item = sprintf(
+                    __('%1$s充值（%2$s）', 'moonlight-user-center'),
+                    function_exists('mluc_get_credit_name') ? mluc_get_credit_name() : __('积分', 'moonlight-user-center'),
+                    number_format((float) get_post_meta($oid, '_mluc_pay_credit', true), 0)
+                );
             } else {
                 $level = (string) get_post_meta($oid, '_mluc_pay_level', true);
                 $item  = class_exists('MLUC_Membership') ? MLUC_Membership::get_level_label($level) : $level;

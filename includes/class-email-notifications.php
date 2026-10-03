@@ -73,6 +73,14 @@ class MLUC_Email_Notifications
         $is_pw     = 0 === strpos((string) $level, 'paywall:');
         if ($is_pw) {
             $item = get_the_title((int) substr((string) $level, strlen('paywall:')));
+        } elseif ('recharge' === (string) $level) {
+            // 积分充值订单：展示充值积分数而非会员等级名。
+            $credit = (float) get_post_meta($order_id, '_mluc_pay_credit', true);
+            $item   = sprintf(
+                __('%1$s充值（%2$s）', 'moonlight-user-center'),
+                function_exists('mluc_get_credit_name') ? mluc_get_credit_name() : __('积分', 'moonlight-user-center'),
+                number_format($credit, 0)
+            );
         } else {
             $item = class_exists('MLUC_Membership') ? MLUC_Membership::get_level_label((string) $level) : (string) $level;
         }
