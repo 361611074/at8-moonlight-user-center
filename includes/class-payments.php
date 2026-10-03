@@ -464,12 +464,12 @@ class MLUC_Payments
             // 网关侧发起失败：订单作废，避免遗留孤儿 pending 单。
             update_post_meta($order_id, '_mluc_pay_status', 'cancelled');
             MLUC_Payment_Log::write($order_id, $gw, 'order', 'fail', array('message' => $result->get_error_message()));
-            mluc_send_json(false, $result->get_error_message());
+            mluc_send_json(false, $result->get_error_message(), array('order_id' => (int) $order_id));
         }
         MLUC_Payment_Log::write($order_id, $gw, 'order', 'pending');
 
         $data = array('order_id' => (int) $order_id);
-        foreach (array('flow', 'redirect', 'instructions') as $key) {
+        foreach (array('flow', 'redirect', 'instructions', 'reload') as $key) {
             if (isset($result[$key])) {
                 $data[$key] = $result[$key];
             }

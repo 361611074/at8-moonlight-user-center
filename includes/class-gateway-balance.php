@@ -52,6 +52,10 @@ class MLUC_Gateway_Balance implements MLUC_Payment_Gateway_Interface
         if ($order_id <= 0 || !$user_id || $total <= 0) {
             return new WP_Error('mluc_balance_order', __('本地订单无效。', 'moonlight-user-center'));
         }
+        // 状态守卫：仅 pending 订单可扣款（防复用订单 / 并发重复点击造成二次扣费）。
+        if ('pending' !== (string) get_post_meta($order_id, '_mluc_pay_status', true)) {
+            return new WP_Error('mluc_balance_status', __('訂單狀態已變更，請刷新頁面。', 'moonlight-user-center'));
+        }
 
         // 原子扣减：SQL 条件保证余额充足才扣，并发请求只有一次成功。
         if (false === MLUC_Wallet::spend($user_id, $total, sprintf(__('余额支付订单 #%d', 'moonlight-user-center'), $order_id))) {

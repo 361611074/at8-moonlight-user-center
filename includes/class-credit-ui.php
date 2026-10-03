@@ -88,7 +88,7 @@ class MLUC_Credit_UI
             'packages'       => mluc_get_recharge_packages(),
             'rate'           => mluc_get_credit_rate(),
             'limits'         => mluc_get_recharge_custom_limits(),
-            'exchange_on'    => !empty(mluc_get_option('credit_exchange_enabled', 0)),
+            'exchange_on'    => !empty(mluc_get_option('credit_exchange_enabled', 0)) && mluc_balance_enabled(),
             'exchange_rate'  => mluc_get_credit_exchange_rate(),
             'exchange_min'   => max(1, (int) mluc_get_option('credit_exchange_min', 100)),
             'gateways'       => $gateways,
@@ -195,7 +195,7 @@ class MLUC_Credit_UI
         if (is_wp_error($result)) {
             update_post_meta($order_id, '_mluc_pay_status', 'cancelled');
             MLUC_Payment_Log::write($order_id, $gateway_id, 'order', 'fail', array('message' => $result->get_error_message()));
-            mluc_send_json(false, $result->get_error_message());
+            mluc_send_json(false, $result->get_error_message(), array('order_id' => (int) $order_id));
         }
         MLUC_Payment_Log::write($order_id, $gateway_id, 'order', 'pending');
 

@@ -191,26 +191,41 @@ function mluc_get_credit_exchange_rate()
 }
 
 /**
- * 充值套餐：后台每行一条「积分|金额」（例：100|10），留空回退内置默认。
+ * 充值套餐：后台「积分|金额」文本或已清洗的数组（设置页保存后为数组）。
+ * 留空 / 无合法行时回退内置默认。
  *
  * @return array<int,array{credit:float,price:float}>
  */
 function mluc_get_recharge_packages()
 {
-    $raw   = (string) mluc_get_option('credit_packages', '');
-    $lines = preg_split('/\r\n|\r|\n/', $raw);
+    $saved = mluc_get_option('credit_packages', array());
     $out   = array();
-    if (is_array($lines)) {
-        foreach ($lines as $line) {
-            $line = trim((string) $line);
-            if ('' === $line || false === strpos($line, '|')) {
-                continue;
+    if (is_array($saved)) {
+        // 设置页保存后的结构：[ ['credit' => 100, 'price' => 10], … ]
+        foreach ($saved as $pkg) {
+            if (is_array($pkg) && isset($pkg['credit'], $pkg['price'])) {
+                $credit = (float) $pkg['credit'];
+                $price  = (float) $pkg['price'];
+                if ($credit > 0 && $price > 0) {
+                    $out[] = array('credit' => $credit, 'price' => $price);
+                }
             }
-            list($credit, $price) = array_map('trim', explode('|', $line, 2));
-            $credit = (float) $credit;
-            $price  = (float) $price;
-            if ($credit > 0 && $price > 0) {
-                $out[] = array('credit' => $credit, 'price' => $price);
+        }
+    } else {
+        // 兼容文本存储（每行一条「积分|金额」）。
+        $lines = preg_split('/\r\n|\r|\n/', (string) $saved);
+        if (is_array($lines)) {
+            foreach ($lines as $line) {
+                $line = trim((string) $line);
+                if ('' === $line || false === strpos($line, '|')) {
+                    continue;
+                }
+                list($credit, $price) = array_map('trim', explode('|', $line, 2));
+                $credit = (float) $credit;
+                $price  = (float) $price;
+                if ($credit > 0 && $price > 0) {
+                    $out[] = array('credit' => $credit, 'price' => $price);
+                }
             }
         }
     }

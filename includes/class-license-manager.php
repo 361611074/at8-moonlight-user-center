@@ -167,8 +167,8 @@ class MLUC_License_Manager
         if (empty($auto_levels) || !in_array((string) $level, array_map('strval', $auto_levels), true)) {
             return;
         }
-        // 只统计已完单的会员购买（付费墙订单的 level 参数为 paywall:xx，天然不匹配）。
-        if (0 === strpos((string) $level, 'paywall:')) {
+        // 只统计已完单的会员购买（付费墙订单 level 为 paywall:xx、充值订单为 recharge，均不颁发 License）。
+        if (0 === strpos((string) $level, 'paywall:') || 'recharge' === (string) $level) {
             return;
         }
         $product = apply_filters('mluc_order_license_product', self::PRODUCT_PRO, $order_id, $level);

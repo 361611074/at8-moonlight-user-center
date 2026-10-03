@@ -983,7 +983,7 @@ class MLUC_Paywall
             // 网关侧发起失败：订单作废，避免遗留孤儿 pending 单。
             update_post_meta($order_id, '_mluc_pay_status', 'cancelled');
             MLUC_Payment_Log::write($order_id, $gw, 'order', 'fail', array('message' => $result->get_error_message()));
-            mluc_send_json(false, $result->get_error_message());
+            mluc_send_json(false, $result->get_error_message(), array('order_id' => (int) $order_id));
         }
         MLUC_Payment_Log::write($order_id, $gw, 'order', 'pending');
 
@@ -991,6 +991,10 @@ class MLUC_Paywall
         $data = array('order_id' => (int) $order_id, 'flow' => $flow);
         if (isset($result['redirect'])) {
             $data['redirect'] = $result['redirect'];
+        }
+        // 余额 / 积分等即时网关返回 reload=1：前端支付完成后自动刷新展示解锁内容。
+        if (isset($result['reload'])) {
+            $data['reload'] = $result['reload'];
         }
         if ('paypal' === $flow) {
             mluc_send_json(true, mluc_ui_label('buy_order_paypal', 'Order created. Please complete the PayPal payment.'), $data);
