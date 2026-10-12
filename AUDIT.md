@@ -130,7 +130,7 @@ if ('stripe' === $gw) { $session = MLUC_Stripe::create_session(...); ... }
 
 ## 7. Free / Pro 拆分方案
 
-- **形态**：本仓库内新增 `pro/moonlight-user-center-pro/` 子目录 = 独立 WordPress 插件（Free Core + Pro Add-on，符合 §4「Free 插件 + Pro 插件」，避免双仓库阶段重复建设）。
+- **形态**：本仓库内新增 `pro/moonlight-user-center-pro/` 子目录 = 独立 WordPress 插件（Free Core + Pro Add-on，符合 §4「Free 插件 + Pro 插件」）。**后续已将该 Pro 子目录拆分至独立仓库 [moonlight-user-center-pro](https://github.com/361611074/moonlight-user-center-pro)，本仓库现仅保留 Free 核心。**
 - **依赖方向**：Pro → Free 单向。Pro 仅通过 Free 的公开钩子与 `MLUC_License_Manager` 公共 API 交互；Free 对 Pro **零硬依赖**（所有 Pro 检测用 `class_exists` / `function_exists`，Pro 缺失/停用时 Free 全功能正常，符合 §40/§41/§42）。
 - **Pro 授权门禁**：Pro 插件自身不判断 `is_pro`，统一走 `MLUC_License_Manager::is_product_active('moonlight-user-center-pro')`（§37：不散落 if 判断）。
 - **Pro 首发功能**（真实可用、规模克制）：① Elementor「会员状态卡」组件；② 后台订单 CSV 导出。均为站点级增强，不触碰 Free 核心链路。

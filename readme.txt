@@ -33,7 +33,7 @@ Author URI: https://www.at8.fun/
 * 线下转账流程保持不变；双插件同装走商城支付时本流程不启用
 
 == License / Pro ==
-* 本插件为 Free 核心；Pro 扩展（pro/moonlight-user-center-pro/）作为独立插件安装，提供 License 激活管理、Elementor 会员状态卡、订单 CSV 导出
+* 本插件为 Free 核心；Pro 扩展（独立仓库 https://github.com/361611074/moonlight-user-center-pro）作为独立插件安装，提供 License 激活管理、Elementor 会员状态卡、订单 CSV 导出
 * 后台「用户中心 → License 管理」手工签发 / 撤销 / 续期 License
 * 「设置 → License / Pro」可配置支付成功自动颁发 License 的会员等级与远程 License Server 地址（可选；远程验证缓存 12h，断网宽限 7 天，Server 故障不影响 Free）
 * 订单与 License 严格分离：续费复用同一 License 叠加有效期；退款自动撤销关联 License

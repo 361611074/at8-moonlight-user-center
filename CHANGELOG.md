@@ -52,7 +52,7 @@ Free + Pro 商业化体系第一版：统一支付抽象、支付宝网关、Lic
 - **后台**：新增「License 管理」（签发/列表/搜索/撤销/恢复/续期）与「系统状态」（环境/网关/回调地址/License 概览）两个子页面；「邮件通知」设置区（购买成功邮件、License 到期前 7 天提醒，每日 cron）。
 - **Free/Pro 扩展点**：`mluc_loaded`（加载完成）、`mluc_elementor_widgets`（Elementor 组件注册过滤器）、`mluc_order_refunded`、`mluc_license_*` 系列动作钩子；`MLUC_PayPal` 新增对账查询辅助方法。
 
-### 新增（Pro 插件 `pro/moonlight-user-center-pro/`）
+### 新增（Pro 插件 moonlight-user-center-pro，独立仓库）
 
 - 独立 WordPress 插件（`MLUCP_` 前缀，文本域 `moonlight-user-center-pro`），强依赖 Free 版，依赖方向 Pro → Free 单向。
 - **License 客户端**：后台「用户中心 → License（Pro）」激活/停用/状态展示；未激活或停用时 Pro 功能整体关闭。

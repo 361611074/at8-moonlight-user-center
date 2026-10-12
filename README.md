@@ -11,10 +11,11 @@
 ## 产品架构
 
 ```text
-moonlight-user-center (Free 核心)
+moonlight-user-center (Free 核心，本仓库)
 │   用户系统 / 账户中心 / Elementor / 统一支付抽象 / 订单 / License 管理
 │
-└── pro/moonlight-user-center-pro (Pro 扩展，独立插件)
+└── moonlight-user-center-pro (Pro 扩展，独立仓库)
+        https://github.com/361611074/moonlight-user-center-pro
         License 激活管理 / Elementor 会员状态卡 / 订单 CSV 导出
         （依赖方向 Pro → Free 单向，Pro 缺失或失效不影响 Free 任何功能）
 ```
@@ -52,8 +53,8 @@ moonlight-user-center (Free 核心)
 
 ## 安装
 
-1. 将本仓库内容上传至 `wp-content/plugins/moonlight-user-center/`（Pro 需另将 `pro/moonlight-user-center-pro/` 上传为独立插件）；
-2. 在 WordPress 后台「插件」中启用「漫步白月光用户中心」（及可选的 Pro）；
+1. 将本仓库内容上传至 `wp-content/plugins/moonlight-user-center/`；
+2. 在 WordPress 后台「插件」中启用「漫步白月光用户中心」；如需 Pro 功能，从独立仓库 [moonlight-user-center-pro](https://github.com/361611074/moonlight-user-center-pro) 安装并启用「漫步白月光用户中心 Pro」；
 3. 进入「用户中心 → 设置」配置货币、支付网关与 License；「系统状态」可一键体检。
 
 ## 文档
@@ -62,7 +63,7 @@ moonlight-user-center (Free 核心)
 - [SECURITY-CHECK.md](SECURITY-CHECK.md) — Phase 8 安全审计清单
 - [TEST-PLAN.md](TEST-PLAN.md) — Phase 10 回归测试计划
 - [CHANGELOG.md](CHANGELOG.md) — 更新日志
-- [Pro 插件说明](pro/moonlight-user-center-pro/README.md)
+- [Pro 插件说明](https://github.com/361611074/moonlight-user-center-pro) （独立仓库）
 
 ## 兼容性
 
