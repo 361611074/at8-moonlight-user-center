@@ -2,9 +2,9 @@
 /**
  * Account dashboard: overview.
  *
- * Overridden by: wp-content/themes/<theme>/moonlight-user-center/account-overview.php
+ * Overridden by: wp-content/themes/<theme>/at8-moonlight-user-center/account-overview.php
  *
- * @package Moonlight_User_Center
+ * @package AT8_Moonlight_User_Center
  *
  * @var array $args {
  *     @type WP_User $user          Current user.
@@ -27,38 +27,38 @@ if ( ! $user instanceof WP_User ) {
 	return;
 }
 
-$mluc_registered = $user->user_registered
+$at8_mluc_registered = $user->user_registered
 	? mysql2date( (string) get_option( 'date_format' ), $user->user_registered, true )
 	: '';
 ?>
-<div class="mluc-card mluc-overview">
+<div class="at8-mluc-card at8-mluc-overview">
 
-	<div class="mluc-overview-header">
+	<div class="at8-mluc-overview-header">
 		<?php if ( ! empty( $avatar_url ) ) : ?>
-			<img class="mluc-overview-avatar" src="<?php echo esc_url( $avatar_url ); ?>"
+			<img class="at8-mluc-overview-avatar" src="<?php echo esc_url( $avatar_url ); ?>"
 				width="96" height="96" loading="lazy" decoding="async"
 				alt="<?php echo esc_attr( $user->display_name ); ?>" />
 		<?php endif; ?>
 
-		<div class="mluc-overview-identity">
-			<h3 class="mluc-card-title"><?php echo esc_html( $user->display_name ); ?></h3>
+		<div class="at8-mluc-overview-identity">
+			<h3 class="at8-mluc-card-title"><?php echo esc_html( $user->display_name ); ?></h3>
 			<?php if ( ! empty( $user->user_email ) ) : ?>
-				<p class="mluc-overview-email"><?php echo esc_html( $user->user_email ); ?></p>
+				<p class="at8-mluc-overview-email"><?php echo esc_html( $user->user_email ); ?></p>
 			<?php endif; ?>
 		</div>
 	</div>
 
-	<ul class="mluc-overview-stats">
-		<?php if ( '' !== $mluc_registered ) : ?>
+	<ul class="at8-mluc-overview-stats">
+		<?php if ( '' !== $at8_mluc_registered ) : ?>
 			<li>
-				<span class="mluc-stat-label"><?php esc_html_e( 'Member since', 'moonlight-user-center' ); ?></span>
-				<span class="mluc-stat-value"><?php echo esc_html( $mluc_registered ); ?></span>
+				<span class="at8-mluc-stat-label"><?php esc_html_e( 'Member since', 'at8-moonlight-user-center' ); ?></span>
+				<span class="at8-mluc-stat-value"><?php echo esc_html( $at8_mluc_registered ); ?></span>
 			</li>
 		<?php endif; ?>
 
 		<li>
-			<span class="mluc-stat-label"><?php esc_html_e( 'Approved comments', 'moonlight-user-center' ); ?></span>
-			<span class="mluc-stat-value"><?php echo esc_html( number_format_i18n( (int) $comment_count ) ); ?></span>
+			<span class="at8-mluc-stat-label"><?php esc_html_e( 'Approved comments', 'at8-moonlight-user-center' ); ?></span>
+			<span class="at8-mluc-stat-value"><?php echo esc_html( number_format_i18n( (int) $comment_count ) ); ?></span>
 		</li>
 	</ul>
 
@@ -70,15 +70,15 @@ $mluc_registered = $user->user_registered
 	 *
 	 * @param WP_User $user Current user.
 	 */
-	do_action( 'mluc_account_overview_after', $user );
+	do_action( 'at8_mluc_account_overview_after', $user );
 	?>
 
-	<p class="mluc-actions">
-		<a class="mluc-button mluc-button--secondary" href="<?php echo esc_url( $profile_url ); ?>">
-			<?php esc_html_e( 'Edit profile', 'moonlight-user-center' ); ?>
+	<p class="at8-mluc-actions">
+		<a class="at8-mluc-button at8-mluc-button--secondary" href="<?php echo esc_url( $profile_url ); ?>">
+			<?php esc_html_e( 'Edit profile', 'at8-moonlight-user-center' ); ?>
 		</a>
-		<a class="mluc-button mluc-button--link" href="<?php echo esc_url( $logout_url ); ?>">
-			<?php esc_html_e( 'Log Out', 'moonlight-user-center' ); ?>
+		<a class="at8-mluc-button at8-mluc-button--link" href="<?php echo esc_url( $logout_url ); ?>">
+			<?php esc_html_e( 'Log Out', 'at8-moonlight-user-center' ); ?>
 		</a>
 	</p>
 </div>

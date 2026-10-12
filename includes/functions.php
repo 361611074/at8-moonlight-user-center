@@ -2,7 +2,7 @@
 /**
  * Shared helper functions.
  *
- * @package Moonlight_User_Center
+ * @package AT8_Moonlight_User_Center
  */
 
 defined( 'ABSPATH' ) || exit;
@@ -14,8 +14,8 @@ defined( 'ABSPATH' ) || exit;
  * @param mixed  $default Value returned when the key is absent.
  * @return mixed Setting value or the supplied default.
  */
-function mluc_get_option( $key, $default = '' ) {
-	$options = get_option( 'mluc_options', array() );
+function at8_mluc_get_option( $key, $default = '' ) {
+	$options = get_option( 'at8_mluc_options', array() );
 
 	if ( ! is_array( $options ) || ! isset( $options[ $key ] ) ) {
 		return $default;
@@ -34,7 +34,7 @@ function mluc_get_option( $key, $default = '' ) {
  * @param string $default Already-translated default text.
  * @return string
  */
-function mluc_ui_label( $key, $default = '' ) {
+function at8_mluc_ui_label( $key, $default = '' ) {
 	/**
 	 * Filters a front-end interface label.
 	 *
@@ -43,7 +43,7 @@ function mluc_ui_label( $key, $default = '' ) {
 	 * @param string $default Already-translated default text.
 	 * @param string $key     Label key.
 	 */
-	return (string) apply_filters( 'mluc_ui_label', $default, $key );
+	return (string) apply_filters( 'at8_mluc_ui_label', $default, $key );
 }
 
 /**
@@ -53,8 +53,8 @@ function mluc_ui_label( $key, $default = '' ) {
  * @param string $fallback   URL used when no page is configured.
  * @return string
  */
-function mluc_page_url( $option_key, $fallback = '' ) {
-	$page_id = absint( mluc_get_option( $option_key, 0 ) );
+function at8_mluc_page_url( $option_key, $fallback = '' ) {
+	$page_id = absint( at8_mluc_get_option( $option_key, 0 ) );
 
 	if ( $page_id && 'page' === get_post_type( $page_id ) && 'publish' === get_post_status( $page_id ) ) {
 		$permalink = get_permalink( $page_id );
@@ -71,8 +71,8 @@ function mluc_page_url( $option_key, $fallback = '' ) {
  *
  * @return string
  */
-function mluc_get_account_url() {
-	$url = mluc_page_url( 'account_page_id', '' );
+function at8_mluc_get_account_url() {
+	$url = at8_mluc_page_url( 'account_page_id', '' );
 
 	if ( $url ) {
 		return $url;
@@ -87,7 +87,7 @@ function mluc_get_account_url() {
 	 *
 	 * @param string $fallback Default fallback URL.
 	 */
-	return apply_filters( 'mluc_default_account_url', $fallback );
+	return apply_filters( 'at8_mluc_default_account_url', $fallback );
 }
 
 /**
@@ -96,9 +96,9 @@ function mluc_get_account_url() {
  * @param string $redirect Optional same-site URL to return to after login.
  * @return string
  */
-function mluc_get_login_url( $redirect = '' ) {
-	$redirect = $redirect ? $redirect : mluc_get_account_url();
-	$url      = mluc_page_url( 'login_page_id', '' );
+function at8_mluc_get_login_url( $redirect = '' ) {
+	$redirect = $redirect ? $redirect : at8_mluc_get_account_url();
+	$url      = at8_mluc_page_url( 'login_page_id', '' );
 
 	if ( $url ) {
 		return add_query_arg( 'redirect_to', rawurlencode( $redirect ), $url );
@@ -112,8 +112,8 @@ function mluc_get_login_url( $redirect = '' ) {
  *
  * @return string
  */
-function mluc_get_register_url() {
-	$url = mluc_page_url( 'register_page_id', '' );
+function at8_mluc_get_register_url() {
+	$url = at8_mluc_page_url( 'register_page_id', '' );
 
 	if ( $url ) {
 		return $url;
@@ -127,17 +127,17 @@ function mluc_get_register_url() {
  *
  * @return string
  */
-function mluc_get_lostpassword_url() {
-	$url = mluc_page_url( 'lostpassword_page_id', '' );
+function at8_mluc_get_lostpassword_url() {
+	$url = at8_mluc_page_url( 'lostpassword_page_id', '' );
 
 	if ( $url ) {
 		return $url;
 	}
 
-	$login_url = mluc_page_url( 'login_page_id', '' );
+	$login_url = at8_mluc_page_url( 'login_page_id', '' );
 
 	if ( $login_url ) {
-		return add_query_arg( 'mluc_view', 'lostpassword', $login_url );
+		return add_query_arg( 'at8_mluc_view', 'lostpassword', $login_url );
 	}
 
 	return wp_lostpassword_url();
@@ -147,7 +147,7 @@ function mluc_get_lostpassword_url() {
  * Render a plugin template.
  *
  * Themes may override any template by creating
- * `wp-content/themes/<theme>/moonlight-user-center/<slug>.php`.
+ * `wp-content/themes/<theme>/at8-moonlight-user-center/<slug>.php`.
  *
  * The template receives the arguments array as `$args` and must read its values
  * from there, for example `$args['user']`.
@@ -156,11 +156,11 @@ function mluc_get_lostpassword_url() {
  * @param array  $args Variables exposed to the template.
  * @return void
  */
-function mluc_get_template( $slug, $args = array() ) {
+function at8_mluc_get_template( $slug, $args = array() ) {
 	$slug = sanitize_file_name( $slug );
 
-	$theme_file  = trailingslashit( get_stylesheet_directory() ) . 'moonlight-user-center/' . $slug . '.php';
-	$plugin_file = MLUC_PLUGIN_DIR . 'templates/' . $slug . '.php';
+	$theme_file  = trailingslashit( get_stylesheet_directory() ) . 'at8-moonlight-user-center/' . $slug . '.php';
+	$plugin_file = AT8_MLUC_PLUGIN_DIR . 'templates/' . $slug . '.php';
 
 	$file = file_exists( $theme_file ) ? $theme_file : $plugin_file;
 
@@ -176,7 +176,7 @@ function mluc_get_template( $slug, $args = array() ) {
 	 * @param array  $args Template arguments.
 	 * @param string $slug Template slug.
 	 */
-	$args = apply_filters( 'mluc_template_args', $args, $slug );
+	$args = apply_filters( 'at8_mluc_template_args', $args, $slug );
 	$args = is_array( $args ) ? $args : array();
 
 	include $file;
@@ -190,7 +190,7 @@ function mluc_get_template( $slug, $args = array() ) {
  * @param array  $data    Optional extra payload.
  * @return void
  */
-function mluc_send_json( $success, $message, $data = array() ) {
+function at8_mluc_send_json( $success, $message, $data = array() ) {
 	wp_send_json(
 		array(
 			'success' => (bool) $success,
@@ -206,7 +206,7 @@ function mluc_send_json( $success, $message, $data = array() ) {
  * @param int $user_id User ID.
  * @return int
  */
-function mluc_count_user_comments( $user_id ) {
+function at8_mluc_count_user_comments( $user_id ) {
 	$count = get_comments(
 		array(
 			'user_id' => absint( $user_id ),
@@ -226,19 +226,19 @@ function mluc_count_user_comments( $user_id ) {
  * @param WP_Error $error Error object.
  * @return string
  */
-function mluc_translate_wp_error( $error ) {
+function at8_mluc_translate_wp_error( $error ) {
 	if ( ! is_wp_error( $error ) ) {
 		return '';
 	}
 
 	$map = array(
-		'invalid_username'   => __( 'That username does not exist.', 'moonlight-user-center' ),
-		'incorrect_password' => __( 'Incorrect username or password.', 'moonlight-user-center' ),
-		'empty_username'     => __( 'Please enter a username.', 'moonlight-user-center' ),
-		'empty_password'     => __( 'Please enter a password.', 'moonlight-user-center' ),
-		'existing_user_login' => __( 'That username is already taken.', 'moonlight-user-center' ),
-		'existing_user_email' => __( 'That email address is already registered.', 'moonlight-user-center' ),
-		'invalid_email'      => __( 'That email address is not valid.', 'moonlight-user-center' ),
+		'invalid_username'   => __( 'That username does not exist.', 'at8-moonlight-user-center' ),
+		'incorrect_password' => __( 'Incorrect username or password.', 'at8-moonlight-user-center' ),
+		'empty_username'     => __( 'Please enter a username.', 'at8-moonlight-user-center' ),
+		'empty_password'     => __( 'Please enter a password.', 'at8-moonlight-user-center' ),
+		'existing_user_login' => __( 'That username is already taken.', 'at8-moonlight-user-center' ),
+		'existing_user_email' => __( 'That email address is already registered.', 'at8-moonlight-user-center' ),
+		'invalid_email'      => __( 'That email address is not valid.', 'at8-moonlight-user-center' ),
 	);
 
 	$code = $error->get_error_code();
@@ -254,13 +254,13 @@ function mluc_translate_wp_error( $error ) {
  *
  * @return array<string, string> Meta key => field label.
  */
-function mluc_meta_labels() {
+function at8_mluc_meta_labels() {
 	return array(
-		'mluc_phone'                => __( 'Phone number', 'moonlight-user-center' ),
-		'mluc_avatar_url'           => __( 'Selected avatar URL', 'moonlight-user-center' ),
-		'mluc_avatar_attachment_id' => __( 'Selected avatar media ID', 'moonlight-user-center' ),
-		'mluc_avatar_type'          => __( 'Avatar source', 'moonlight-user-center' ),
-		'mluc_last_login'           => __( 'Last login date', 'moonlight-user-center' ),
+		'at8_mluc_phone'                => __( 'Phone number', 'at8-moonlight-user-center' ),
+		'at8_mluc_avatar_url'           => __( 'Selected avatar URL', 'at8-moonlight-user-center' ),
+		'at8_mluc_avatar_attachment_id' => __( 'Selected avatar media ID', 'at8-moonlight-user-center' ),
+		'at8_mluc_avatar_type'          => __( 'Avatar source', 'at8-moonlight-user-center' ),
+		'at8_mluc_last_login'           => __( 'Last login date', 'at8-moonlight-user-center' ),
 	);
 }
 
@@ -269,6 +269,6 @@ function mluc_meta_labels() {
  *
  * @return string[] Meta keys.
  */
-function mluc_user_meta_keys() {
-	return array_keys( mluc_meta_labels() );
+function at8_mluc_user_meta_keys() {
+	return array_keys( at8_mluc_meta_labels() );
 }

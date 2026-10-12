@@ -7,7 +7,7 @@
  * require confirmation through the WordPress admin, and exposing them on the
  * front end would be a privilege-escalation risk.
  *
- * @package Moonlight_User_Center
+ * @package AT8_Moonlight_User_Center
  */
 
 defined( 'ABSPATH' ) || exit;
@@ -15,14 +15,14 @@ defined( 'ABSPATH' ) || exit;
 /**
  * Profile update handling.
  */
-class MLUC_Profile {
+class AT8_MLUC_Profile {
 
 	/**
 	 * Nonce action for the profile form.
 	 *
 	 * @var string
 	 */
-	const NONCE_ACTION = 'mluc_update_profile';
+	const NONCE_ACTION = 'at8_mluc_update_profile';
 
 	/**
 	 * Maximum length accepted for the phone number.
@@ -34,14 +34,14 @@ class MLUC_Profile {
 	/**
 	 * Singleton instance.
 	 *
-	 * @var MLUC_Profile|null
+	 * @var AT8_MLUC_Profile|null
 	 */
 	private static $instance = null;
 
 	/**
 	 * Retrieve the singleton.
 	 *
-	 * @return MLUC_Profile
+	 * @return AT8_MLUC_Profile
 	 */
 	public static function get_instance() {
 		if ( null === self::$instance ) {
@@ -55,7 +55,7 @@ class MLUC_Profile {
 	 * Register hooks.
 	 */
 	private function __construct() {
-		add_action( 'wp_ajax_mluc_update_profile', array( $this, 'handle_update' ) );
+		add_action( 'wp_ajax_at8_mluc_update_profile', array( $this, 'handle_update' ) );
 	}
 
 	/**
@@ -64,11 +64,11 @@ class MLUC_Profile {
 	 * @return void
 	 */
 	public function handle_update() {
-		MLUC_Security::require_ajax_nonce( self::NONCE_ACTION );
-		MLUC_Security::require_login();
+		AT8_MLUC_Security::require_ajax_nonce( self::NONCE_ACTION );
+		AT8_MLUC_Security::require_login();
 
-		if ( ! MLUC_Security::allow( 'profile' ) ) {
-			MLUC_Security::reject_throttled();
+		if ( ! AT8_MLUC_Security::allow( 'profile' ) ) {
+			AT8_MLUC_Security::reject_throttled();
 		}
 
 		$user_id = get_current_user_id();
@@ -85,16 +85,16 @@ class MLUC_Profile {
 		$nickname     = trim( $nickname );
 
 		if ( '' === $display_name ) {
-			mluc_send_json( false, __( 'Please enter a display name.', 'moonlight-user-center' ) );
+			at8_mluc_send_json( false, __( 'Please enter a display name.', 'at8-moonlight-user-center' ) );
 		}
 
 		// Mirror the validation WordPress core applies to comment author names.
 		if ( strlen( $display_name ) > 100 ) {
-			mluc_send_json( false, __( 'That display name is too long.', 'moonlight-user-center' ) );
+			at8_mluc_send_json( false, __( 'That display name is too long.', 'at8-moonlight-user-center' ) );
 		}
 
 		if ( preg_match( '/[<>%\{\}\[\]]/', $display_name ) ) {
-			mluc_send_json( false, __( 'That display name contains characters that are not allowed.', 'moonlight-user-center' ) );
+			at8_mluc_send_json( false, __( 'That display name contains characters that are not allowed.', 'at8-moonlight-user-center' ) );
 		}
 
 		if ( '' === $nickname ) {
@@ -102,15 +102,15 @@ class MLUC_Profile {
 		}
 
 		if ( strlen( $nickname ) > 100 || preg_match( '/[<>%\{\}\[\]]/', $nickname ) ) {
-			mluc_send_json( false, __( 'That nickname contains characters that are not allowed.', 'moonlight-user-center' ) );
+			at8_mluc_send_json( false, __( 'That nickname contains characters that are not allowed.', 'at8-moonlight-user-center' ) );
 		}
 
 		if ( '' !== $user_url && ! wp_http_validate_url( $user_url ) ) {
-			mluc_send_json( false, __( 'That website address is not valid.', 'moonlight-user-center' ) );
+			at8_mluc_send_json( false, __( 'That website address is not valid.', 'at8-moonlight-user-center' ) );
 		}
 
 		if ( '' !== $phone && strlen( $phone ) > self::PHONE_MAX_LENGTH ) {
-			mluc_send_json( false, __( 'That phone number is too long.', 'moonlight-user-center' ) );
+			at8_mluc_send_json( false, __( 'That phone number is too long.', 'at8-moonlight-user-center' ) );
 		}
 
 		$result = wp_update_user(
@@ -126,13 +126,13 @@ class MLUC_Profile {
 		);
 
 		if ( is_wp_error( $result ) ) {
-			mluc_send_json( false, mluc_translate_wp_error( $result ) );
+			at8_mluc_send_json( false, at8_mluc_translate_wp_error( $result ) );
 		}
 
 		if ( '' === $phone ) {
-			delete_user_meta( $user_id, 'mluc_phone' );
+			delete_user_meta( $user_id, 'at8_mluc_phone' );
 		} else {
-			update_user_meta( $user_id, 'mluc_phone', $phone );
+			update_user_meta( $user_id, 'at8_mluc_phone', $phone );
 		}
 
 		/**
@@ -144,7 +144,7 @@ class MLUC_Profile {
 		 * @param array $data    Fields that were submitted.
 		 */
 		do_action(
-			'mluc_after_profile_update',
+			'at8_mluc_after_profile_update',
 			$user_id,
 			array(
 				'display_name' => $display_name,
@@ -157,9 +157,9 @@ class MLUC_Profile {
 			)
 		);
 
-		mluc_send_json(
+		at8_mluc_send_json(
 			true,
-			__( 'Your profile has been updated.', 'moonlight-user-center' ),
+			__( 'Your profile has been updated.', 'at8-moonlight-user-center' ),
 			array(
 				'display_name' => $display_name,
 				'avatar_url'   => get_avatar_url( $user_id, array( 'size' => 96 ) ),

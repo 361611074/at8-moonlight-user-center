@@ -1,10 +1,10 @@
-# Moonlight User Center
+# AT8 Moonlight User Center
 
 A lightweight, theme-agnostic front-end user center for WordPress. It gives a site
 front-end login, registration, password recovery and a personal account area without
 touching the WordPress admin.
 
-**Version 1.0.0** · GPL-2.0-or-later · PHP 7.4+ · WordPress 5.8+
+**Version 1.0.1** · GPL-2.0-or-later · PHP 7.4+ · WordPress 5.8+
 
 ---
 
@@ -12,10 +12,10 @@ touching the WordPress admin.
 
 | Feature | Shortcode |
 | --- | --- |
-| Login form | `[mluc_login]` |
-| Registration form | `[mluc_register]` |
-| Password recovery form | `[mluc_lostpassword]` |
-| Account dashboard | `[mluc_account]` |
+| Login form | `[at8_mluc_login]` |
+| Registration form | `[at8_mluc_register]` |
+| Password recovery form | `[at8_mluc_lostpassword]` |
+| Account dashboard | `[at8_mluc_account]` |
 
 The account dashboard has four sections:
 
@@ -53,8 +53,8 @@ WordPress screen.
 
 ## Installation
 
-1. Download `moonlight-user-center-1.0.0.zip` from the releases, or clone this
-   repository into `wp-content/plugins/moonlight-user-center/`.
+1. Download `at8-moonlight-user-center-1.0.1.zip` from the releases, or clone this
+   repository into `wp-content/plugins/at8-moonlight-user-center/`.
 2. Activate the plugin under **Plugins**.
 3. Create pages containing the shortcodes listed above.
 4. Go to **Settings → User Center** and select those pages.
@@ -66,10 +66,10 @@ WordPress screen.
 ## Theme overrides
 
 Every template can be overridden from your theme. Copy a file from
-`templates/` into `moonlight-user-center/` inside your active theme:
+`templates/` into `at8-moonlight-user-center/` inside your active theme:
 
 ```
-wp-content/themes/your-theme/moonlight-user-center/account-profile.php
+wp-content/themes/your-theme/at8-moonlight-user-center/account-profile.php
 ```
 
 Templates receive their data through an `$args` array, for example
@@ -83,13 +83,13 @@ The plugin stores only what it needs:
 
 | User meta key | Contents |
 | --- | --- |
-| `mluc_phone` | Phone number entered in the profile |
-| `mluc_avatar_attachment_id` | Media ID of the chosen avatar |
-| `mluc_avatar_url` | URL of the chosen avatar |
-| `mluc_avatar_type` | How the avatar was chosen |
-| `mluc_last_login` | Last login timestamp |
+| `at8_mluc_phone` | Phone number entered in the profile |
+| `at8_mluc_avatar_attachment_id` | Media ID of the chosen avatar |
+| `at8_mluc_avatar_url` | URL of the chosen avatar |
+| `at8_mluc_avatar_type` | How the avatar was chosen |
+| `at8_mluc_last_login` | Last login timestamp |
 
-Settings live in a single `mluc_options` option. There are **no custom database tables**.
+Settings live in a single `at8_mluc_options` option. There are **no custom database tables**.
 
 It registers a personal data exporter and eraser with the WordPress privacy tools, and
 suggests privacy policy wording under **Settings → Privacy**. On uninstall you choose
@@ -103,9 +103,9 @@ posts and comments are never deleted.
 ### Package layout
 
 ```
-moonlight-user-center/
-├── moonlight-user-center.php   # bootstrap: constants, autoloader, module wiring
-├── includes/                   # MLUC_* classes + helper functions
+at8-moonlight-user-center/
+├── at8-moonlight-user-center.php   # bootstrap: constants, autoloader, module wiring
+├── includes/                   # AT8_MLUC_* classes + helper functions
 ├── templates/                  # front-end templates (theme-overridable)
 ├── assets/css/ · assets/js/
 ├── languages/                  # .pot + zh_CN (.po/.mo)
@@ -114,14 +114,14 @@ moonlight-user-center/
 └── LICENSE                     # GPL-2.0 full text
 ```
 
-The autoloader maps `MLUC_Foo_Bar` to `includes/class-foo-bar.php`, so a new class
+The autoloader maps `AT8_MLUC_Foo_Bar` to `includes/class-foo-bar.php`, so a new class
 needs no registration.
 
 ### Conventions
 
-- Every global function is prefixed `mluc_`, every class and constant `MLUC_`,
-  every option and transient `mluc_`.
-- All user-facing strings use the `moonlight-user-center` text domain with **English**
+- Every global function is prefixed `at8_mluc_`, every class and constant `AT8_MLUC_`,
+  every option and transient `at8_mluc_`.
+- All user-facing strings use the `at8-moonlight-user-center` text domain with **English**
   source strings, so GlotPress and language packs work normally.
 - All request input is unslashed and sanitised; all output is escaped late.
 - State-changing handlers verify a nonce *and* a capability. Nonces are not authorization.
@@ -133,11 +133,11 @@ changing any translatable string:
 
 ```bash
 # canonical method, using WP-CLI
-wp i18n make-pot . languages/moonlight-user-center.pot --domain=moonlight-user-center
+wp i18n make-pot . languages/at8-moonlight-user-center.pot --domain=at8-moonlight-user-center
 
 # compile an edited .po into the .mo that WordPress loads
-msgfmt languages/moonlight-user-center-zh_CN.po \
-       -o languages/moonlight-user-center-zh_CN.mo
+msgfmt languages/at8-moonlight-user-center-zh_CN.po \
+       -o languages/at8-moonlight-user-center-zh_CN.mo
 ```
 
 `msgfmt` ships with gettext. On Windows it is available through Git for Windows or MSYS2.
@@ -156,6 +156,27 @@ code belongs in a separate add-on plugin hosted off WordPress.org. The commercia
 was therefore removed entirely and the free plugin was rebuilt around login, registration,
 password recovery, the account dashboard and the avatar library.
 
+### 1.0.1 — rebrand and the activation fatal error
+
+The plugin shipped under the generic `MLUC_` / `mluc_` / `moonlight-user-center` namespace,
+which the author's own shop plugin (`at8-moonlight-shop`) also defines when the old user
+center is absent: the shop pre-defines `MLUC_VERSION` and `MLUC_PLUGIN_DIR` (pointing at
+the shop's own directory) and registers its own `MLUC_` autoloader. Activating the
+rebuilt plugin on such a site produced:
+
+```
+PHP Fatal error: Uncaught TypeError: call_user_func_array(): Argument #1 ($callback)
+must be a valid callback, class "MLUC_Activator" not found
+```
+
+The autoloader resolved `includes/class-activator.php` through the stolen
+`MLUC_PLUGIN_DIR`, looked inside the shop plugin, found nothing, and the activation
+hook died. Version 1.0.1 renames every identifier to the `AT8_MLUC_` / `at8_mluc_` /
+`at8-moonlight-user-center` namespace, which no other plugin defines, and the
+autoloader now resolves classes from `__DIR__` so no shared constant can redirect
+class loading. Shortcodes became `[at8_mluc_login]`, `[at8_mluc_register]`,
+`[at8_mluc_lostpassword]` and `[at8_mluc_account]`.
+
 **The previous version is preserved.** It is reachable at any time:
 
 ```bash
@@ -166,7 +187,7 @@ git checkout legacy-v2.1.1     # the old commercial Free edition
 Paid features continue in the separate repository
 [moonlight-user-center-pro](https://github.com/361611074/moonlight-user-center-pro),
 which this plugin does not depend on. All extension points are plain WordPress hooks
-(`mluc_loaded`, `mluc_account_tabs`, `mluc_template_args`, `mluc_after_register`, …).
+(`at8_mluc_loaded`, `at8_mluc_account_tabs`, `at8_mluc_template_args`, `at8_mluc_after_register`, …).
 
 ### Security fixes carried into 1.0.0
 

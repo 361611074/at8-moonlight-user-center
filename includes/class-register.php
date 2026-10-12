@@ -5,7 +5,7 @@
  * Users are always created through the WordPress user API. This plugin never
  * reads, stores, displays or transmits a plain-text password.
  *
- * @package Moonlight_User_Center
+ * @package AT8_Moonlight_User_Center
  */
 
 defined( 'ABSPATH' ) || exit;
@@ -13,21 +13,21 @@ defined( 'ABSPATH' ) || exit;
 /**
  * Registration shortcode and AJAX handler.
  */
-class MLUC_Register {
+class AT8_MLUC_Register {
 
 	/**
 	 * Nonce action for the registration form.
 	 *
 	 * @var string
 	 */
-	const NONCE_ACTION = 'mluc_register';
+	const NONCE_ACTION = 'at8_mluc_register';
 
 	/**
 	 * Transient prefix used by the render token.
 	 *
 	 * @var string
 	 */
-	const TOKEN_PREFIX = 'mluc_reg_tk_';
+	const TOKEN_PREFIX = 'at8_mluc_reg_tk_';
 
 	/**
 	 * Minimum number of seconds between rendering and submitting the form.
@@ -39,14 +39,14 @@ class MLUC_Register {
 	/**
 	 * Singleton instance.
 	 *
-	 * @var MLUC_Register|null
+	 * @var AT8_MLUC_Register|null
 	 */
 	private static $instance = null;
 
 	/**
 	 * Retrieve the singleton.
 	 *
-	 * @return MLUC_Register
+	 * @return AT8_MLUC_Register
 	 */
 	public static function get_instance() {
 		if ( null === self::$instance ) {
@@ -60,8 +60,8 @@ class MLUC_Register {
 	 * Register hooks.
 	 */
 	private function __construct() {
-		add_action( 'wp_ajax_nopriv_mluc_register', array( $this, 'handle_ajax' ) );
-		add_action( 'wp_ajax_mluc_register', array( $this, 'handle_ajax' ) );
+		add_action( 'wp_ajax_nopriv_at8_mluc_register', array( $this, 'handle_ajax' ) );
+		add_action( 'wp_ajax_at8_mluc_register', array( $this, 'handle_ajax' ) );
 	}
 
 	/**
@@ -73,7 +73,7 @@ class MLUC_Register {
 	 * @return bool
 	 */
 	public static function is_enabled() {
-		return (bool) get_option( 'users_can_register' ) && (bool) mluc_get_option( 'enable_registration', 1 );
+		return (bool) get_option( 'users_can_register' ) && (bool) at8_mluc_get_option( 'enable_registration', 1 );
 	}
 
 	/**
@@ -122,25 +122,25 @@ class MLUC_Register {
 	 * @return void
 	 */
 	public function handle_ajax() {
-		MLUC_Security::require_ajax_nonce( self::NONCE_ACTION );
+		AT8_MLUC_Security::require_ajax_nonce( self::NONCE_ACTION );
 
 		if ( ! self::is_enabled() ) {
-			mluc_send_json( false, __( 'Registration is currently disabled on this site.', 'moonlight-user-center' ) );
+			at8_mluc_send_json( false, __( 'Registration is currently disabled on this site.', 'at8-moonlight-user-center' ) );
 		}
 
-		if ( ! MLUC_Security::allow( 'register' ) ) {
-			MLUC_Security::reject_throttled();
+		if ( ! AT8_MLUC_Security::allow( 'register' ) ) {
+			AT8_MLUC_Security::reject_throttled();
 		}
 
 		// Honeypot: hidden from people, routinely filled in by bots.
-		$honeypot = isset( $_POST['mluc_hp'] ) ? sanitize_text_field( wp_unslash( $_POST['mluc_hp'] ) ) : '';
+		$honeypot = isset( $_POST['at8_mluc_hp'] ) ? sanitize_text_field( wp_unslash( $_POST['at8_mluc_hp'] ) ) : '';
 		if ( '' !== $honeypot ) {
-			mluc_send_json( false, __( 'Registration failed. Please try again.', 'moonlight-user-center' ) );
+			at8_mluc_send_json( false, __( 'Registration failed. Please try again.', 'at8-moonlight-user-center' ) );
 		}
 
-		$token = isset( $_POST['mluc_tk'] ) ? sanitize_text_field( wp_unslash( $_POST['mluc_tk'] ) ) : '';
+		$token = isset( $_POST['at8_mluc_tk'] ) ? sanitize_text_field( wp_unslash( $_POST['at8_mluc_tk'] ) ) : '';
 		if ( ! self::consume_token( $token ) ) {
-			mluc_send_json( false, __( 'Registration failed. Please try again.', 'moonlight-user-center' ) );
+			at8_mluc_send_json( false, __( 'Registration failed. Please try again.', 'at8-moonlight-user-center' ) );
 		}
 
 		$user_login = isset( $_POST['user_login'] ) ? sanitize_user( wp_unslash( $_POST['user_login'] ), true ) : '';
@@ -154,31 +154,31 @@ class MLUC_Register {
 		$password = is_string( $password ) ? $password : '';
 
 		if ( false !== strpos( $password, "\0" ) ) {
-			mluc_send_json( false, __( 'The password contains characters that are not allowed.', 'moonlight-user-center' ) );
+			at8_mluc_send_json( false, __( 'The password contains characters that are not allowed.', 'at8-moonlight-user-center' ) );
 		}
 
 		if ( '' === $user_login || '' === $email || '' === $password ) {
-			mluc_send_json( false, __( 'Please fill in a username, an email address and a password.', 'moonlight-user-center' ) );
+			at8_mluc_send_json( false, __( 'Please fill in a username, an email address and a password.', 'at8-moonlight-user-center' ) );
 		}
 
 		if ( ! validate_username( $user_login ) ) {
-			mluc_send_json( false, __( 'That username contains invalid characters.', 'moonlight-user-center' ) );
+			at8_mluc_send_json( false, __( 'That username contains invalid characters.', 'at8-moonlight-user-center' ) );
 		}
 
 		if ( ! is_email( $email ) ) {
-			mluc_send_json( false, __( 'That email address is not valid.', 'moonlight-user-center' ) );
+			at8_mluc_send_json( false, __( 'That email address is not valid.', 'at8-moonlight-user-center' ) );
 		}
 
 		if ( strlen( $password ) < 8 ) {
-			mluc_send_json( false, __( 'Please choose a password of at least 8 characters.', 'moonlight-user-center' ) );
+			at8_mluc_send_json( false, __( 'Please choose a password of at least 8 characters.', 'at8-moonlight-user-center' ) );
 		}
 
 		if ( username_exists( $user_login ) ) {
-			mluc_send_json( false, __( 'That username is already taken.', 'moonlight-user-center' ) );
+			at8_mluc_send_json( false, __( 'That username is already taken.', 'at8-moonlight-user-center' ) );
 		}
 
 		if ( email_exists( $email ) ) {
-			mluc_send_json( false, __( 'That email address is already registered.', 'moonlight-user-center' ) );
+			at8_mluc_send_json( false, __( 'That email address is already registered.', 'at8-moonlight-user-center' ) );
 		}
 
 		/**
@@ -189,7 +189,7 @@ class MLUC_Register {
 		 * @param array $args User login, password and email.
 		 */
 		$args = apply_filters(
-			'mluc_register_user_args',
+			'at8_mluc_register_user_args',
 			array(
 				'user_login' => $user_login,
 				'password'   => $password,
@@ -200,7 +200,7 @@ class MLUC_Register {
 		$user_id = wp_create_user( $args['user_login'], $args['password'], $args['email'] );
 
 		if ( is_wp_error( $user_id ) ) {
-			mluc_send_json( false, mluc_translate_wp_error( $user_id ) );
+			at8_mluc_send_json( false, at8_mluc_translate_wp_error( $user_id ) );
 		}
 
 		$user_id = (int) $user_id;
@@ -212,18 +212,18 @@ class MLUC_Register {
 		 *
 		 * @param int $user_id New user ID.
 		 */
-		do_action( 'mluc_after_register', $user_id );
+		do_action( 'at8_mluc_after_register', $user_id );
 
 		$payload = array();
 
-		if ( mluc_get_option( 'auto_login', 1 ) ) {
+		if ( at8_mluc_get_option( 'auto_login', 1 ) ) {
 			wp_set_current_user( $user_id );
 			wp_set_auth_cookie( $user_id, true );
-			$payload['redirect'] = mluc_get_account_url();
+			$payload['redirect'] = at8_mluc_get_account_url();
 		} else {
-			$payload['redirect'] = mluc_get_login_url();
+			$payload['redirect'] = at8_mluc_get_login_url();
 		}
 
-		mluc_send_json( true, __( 'Your account was created.', 'moonlight-user-center' ), $payload );
+		at8_mluc_send_json( true, __( 'Your account was created.', 'at8-moonlight-user-center' ), $payload );
 	}
 }

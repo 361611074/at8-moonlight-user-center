@@ -5,7 +5,7 @@
  * Assets are only enqueued on screens that actually render the plugin, so no
  * other page pays for them.
  *
- * @package Moonlight_User_Center
+ * @package AT8_Moonlight_User_Center
  */
 
 defined( 'ABSPATH' ) || exit;
@@ -13,26 +13,26 @@ defined( 'ABSPATH' ) || exit;
 /**
  * Conditional asset registration.
  */
-class MLUC_Assets {
+class AT8_MLUC_Assets {
 
 	/**
 	 * Shortcodes that need front-end assets when they are present.
 	 *
 	 * @var string[]
 	 */
-	const SHORTCODES = array( 'mluc_login', 'mluc_register', 'mluc_lostpassword', 'mluc_account' );
+	const SHORTCODES = array( 'at8_mluc_login', 'at8_mluc_register', 'at8_mluc_lostpassword', 'at8_mluc_account' );
 
 	/**
 	 * Singleton instance.
 	 *
-	 * @var MLUC_Assets|null
+	 * @var AT8_MLUC_Assets|null
 	 */
 	private static $instance = null;
 
 	/**
 	 * Retrieve the singleton.
 	 *
-	 * @return MLUC_Assets
+	 * @return AT8_MLUC_Assets
 	 */
 	public static function get_instance() {
 		if ( null === self::$instance ) {
@@ -60,36 +60,36 @@ class MLUC_Assets {
 		}
 
 		wp_enqueue_style(
-			'mluc-frontend',
-			MLUC_PLUGIN_URL . 'assets/css/mluc.css',
+			'at8-mluc-frontend',
+			AT8_MLUC_PLUGIN_URL . 'assets/css/mluc.css',
 			array( 'dashicons' ),
-			MLUC_VERSION
+			AT8_MLUC_VERSION
 		);
 
 		wp_enqueue_script(
-			'mluc-frontend',
-			MLUC_PLUGIN_URL . 'assets/js/mluc.js',
+			'at8-mluc-frontend',
+			AT8_MLUC_PLUGIN_URL . 'assets/js/mluc.js',
 			array(),
-			MLUC_VERSION,
+			AT8_MLUC_VERSION,
 			true
 		);
 
 		wp_localize_script(
-			'mluc-frontend',
-			'mlucData',
+			'at8-mluc-frontend',
+			'at8MlucData',
 			array(
 				'ajaxUrl' => admin_url( 'admin-ajax.php' ),
 				'nonces'  => array(
-					'login'          => wp_create_nonce( MLUC_Login::NONCE_ACTION ),
-					'lostPassword'   => wp_create_nonce( MLUC_Login::LOST_NONCE_ACTION ),
-					'changePassword' => wp_create_nonce( MLUC_Login::PASSWORD_NONCE_ACTION ),
-					'register'       => wp_create_nonce( MLUC_Register::NONCE_ACTION ),
-					'profile'        => wp_create_nonce( MLUC_Profile::NONCE_ACTION ),
-					'avatar'         => wp_create_nonce( MLUC_Avatar::NONCE_ACTION ),
+					'login'          => wp_create_nonce( AT8_MLUC_Login::NONCE_ACTION ),
+					'lostPassword'   => wp_create_nonce( AT8_MLUC_Login::LOST_NONCE_ACTION ),
+					'changePassword' => wp_create_nonce( AT8_MLUC_Login::PASSWORD_NONCE_ACTION ),
+					'register'       => wp_create_nonce( AT8_MLUC_Register::NONCE_ACTION ),
+					'profile'        => wp_create_nonce( AT8_MLUC_Profile::NONCE_ACTION ),
+					'avatar'         => wp_create_nonce( AT8_MLUC_Avatar::NONCE_ACTION ),
 				),
 				'i18n'    => array(
-					'genericError' => __( 'Something went wrong. Please try again.', 'moonlight-user-center' ),
-					'sending'      => __( 'Please wait…', 'moonlight-user-center' ),
+					'genericError' => __( 'Something went wrong. Please try again.', 'at8-moonlight-user-center' ),
+					'sending'      => __( 'Please wait…', 'at8-moonlight-user-center' ),
 				),
 			)
 		);
@@ -126,7 +126,7 @@ class MLUC_Assets {
 			$page_id = get_queried_object_id();
 
 			foreach ( array( 'account_page_id', 'login_page_id', 'register_page_id', 'lostpassword_page_id' ) as $option ) {
-				if ( absint( mluc_get_option( $option, 0 ) ) === (int) $page_id ) {
+				if ( absint( at8_mluc_get_option( $option, 0 ) ) === (int) $page_id ) {
 					$needed = true;
 					break;
 				}
@@ -140,6 +140,6 @@ class MLUC_Assets {
 		 *
 		 * @param bool $needed Whether the plugin renders on this request.
 		 */
-		return (bool) apply_filters( 'mluc_enqueue_assets', $needed );
+		return (bool) apply_filters( 'at8_mluc_enqueue_assets', $needed );
 	}
 }

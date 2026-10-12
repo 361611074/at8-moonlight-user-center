@@ -1,113 +1,113 @@
 /**
- * Moonlight User Center - front-end styles.
+ * AT8 Moonlight User Center - front-end styles.
  *
  * Deliberately minimal and theme-agnostic: colours and typography are inherited
  * from the active theme wherever possible, and every selector is namespaced
- * with `.mluc-`.
+ * with `.at8-mluc-`.
  */
 
-.mluc-auth,
-.mluc-account {
-	--mluc-border: rgba(0, 0, 0, 0.12);
-	--mluc-muted: rgba(0, 0, 0, 0.62);
-	--mluc-radius: 6px;
+.at8-mluc-auth,
+.at8-mluc-account {
+	--at8-mluc-border: rgba(0, 0, 0, 0.12);
+	--at8-mluc-muted: rgba(0, 0, 0, 0.62);
+	--at8-mluc-radius: 6px;
 	box-sizing: border-box;
 }
 
-.mluc-auth *,
-.mluc-account *,
-.mluc-auth *::before,
-.mluc-auth *::after,
-.mluc-account *::before,
-.mluc-account *::after {
+.at8-mluc-auth *,
+.at8-mluc-account *,
+.at8-mluc-auth *::before,
+.at8-mluc-auth *::after,
+.at8-mluc-account *::before,
+.at8-mluc-account *::after {
 	box-sizing: inherit;
 }
 
 /* ------------------------------------------------------------------ Forms */
 
-.mluc-auth-title,
-.mluc-card-title {
+.at8-mluc-auth-title,
+.at8-mluc-card-title {
 	margin: 0 0 1em;
 	font-size: 1.25em;
 	line-height: 1.3;
 }
 
-.mluc-description {
+.at8-mluc-description {
 	margin: 0 0 1em;
-	color: var(--mluc-muted);
+	color: var(--at8-mluc-muted);
 }
 
-.mluc-form {
+.at8-mluc-form {
 	margin: 0;
 }
 
-.mluc-field {
+.at8-mluc-field {
 	margin: 0 0 1em;
 	display: flex;
 	flex-direction: column;
 	gap: 0.35em;
 }
 
-.mluc-field label,
-.mluc-field-label {
+.at8-mluc-field label,
+.at8-mluc-field-label {
 	font-weight: 600;
 }
 
-.mluc-field-group {
+.at8-mluc-field-group {
 	display: flex;
 	flex-wrap: wrap;
 	gap: 0 1em;
 }
 
-.mluc-field-group .mluc-field {
+.at8-mluc-field-group .at8-mluc-field {
 	flex: 1 1 12em;
 }
 
-.mluc-field-hint {
+.at8-mluc-field-hint {
 	font-size: 0.85em;
-	color: var(--mluc-muted);
+	color: var(--at8-mluc-muted);
 }
 
-.mluc-field--checkbox {
+.at8-mluc-field--checkbox {
 	flex-direction: row;
 	align-items: center;
 }
 
-.mluc-field--checkbox label {
+.at8-mluc-field--checkbox label {
 	display: flex;
 	align-items: center;
 	gap: 0.5em;
 	font-weight: 400;
 }
 
-.mluc-field input[type="text"],
-.mluc-field input[type="email"],
-.mluc-field input[type="url"],
-.mluc-field input[type="tel"],
-.mluc-field input[type="password"],
-.mluc-field textarea {
+.at8-mluc-field input[type="text"],
+.at8-mluc-field input[type="email"],
+.at8-mluc-field input[type="url"],
+.at8-mluc-field input[type="tel"],
+.at8-mluc-field input[type="password"],
+.at8-mluc-field textarea {
 	width: 100%;
 	max-width: 32em;
 	padding: 0.55em 0.7em;
-	border: 1px solid var(--mluc-border);
-	border-radius: var(--mluc-radius);
+	border: 1px solid var(--at8-mluc-border);
+	border-radius: var(--at8-mluc-radius);
 	font: inherit;
 	color: inherit;
 	background: transparent;
 }
 
-.mluc-field textarea {
+.at8-mluc-field textarea {
 	resize: vertical;
 }
 
-.mluc-field input:focus-visible,
-.mluc-field textarea:focus-visible {
+.at8-mluc-field input:focus-visible,
+.at8-mluc-field textarea:focus-visible {
 	outline: 2px solid currentColor;
 	outline-offset: 1px;
 }
 
 /* Honeypot: removed from view but never display:none, so bots still fill it. */
-.mluc-hp {
+.at8-mluc-hp {
 	position: absolute;
 	left: -9999px;
 	width: 1px;
@@ -115,18 +115,18 @@
 	overflow: hidden;
 }
 
-.mluc-form.is-busy {
+.at8-mluc-form.is-busy {
 	opacity: 0.7;
 	pointer-events: none;
 }
 
 /* ----------------------------------------------------------------- Buttons */
 
-.mluc-button {
+.at8-mluc-button {
 	display: inline-block;
 	padding: 0.6em 1.2em;
 	border: 1px solid currentColor;
-	border-radius: var(--mluc-radius);
+	border-radius: var(--at8-mluc-radius);
 	background: transparent;
 	color: inherit;
 	font: inherit;
@@ -135,23 +135,23 @@
 	cursor: pointer;
 }
 
-.mluc-button:hover,
-.mluc-button:focus {
+.at8-mluc-button:hover,
+.at8-mluc-button:focus {
 	opacity: 0.85;
 }
 
-.mluc-button--primary {
+.at8-mluc-button--primary {
 	background: currentColor;
 }
 
-.mluc-button--link {
+.at8-mluc-button--link {
 	border-color: transparent;
 	padding-left: 0.4em;
 	padding-right: 0.4em;
 	text-decoration: underline;
 }
 
-.mluc-actions {
+.at8-mluc-actions {
 	margin: 0;
 	display: flex;
 	flex-wrap: wrap;
@@ -161,41 +161,41 @@
 
 /* ---------------------------------------------------------------- Messages */
 
-.mluc-message {
+.at8-mluc-message {
 	margin: 0 0 1em;
 	padding: 0.7em 0.9em;
-	border-left: 4px solid var(--mluc-border);
-	border-radius: 0 var(--mluc-radius) var(--mluc-radius) 0;
+	border-left: 4px solid var(--at8-mluc-border);
+	border-radius: 0 var(--at8-mluc-radius) var(--at8-mluc-radius) 0;
 	background: rgba(0, 0, 0, 0.03);
 }
 
-.mluc-message--success {
+.at8-mluc-message--success {
 	border-left-color: #1e7e34;
 }
 
-.mluc-message--error {
+.at8-mluc-message--error {
 	border-left-color: #b32d2e;
 }
 
-.mluc-message--pending {
+.at8-mluc-message--pending {
 	border-left-color: #996800;
 }
 
-.mluc-form-notice:empty {
+.at8-mluc-form-notice:empty {
 	display: none;
 }
 
-.mluc-form-notice {
+.at8-mluc-form-notice {
 	margin: 0 0 1em;
 }
 
 /* ------------------------------------------------------------ Auth screens */
 
-.mluc-auth {
+.at8-mluc-auth {
 	max-width: 32em;
 }
 
-.mluc-auth-links {
+.at8-mluc-auth-links {
 	margin: 1.25em 0 0;
 	padding: 0;
 	list-style: none;
@@ -207,64 +207,64 @@
 
 /* ------------------------------------------------------------ Account area */
 
-.mluc-account {
+.at8-mluc-account {
 	display: flex;
 	flex-wrap: wrap;
 	gap: 1.5em;
 	align-items: flex-start;
 }
 
-.mluc-account-nav {
+.at8-mluc-account-nav {
 	flex: 0 0 13em;
 }
 
-.mluc-account-nav ul {
+.at8-mluc-account-nav ul {
 	margin: 0;
 	padding: 0;
 	list-style: none;
 }
 
-.mluc-account-nav a {
+.at8-mluc-account-nav a {
 	display: flex;
 	align-items: center;
 	gap: 0.5em;
 	padding: 0.5em 0.6em;
-	border-radius: var(--mluc-radius);
+	border-radius: var(--at8-mluc-radius);
 	text-decoration: none;
 	color: inherit;
 }
 
-.mluc-account-nav a:hover,
-.mluc-account-nav a:focus {
+.at8-mluc-account-nav a:hover,
+.at8-mluc-account-nav a:focus {
 	background: rgba(0, 0, 0, 0.05);
 }
 
-.mluc-account-nav .is-active > a {
+.at8-mluc-account-nav .is-active > a {
 	font-weight: 600;
 	background: rgba(0, 0, 0, 0.07);
 }
 
-.mluc-account-content {
+.at8-mluc-account-content {
 	flex: 1 1 20em;
 	min-width: 0;
 }
 
-.mluc-card {
+.at8-mluc-card {
 	padding: 1.25em;
-	border: 1px solid var(--mluc-border);
-	border-radius: var(--mluc-radius);
+	border: 1px solid var(--at8-mluc-border);
+	border-radius: var(--at8-mluc-radius);
 }
 
 /* --------------------------------------------------------------- Overview */
 
-.mluc-overview-header {
+.at8-mluc-overview-header {
 	display: flex;
 	align-items: center;
 	gap: 1em;
 	margin-bottom: 1em;
 }
 
-.mluc-overview-avatar {
+.at8-mluc-overview-avatar {
 	width: 96px;
 	height: 96px;
 	border-radius: 50%;
@@ -272,21 +272,21 @@
 	flex: 0 0 auto;
 }
 
-.mluc-overview-identity {
+.at8-mluc-overview-identity {
 	min-width: 0;
 }
 
-.mluc-overview-identity .mluc-card-title {
+.at8-mluc-overview-identity .at8-mluc-card-title {
 	margin-bottom: 0.2em;
 }
 
-.mluc-overview-email {
+.at8-mluc-overview-email {
 	margin: 0;
-	color: var(--mluc-muted);
+	color: var(--at8-mluc-muted);
 	overflow-wrap: anywhere;
 }
 
-.mluc-overview-stats {
+.at8-mluc-overview-stats {
 	margin: 0 0 1.25em;
 	padding: 0;
 	list-style: none;
@@ -295,34 +295,34 @@
 	gap: 1.5em;
 }
 
-.mluc-overview-stats li {
+.at8-mluc-overview-stats li {
 	display: flex;
 	flex-direction: column;
 }
 
-.mluc-stat-label {
+.at8-mluc-stat-label {
 	font-size: 0.85em;
-	color: var(--mluc-muted);
+	color: var(--at8-mluc-muted);
 }
 
-.mluc-stat-value {
+.at8-mluc-stat-value {
 	font-weight: 600;
 }
 
 /* ----------------------------------------------------------------- Avatar */
 
-.mluc-avatar-current {
+.at8-mluc-avatar-current {
 	margin-bottom: 1em;
 }
 
-.mluc-avatar-current img {
+.at8-mluc-avatar-current img {
 	width: 96px;
 	height: 96px;
 	border-radius: 50%;
 	object-fit: cover;
 }
 
-.mluc-avatar-grid {
+.at8-mluc-avatar-grid {
 	display: grid;
 	grid-template-columns: repeat(auto-fill, minmax(72px, 1fr));
 	gap: 0.6em;
@@ -331,7 +331,7 @@
 	border: 0;
 }
 
-.mluc-avatar-option {
+.at8-mluc-avatar-option {
 	padding: 0;
 	border: 2px solid transparent;
 	border-radius: 50%;
@@ -340,7 +340,7 @@
 	line-height: 0;
 }
 
-.mluc-avatar-option img {
+.at8-mluc-avatar-option img {
 	width: 100%;
 	height: auto;
 	aspect-ratio: 1 / 1;
@@ -348,28 +348,28 @@
 	object-fit: cover;
 }
 
-.mluc-avatar-option:hover,
-.mluc-avatar-option:focus-visible {
-	border-color: var(--mluc-border);
+.at8-mluc-avatar-option:hover,
+.at8-mluc-avatar-option:focus-visible {
+	border-color: var(--at8-mluc-border);
 }
 
-.mluc-avatar-option.is-active {
+.at8-mluc-avatar-option.is-active {
 	border-color: currentColor;
 }
 
 /* --------------------------------------------------------------- Responsive */
 
 @media (max-width: 640px) {
-	.mluc-account {
+	.at8-mluc-account {
 		flex-direction: column;
 	}
 
-	.mluc-account-nav {
+	.at8-mluc-account-nav {
 		flex: 1 1 auto;
 		width: 100%;
 	}
 
-	.mluc-account-nav a {
+	.at8-mluc-account-nav a {
 		padding-left: 0;
 	}
 }

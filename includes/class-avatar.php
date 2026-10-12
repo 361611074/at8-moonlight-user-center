@@ -6,7 +6,7 @@
  * pick one from the account dashboard. Users never upload files themselves,
  * which keeps arbitrary file upload out of the front end entirely.
  *
- * @package Moonlight_User_Center
+ * @package AT8_Moonlight_User_Center
  */
 
 defined( 'ABSPATH' ) || exit;
@@ -14,54 +14,54 @@ defined( 'ABSPATH' ) || exit;
 /**
  * Admin-curated avatar selection.
  */
-class MLUC_Avatar {
+class AT8_MLUC_Avatar {
 
 	/**
 	 * Post type holding the avatar library.
 	 *
 	 * @var string
 	 */
-	const POST_TYPE = 'mluc_avatar';
+	const POST_TYPE = 'at8_mluc_avatar';
 
 	/**
 	 * User meta: how the avatar was chosen (`library`).
 	 *
 	 * @var string
 	 */
-	const META_TYPE = 'mluc_avatar_type';
+	const META_TYPE = 'at8_mluc_avatar_type';
 
 	/**
 	 * User meta: attachment ID of the chosen avatar.
 	 *
 	 * @var string
 	 */
-	const META_ATTACHMENT = 'mluc_avatar_attachment_id';
+	const META_ATTACHMENT = 'at8_mluc_avatar_attachment_id';
 
 	/**
 	 * User meta: absolute URL of the chosen avatar.
 	 *
 	 * @var string
 	 */
-	const META_URL = 'mluc_avatar_url';
+	const META_URL = 'at8_mluc_avatar_url';
 
 	/**
 	 * Nonce action for the avatar form.
 	 *
 	 * @var string
 	 */
-	const NONCE_ACTION = 'mluc_select_avatar';
+	const NONCE_ACTION = 'at8_mluc_select_avatar';
 
 	/**
 	 * Singleton instance.
 	 *
-	 * @var MLUC_Avatar|null
+	 * @var AT8_MLUC_Avatar|null
 	 */
 	private static $instance = null;
 
 	/**
 	 * Retrieve the singleton.
 	 *
-	 * @return MLUC_Avatar
+	 * @return AT8_MLUC_Avatar
 	 */
 	public static function get_instance() {
 		if ( null === self::$instance ) {
@@ -76,7 +76,7 @@ class MLUC_Avatar {
 	 */
 	private function __construct() {
 		add_action( 'init', array( $this, 'register_post_type' ) );
-		add_action( 'wp_ajax_mluc_select_avatar', array( $this, 'handle_select' ) );
+		add_action( 'wp_ajax_at8_mluc_select_avatar', array( $this, 'handle_select' ) );
 		add_filter( 'get_avatar_url', array( $this, 'filter_avatar_url' ), 10, 3 );
 	}
 
@@ -86,7 +86,7 @@ class MLUC_Avatar {
 	 * @return bool
 	 */
 	public static function is_enabled() {
-		return (bool) mluc_get_option( 'enable_avatar', 1 );
+		return (bool) at8_mluc_get_option( 'enable_avatar', 1 );
 	}
 
 	/**
@@ -99,19 +99,19 @@ class MLUC_Avatar {
 			self::POST_TYPE,
 			array(
 				'labels'              => array(
-					'name'               => __( 'Avatar Library', 'moonlight-user-center' ),
-					'singular_name'      => __( 'Avatar', 'moonlight-user-center' ),
-					'add_new_item'       => __( 'Add New Avatar', 'moonlight-user-center' ),
-					'edit_item'          => __( 'Edit Avatar', 'moonlight-user-center' ),
-					'new_item'           => __( 'New Avatar', 'moonlight-user-center' ),
-					'view_item'          => __( 'View Avatar', 'moonlight-user-center' ),
-					'search_items'       => __( 'Search Avatars', 'moonlight-user-center' ),
-					'not_found'          => __( 'No avatars found.', 'moonlight-user-center' ),
-					'not_found_in_trash' => __( 'No avatars found in Trash.', 'moonlight-user-center' ),
-					'all_items'          => __( 'Avatar Library', 'moonlight-user-center' ),
-					'menu_name'          => __( 'Avatar Library', 'moonlight-user-center' ),
+					'name'               => __( 'Avatar Library', 'at8-moonlight-user-center' ),
+					'singular_name'      => __( 'Avatar', 'at8-moonlight-user-center' ),
+					'add_new_item'       => __( 'Add New Avatar', 'at8-moonlight-user-center' ),
+					'edit_item'          => __( 'Edit Avatar', 'at8-moonlight-user-center' ),
+					'new_item'           => __( 'New Avatar', 'at8-moonlight-user-center' ),
+					'view_item'          => __( 'View Avatar', 'at8-moonlight-user-center' ),
+					'search_items'       => __( 'Search Avatars', 'at8-moonlight-user-center' ),
+					'not_found'          => __( 'No avatars found.', 'at8-moonlight-user-center' ),
+					'not_found_in_trash' => __( 'No avatars found in Trash.', 'at8-moonlight-user-center' ),
+					'all_items'          => __( 'Avatar Library', 'at8-moonlight-user-center' ),
+					'menu_name'          => __( 'Avatar Library', 'at8-moonlight-user-center' ),
 				),
-				'description'         => __( 'Avatars that users can pick from in their account dashboard.', 'moonlight-user-center' ),
+				'description'         => __( 'Avatars that users can pick from in their account dashboard.', 'at8-moonlight-user-center' ),
 				'public'              => false,
 				'publicly_queryable'  => false,
 				'exclude_from_search' => true,
@@ -249,30 +249,30 @@ class MLUC_Avatar {
 	 * @return void
 	 */
 	public function handle_select() {
-		MLUC_Security::require_ajax_nonce( self::NONCE_ACTION );
-		MLUC_Security::require_login();
+		AT8_MLUC_Security::require_ajax_nonce( self::NONCE_ACTION );
+		AT8_MLUC_Security::require_login();
 
 		if ( ! self::is_enabled() ) {
-			mluc_send_json( false, __( 'The avatar library is disabled.', 'moonlight-user-center' ) );
+			at8_mluc_send_json( false, __( 'The avatar library is disabled.', 'at8-moonlight-user-center' ) );
 		}
 
-		if ( ! MLUC_Security::allow( 'avatar' ) ) {
-			MLUC_Security::reject_throttled();
+		if ( ! AT8_MLUC_Security::allow( 'avatar' ) ) {
+			AT8_MLUC_Security::reject_throttled();
 		}
 
 		$user_id = get_current_user_id();
 
 		// An explicit reset request restores the WordPress default avatar.
-		$reset = isset( $_POST['mluc_reset'] ) ? sanitize_text_field( wp_unslash( $_POST['mluc_reset'] ) ) : '';
+		$reset = isset( $_POST['at8_mluc_reset'] ) ? sanitize_text_field( wp_unslash( $_POST['at8_mluc_reset'] ) ) : '';
 
 		if ( '1' === $reset ) {
 			delete_user_meta( $user_id, self::META_TYPE );
 			delete_user_meta( $user_id, self::META_ATTACHMENT );
 			delete_user_meta( $user_id, self::META_URL );
 
-			mluc_send_json(
+			at8_mluc_send_json(
 				true,
-				__( 'Your avatar has been reset.', 'moonlight-user-center' ),
+				__( 'Your avatar has been reset.', 'at8-moonlight-user-center' ),
 				array( 'avatar_url' => get_avatar_url( $user_id, array( 'size' => 96 ) ) )
 			);
 		}
@@ -280,23 +280,23 @@ class MLUC_Avatar {
 		$avatar_id = isset( $_POST['avatar_id'] ) ? absint( wp_unslash( $_POST['avatar_id'] ) ) : 0;
 
 		if ( ! $avatar_id ) {
-			mluc_send_json( false, __( 'Please choose an avatar.', 'moonlight-user-center' ) );
+			at8_mluc_send_json( false, __( 'Please choose an avatar.', 'at8-moonlight-user-center' ) );
 		}
 
 		if ( self::POST_TYPE !== get_post_type( $avatar_id ) || 'publish' !== get_post_status( $avatar_id ) ) {
-			mluc_send_json( false, __( 'That avatar is not available.', 'moonlight-user-center' ) );
+			at8_mluc_send_json( false, __( 'That avatar is not available.', 'at8-moonlight-user-center' ) );
 		}
 
 		$attachment_id = (int) get_post_thumbnail_id( $avatar_id );
 
 		if ( ! $attachment_id ) {
-			mluc_send_json( false, __( 'That avatar has no image attached.', 'moonlight-user-center' ) );
+			at8_mluc_send_json( false, __( 'That avatar has no image attached.', 'at8-moonlight-user-center' ) );
 		}
 
 		$url = wp_get_attachment_image_url( $attachment_id, 'medium' );
 
 		if ( ! $url ) {
-			mluc_send_json( false, __( 'That avatar image could not be loaded.', 'moonlight-user-center' ) );
+			at8_mluc_send_json( false, __( 'That avatar image could not be loaded.', 'at8-moonlight-user-center' ) );
 		}
 
 		update_user_meta( $user_id, self::META_TYPE, 'library' );
@@ -311,11 +311,11 @@ class MLUC_Avatar {
 		 * @param int $user_id       User ID.
 		 * @param int $attachment_id Attachment ID of the chosen avatar.
 		 */
-		do_action( 'mluc_after_avatar_update', $user_id, $attachment_id );
+		do_action( 'at8_mluc_after_avatar_update', $user_id, $attachment_id );
 
-		mluc_send_json(
+		at8_mluc_send_json(
 			true,
-			__( 'Your avatar has been updated.', 'moonlight-user-center' ),
+			__( 'Your avatar has been updated.', 'at8-moonlight-user-center' ),
 			array(
 				'avatar_url' => $url,
 				'avatar_id'  => $avatar_id,

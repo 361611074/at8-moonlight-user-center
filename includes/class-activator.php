@@ -3,9 +3,9 @@
  * Activation and deactivation routines.
  *
  * The plugin stores no custom database tables. All persistent state lives in
- * the `mluc_options` option and in user meta owned by the plugin.
+ * the `at8_mluc_options` option and in user meta owned by the plugin.
  *
- * @package Moonlight_User_Center
+ * @package AT8_Moonlight_User_Center
  */
 
 defined( 'ABSPATH' ) || exit;
@@ -13,7 +13,7 @@ defined( 'ABSPATH' ) || exit;
 /**
  * Lifecycle hooks.
  */
-class MLUC_Activator {
+class AT8_MLUC_Activator {
 
 	/**
 	 * Default settings.
@@ -40,16 +40,16 @@ class MLUC_Activator {
 	 * @return void
 	 */
 	public static function activate() {
-		$existing = get_option( 'mluc_options', array() );
+		$existing = get_option( 'at8_mluc_options', array() );
 
 		if ( ! is_array( $existing ) ) {
 			$existing = array();
 		}
 
-		update_option( 'mluc_options', array_merge( self::defaults(), $existing ), false );
+		update_option( 'at8_mluc_options', array_merge( self::defaults(), $existing ), false );
 
 		// Record the plugin version so upgrades can run migrations later.
-		update_option( 'mluc_version', MLUC_VERSION, false );
+		update_option( 'at8_mluc_version', AT8_MLUC_VERSION, false );
 	}
 
 	/**

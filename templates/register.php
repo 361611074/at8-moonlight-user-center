@@ -2,62 +2,62 @@
 /**
  * Registration form.
  *
- * Overridden by: wp-content/themes/<theme>/moonlight-user-center/register.php
+ * Overridden by: wp-content/themes/<theme>/at8-moonlight-user-center/register.php
  *
- * @package Moonlight_User_Center
+ * @package AT8_Moonlight_User_Center
  *
  * @var array $args Template arguments.
  */
 
 defined( 'ABSPATH' ) || exit;
 
-$mluc_notice = isset( $args['notice'] ) && is_array( $args['notice'] ) ? $args['notice'] : array();
-$mluc_title  = isset( $args['title'] ) && '' !== $args['title']
+$at8_mluc_notice = isset( $args['notice'] ) && is_array( $args['notice'] ) ? $args['notice'] : array();
+$at8_mluc_title  = isset( $args['title'] ) && '' !== $args['title']
 	? $args['title']
-	: mluc_ui_label( 'heading_register', __( 'Create an Account', 'moonlight-user-center' ) );
-$mluc_user_login = isset( $args['user_login'] ) ? $args['user_login'] : '';
-$mluc_email      = isset( $args['email'] ) ? $args['email'] : '';
+	: at8_mluc_ui_label( 'heading_register', __( 'Create an Account', 'at8-moonlight-user-center' ) );
+$at8_mluc_user_login = isset( $args['user_login'] ) ? $args['user_login'] : '';
+$at8_mluc_email      = isset( $args['email'] ) ? $args['email'] : '';
 
-if ( ! MLUC_Register::is_enabled() ) :
+if ( ! AT8_MLUC_Register::is_enabled() ) :
 	?>
-	<p class="mluc-message mluc-message--info">
-		<?php esc_html_e( 'Registration is currently disabled on this site.', 'moonlight-user-center' ); ?>
+	<p class="at8-mluc-message at8-mluc-message--info">
+		<?php esc_html_e( 'Registration is currently disabled on this site.', 'at8-moonlight-user-center' ); ?>
 	</p>
 	<?php
 	return;
 endif;
 ?>
-<div class="mluc-auth mluc-auth--register">
+<div class="at8-mluc-auth at8-mluc-auth--register">
 
-	<?php if ( '' !== $mluc_title ) : ?>
-		<h2 class="mluc-auth-title"><?php echo esc_html( $mluc_title ); ?></h2>
+	<?php if ( '' !== $at8_mluc_title ) : ?>
+		<h2 class="at8-mluc-auth-title"><?php echo esc_html( $at8_mluc_title ); ?></h2>
 	<?php endif; ?>
 
-	<?php mluc_get_template( 'parts/notice', array( 'notice' => $mluc_notice ) ); ?>
+	<?php at8_mluc_get_template( 'parts/notice', array( 'notice' => $at8_mluc_notice ) ); ?>
 
-	<form class="mluc-form" method="post" action="<?php echo esc_url( mluc_get_register_url() ); ?>"
-		data-mluc-action="mluc_register"
-		data-mluc-nonce="<?php echo esc_attr( wp_create_nonce( MLUC_Register::NONCE_ACTION ) ); ?>"
-		data-mluc-notice="mluc-register-notice">
+	<form class="at8-mluc-form" method="post" action="<?php echo esc_url( at8_mluc_get_register_url() ); ?>"
+		data-at8-mluc-action="at8_mluc_register"
+		data-at8-mluc-nonce="<?php echo esc_attr( wp_create_nonce( AT8_MLUC_Register::NONCE_ACTION ) ); ?>"
+		data-at8-mluc-notice="at8-mluc-register-notice">
 
-		<p class="mluc-field">
-			<label for="mluc-register-user"><?php esc_html_e( 'Username', 'moonlight-user-center' ); ?></label>
-			<input type="text" id="mluc-register-user" name="user_login" autocomplete="username" required
-				value="<?php echo esc_attr( $mluc_user_login ); ?>" />
+		<p class="at8-mluc-field">
+			<label for="at8-mluc-register-user"><?php esc_html_e( 'Username', 'at8-moonlight-user-center' ); ?></label>
+			<input type="text" id="at8-mluc-register-user" name="user_login" autocomplete="username" required
+				value="<?php echo esc_attr( $at8_mluc_user_login ); ?>" />
 		</p>
 
-		<p class="mluc-field">
-			<label for="mluc-register-email"><?php esc_html_e( 'Email Address', 'moonlight-user-center' ); ?></label>
-			<input type="email" id="mluc-register-email" name="email" autocomplete="email" required
-				value="<?php echo esc_attr( $mluc_email ); ?>" />
+		<p class="at8-mluc-field">
+			<label for="at8-mluc-register-email"><?php esc_html_e( 'Email Address', 'at8-moonlight-user-center' ); ?></label>
+			<input type="email" id="at8-mluc-register-email" name="email" autocomplete="email" required
+				value="<?php echo esc_attr( $at8_mluc_email ); ?>" />
 		</p>
 
-		<p class="mluc-field">
-			<label for="mluc-register-pass"><?php esc_html_e( 'Password', 'moonlight-user-center' ); ?></label>
-			<input type="password" id="mluc-register-pass" name="password" autocomplete="new-password" required
-				minlength="8" aria-describedby="mluc-register-pass-hint" />
-			<span class="mluc-field-hint" id="mluc-register-pass-hint">
-				<?php esc_html_e( 'At least 8 characters.', 'moonlight-user-center' ); ?>
+		<p class="at8-mluc-field">
+			<label for="at8-mluc-register-pass"><?php esc_html_e( 'Password', 'at8-moonlight-user-center' ); ?></label>
+			<input type="password" id="at8-mluc-register-pass" name="password" autocomplete="new-password" required
+				minlength="8" aria-describedby="at8-mluc-register-pass-hint" />
+			<span class="at8-mluc-field-hint" id="at8-mluc-register-pass-hint">
+				<?php esc_html_e( 'At least 8 characters.', 'at8-moonlight-user-center' ); ?>
 			</span>
 		</p>
 
@@ -67,23 +67,23 @@ endif;
 		 * proves the form was rendered by this site and submitted once.
 		 */
 		?>
-		<p class="mluc-hp" aria-hidden="true">
-			<label for="mluc-register-hp"><?php esc_html_e( 'Leave this field empty', 'moonlight-user-center' ); ?></label>
-			<input type="text" id="mluc-register-hp" name="mluc_hp" value="" tabindex="-1" autocomplete="off" />
+		<p class="at8-mluc-hp" aria-hidden="true">
+			<label for="at8-mluc-register-hp"><?php esc_html_e( 'Leave this field empty', 'at8-moonlight-user-center' ); ?></label>
+			<input type="text" id="at8-mluc-register-hp" name="at8_mluc_hp" value="" tabindex="-1" autocomplete="off" />
 		</p>
-		<input type="hidden" name="mluc_tk" value="<?php echo esc_attr( MLUC_Register::issue_token() ); ?>" />
+		<input type="hidden" name="at8_mluc_tk" value="<?php echo esc_attr( AT8_MLUC_Register::issue_token() ); ?>" />
 
-		<p class="mluc-form-notice" id="mluc-register-notice" role="status" aria-live="polite" hidden></p>
+		<p class="at8-mluc-form-notice" id="at8-mluc-register-notice" role="status" aria-live="polite" hidden></p>
 
-		<p class="mluc-actions">
-			<button type="submit" class="mluc-button"><?php esc_html_e( 'Create Account', 'moonlight-user-center' ); ?></button>
+		<p class="at8-mluc-actions">
+			<button type="submit" class="at8-mluc-button"><?php esc_html_e( 'Create Account', 'at8-moonlight-user-center' ); ?></button>
 		</p>
 	</form>
 
-	<ul class="mluc-auth-links">
+	<ul class="at8-mluc-auth-links">
 		<li>
-			<a href="<?php echo esc_url( mluc_get_login_url() ); ?>">
-				<?php esc_html_e( 'Already have an account? Log in', 'moonlight-user-center' ); ?>
+			<a href="<?php echo esc_url( at8_mluc_get_login_url() ); ?>">
+				<?php esc_html_e( 'Already have an account? Log in', 'at8-moonlight-user-center' ); ?>
 			</a>
 		</li>
 	</ul>

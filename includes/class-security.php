@@ -5,7 +5,7 @@
  * Every AJAX handler in this plugin routes its nonce, capability and throttling
  * checks through this class so the checks cannot drift apart.
  *
- * @package Moonlight_User_Center
+ * @package AT8_Moonlight_User_Center
  */
 
 defined( 'ABSPATH' ) || exit;
@@ -13,14 +13,14 @@ defined( 'ABSPATH' ) || exit;
 /**
  * Request hardening helpers.
  */
-class MLUC_Security {
+class AT8_MLUC_Security {
 
 	/**
 	 * Nonce action used by every front-end AJAX request.
 	 *
 	 * @var string
 	 */
-	const NONCE_ACTION = 'mluc_ajax';
+	const NONCE_ACTION = 'at8_mluc_ajax';
 
 	/**
 	 * Request field carrying the nonce.
@@ -82,7 +82,7 @@ class MLUC_Security {
 	 */
 	public static function require_ajax_nonce( $action = self::NONCE_ACTION ) {
 		if ( ! self::verify_ajax_nonce( $action ) ) {
-			mluc_send_json( false, __( 'The security check failed. Please reload the page and try again.', 'moonlight-user-center' ) );
+			at8_mluc_send_json( false, __( 'The security check failed. Please reload the page and try again.', 'at8-moonlight-user-center' ) );
 		}
 	}
 
@@ -97,7 +97,7 @@ class MLUC_Security {
 	 */
 	public static function require_login() {
 		if ( ! is_user_logged_in() || ! current_user_can( 'read' ) ) {
-			mluc_send_json( false, __( 'Please log in first.', 'moonlight-user-center' ) );
+			at8_mluc_send_json( false, __( 'Please log in first.', 'at8-moonlight-user-center' ) );
 		}
 	}
 
@@ -109,7 +109,7 @@ class MLUC_Security {
 	 */
 	public static function require_capability( $capability ) {
 		if ( ! current_user_can( $capability ) ) {
-			mluc_send_json( false, __( 'You are not allowed to perform this action.', 'moonlight-user-center' ) );
+			at8_mluc_send_json( false, __( 'You are not allowed to perform this action.', 'at8-moonlight-user-center' ) );
 		}
 	}
 
@@ -154,13 +154,13 @@ class MLUC_Security {
 		 * @param int    $limit  Maximum requests inside the window.
 		 * @param string $action Action name.
 		 */
-		$limit = (int) apply_filters( 'mluc_rate_limit', $limit, $action );
+		$limit = (int) apply_filters( 'at8_mluc_rate_limit', $limit, $action );
 
 		if ( $limit < 1 ) {
 			return true;
 		}
 
-		$key   = 'mluc_rl_' . md5( $action . '|' . self::client_ip() . '|' . strtolower( (string) $extra ) );
+		$key   = 'at8_mluc_rl_' . md5( $action . '|' . self::client_ip() . '|' . strtolower( (string) $extra ) );
 		$count = (int) get_transient( $key );
 
 		if ( $count >= $limit ) {
@@ -178,7 +178,7 @@ class MLUC_Security {
 	 * @return void
 	 */
 	public static function reject_throttled() {
-		mluc_send_json( false, __( 'Too many attempts. Please wait a moment and try again.', 'moonlight-user-center' ) );
+		at8_mluc_send_json( false, __( 'Too many attempts. Please wait a moment and try again.', 'at8-moonlight-user-center' ) );
 	}
 
 	/**
@@ -194,6 +194,6 @@ class MLUC_Security {
 		 *
 		 * @param string $capability Capability name.
 		 */
-		return (string) apply_filters( 'mluc_manage_capability', 'manage_options' );
+		return (string) apply_filters( 'at8_mluc_manage_capability', 'manage_options' );
 	}
 }

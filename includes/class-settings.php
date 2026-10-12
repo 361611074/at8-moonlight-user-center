@@ -5,7 +5,7 @@
  * Uses the WordPress Settings API, so nonce handling and the capability check
  * are performed by WordPress itself before `sanitize_callback` runs.
  *
- * @package Moonlight_User_Center
+ * @package AT8_Moonlight_User_Center
  */
 
 defined( 'ABSPATH' ) || exit;
@@ -13,40 +13,40 @@ defined( 'ABSPATH' ) || exit;
 /**
  * Settings screen and option sanitisation.
  */
-class MLUC_Settings {
+class AT8_MLUC_Settings {
 
 	/**
 	 * Option name.
 	 *
 	 * @var string
 	 */
-	const OPTION = 'mluc_options';
+	const OPTION = 'at8_mluc_options';
 
 	/**
 	 * Settings group.
 	 *
 	 * @var string
 	 */
-	const GROUP = 'mluc_settings';
+	const GROUP = 'at8_mluc_settings';
 
 	/**
 	 * Settings page slug.
 	 *
 	 * @var string
 	 */
-	const PAGE = 'mluc-settings';
+	const PAGE = 'at8-mluc-settings';
 
 	/**
 	 * Singleton instance.
 	 *
-	 * @var MLUC_Settings|null
+	 * @var AT8_MLUC_Settings|null
 	 */
 	private static $instance = null;
 
 	/**
 	 * Retrieve the singleton.
 	 *
-	 * @return MLUC_Settings
+	 * @return AT8_MLUC_Settings
 	 */
 	public static function get_instance() {
 		if ( null === self::$instance ) {
@@ -62,7 +62,7 @@ class MLUC_Settings {
 	private function __construct() {
 		add_action( 'admin_menu', array( $this, 'add_menu' ) );
 		add_action( 'admin_init', array( $this, 'register_settings' ) );
-		add_filter( 'plugin_action_links_' . MLUC_PLUGIN_BASENAME, array( $this, 'add_action_link' ) );
+		add_filter( 'plugin_action_links_' . AT8_MLUC_PLUGIN_BASENAME, array( $this, 'add_action_link' ) );
 	}
 
 	/**
@@ -72,9 +72,9 @@ class MLUC_Settings {
 	 */
 	public function add_menu() {
 		add_options_page(
-			__( 'Moonlight User Center', 'moonlight-user-center' ),
-			__( 'User Center', 'moonlight-user-center' ),
-			MLUC_Security::manage_capability(),
+			__( 'AT8 Moonlight User Center', 'at8-moonlight-user-center' ),
+			__( 'User Center', 'at8-moonlight-user-center' ),
+			AT8_MLUC_Security::manage_capability(),
 			self::PAGE,
 			array( $this, 'render_page' )
 		);
@@ -87,7 +87,7 @@ class MLUC_Settings {
 	 * @return string[]
 	 */
 	public function add_action_link( $links ) {
-		if ( ! current_user_can( MLUC_Security::manage_capability() ) ) {
+		if ( ! current_user_can( AT8_MLUC_Security::manage_capability() ) ) {
 			return $links;
 		}
 
@@ -95,7 +95,7 @@ class MLUC_Settings {
 
 		array_unshift(
 			$links,
-			sprintf( '<a href="%s">%s</a>', esc_url( $url ), esc_html__( 'Settings', 'moonlight-user-center' ) )
+			sprintf( '<a href="%s">%s</a>', esc_url( $url ), esc_html__( 'Settings', 'at8-moonlight-user-center' ) )
 		);
 
 		return $links;
@@ -113,43 +113,43 @@ class MLUC_Settings {
 			array(
 				'type'              => 'array',
 				'sanitize_callback' => array( $this, 'sanitize' ),
-				'default'           => MLUC_Activator::defaults(),
+				'default'           => AT8_MLUC_Activator::defaults(),
 				'show_in_rest'      => false,
 			)
 		);
 
 		add_settings_section(
-			'mluc_pages',
-			__( 'Pages', 'moonlight-user-center' ),
+			'at8_mluc_pages',
+			__( 'Pages', 'at8-moonlight-user-center' ),
 			array( $this, 'section_pages' ),
 			self::PAGE
 		);
 
-		$this->add_field( 'account_page_id', __( 'Account page', 'moonlight-user-center' ), 'pages', 'page_select' );
-		$this->add_field( 'login_page_id', __( 'Login page', 'moonlight-user-center' ), 'pages', 'page_select' );
-		$this->add_field( 'register_page_id', __( 'Registration page', 'moonlight-user-center' ), 'pages', 'page_select' );
-		$this->add_field( 'lostpassword_page_id', __( 'Password recovery page', 'moonlight-user-center' ), 'pages', 'page_select' );
+		$this->add_field( 'account_page_id', __( 'Account page', 'at8-moonlight-user-center' ), 'pages', 'page_select' );
+		$this->add_field( 'login_page_id', __( 'Login page', 'at8-moonlight-user-center' ), 'pages', 'page_select' );
+		$this->add_field( 'register_page_id', __( 'Registration page', 'at8-moonlight-user-center' ), 'pages', 'page_select' );
+		$this->add_field( 'lostpassword_page_id', __( 'Password recovery page', 'at8-moonlight-user-center' ), 'pages', 'page_select' );
 
 		add_settings_section(
-			'mluc_behaviour',
-			__( 'Behaviour', 'moonlight-user-center' ),
+			'at8_mluc_behaviour',
+			__( 'Behaviour', 'at8-moonlight-user-center' ),
 			array( $this, 'section_behaviour' ),
 			self::PAGE
 		);
 
-		$this->add_field( 'enable_registration', __( 'Front-end registration', 'moonlight-user-center' ), 'behaviour', 'checkbox' );
-		$this->add_field( 'auto_login', __( 'Log in after registration', 'moonlight-user-center' ), 'behaviour', 'checkbox' );
-		$this->add_field( 'enable_avatar', __( 'Avatar library', 'moonlight-user-center' ), 'behaviour', 'checkbox' );
-		$this->add_field( 'redirect_after_login', __( 'Redirect after login', 'moonlight-user-center' ), 'behaviour', 'url' );
+		$this->add_field( 'enable_registration', __( 'Front-end registration', 'at8-moonlight-user-center' ), 'behaviour', 'checkbox' );
+		$this->add_field( 'auto_login', __( 'Log in after registration', 'at8-moonlight-user-center' ), 'behaviour', 'checkbox' );
+		$this->add_field( 'enable_avatar', __( 'Avatar library', 'at8-moonlight-user-center' ), 'behaviour', 'checkbox' );
+		$this->add_field( 'redirect_after_login', __( 'Redirect after login', 'at8-moonlight-user-center' ), 'behaviour', 'url' );
 
 		add_settings_section(
-			'mluc_uninstall',
-			__( 'Uninstall', 'moonlight-user-center' ),
+			'at8_mluc_uninstall',
+			__( 'Uninstall', 'at8-moonlight-user-center' ),
 			array( $this, 'section_uninstall' ),
 			self::PAGE
 		);
 
-		$this->add_field( 'delete_data', __( 'Delete data on uninstall', 'moonlight-user-center' ), 'uninstall', 'checkbox' );
+		$this->add_field( 'delete_data', __( 'Delete data on uninstall', 'at8-moonlight-user-center' ), 'uninstall', 'checkbox' );
 	}
 
 	/**
@@ -163,15 +163,15 @@ class MLUC_Settings {
 	 */
 	private function add_field( $key, $label, $section, $type ) {
 		add_settings_field(
-			'mluc_field_' . $key,
+			'at8_mluc_field_' . $key,
 			$label,
 			array( $this, 'render_field' ),
 			self::PAGE,
-			'mluc_' . $section,
+			'at8_mluc_' . $section,
 			array(
 				'key'         => $key,
 				'type'        => $type,
-				'label_for'   => 'mluc_field_' . $key,
+				'label_for'   => 'at8_mluc_field_' . $key,
 			)
 		);
 	}
@@ -182,7 +182,7 @@ class MLUC_Settings {
 	 * @return void
 	 */
 	public function section_pages() {
-		echo '<p>' . esc_html__( 'Choose which pages hold the plugin shortcodes. Leave a page unset to fall back to the WordPress login screens.', 'moonlight-user-center' ) . '</p>';
+		echo '<p>' . esc_html__( 'Choose which pages hold the plugin shortcodes. Leave a page unset to fall back to the WordPress login screens.', 'at8-moonlight-user-center' ) . '</p>';
 	}
 
 	/**
@@ -191,7 +191,7 @@ class MLUC_Settings {
 	 * @return void
 	 */
 	public function section_behaviour() {
-		echo '<p>' . esc_html__( 'Control what visitors can do on the front end.', 'moonlight-user-center' ) . '</p>';
+		echo '<p>' . esc_html__( 'Control what visitors can do on the front end.', 'at8-moonlight-user-center' ) . '</p>';
 	}
 
 	/**
@@ -200,7 +200,7 @@ class MLUC_Settings {
 	 * @return void
 	 */
 	public function section_uninstall() {
-		echo '<p>' . esc_html__( 'Choose what happens to the data this plugin stored if it is deleted.', 'moonlight-user-center' ) . '</p>';
+		echo '<p>' . esc_html__( 'Choose what happens to the data this plugin stored if it is deleted.', 'at8-moonlight-user-center' ) . '</p>';
 	}
 
 	/**
@@ -212,9 +212,9 @@ class MLUC_Settings {
 	public function render_field( $args ) {
 		$key   = $args['key'];
 		$type  = $args['type'];
-		$id    = 'mluc_field_' . $key;
+		$id    = 'at8_mluc_field_' . $key;
 		$name  = self::OPTION . '[' . $key . ']';
-		$value = mluc_get_option( $key, '' );
+		$value = at8_mluc_get_option( $key, '' );
 
 		switch ( $type ) {
 			case 'page_select':
@@ -226,7 +226,7 @@ class MLUC_Settings {
 				);
 
 				printf( '<select id="%1$s" name="%2$s">', esc_attr( $id ), esc_attr( $name ) );
-				printf( '<option value="0">%s</option>', esc_html__( '— Not set —', 'moonlight-user-center' ) );
+				printf( '<option value="0">%s</option>', esc_html__( '— Not set —', 'at8-moonlight-user-center' ) );
 
 				foreach ( $pages as $page ) {
 					printf(
@@ -246,7 +246,7 @@ class MLUC_Settings {
 					esc_attr( $id ),
 					esc_attr( $name ),
 					checked( (bool) $value, true, false ),
-					esc_html__( 'Enabled', 'moonlight-user-center' )
+					esc_html__( 'Enabled', 'at8-moonlight-user-center' )
 				);
 				break;
 
@@ -256,7 +256,7 @@ class MLUC_Settings {
 					esc_attr( $id ),
 					esc_attr( $name ),
 					esc_url( (string) $value ),
-					esc_attr( mluc_get_account_url() )
+					esc_attr( at8_mluc_get_account_url() )
 				);
 				break;
 
@@ -271,7 +271,7 @@ class MLUC_Settings {
 		}
 
 		if ( 'delete_data' === $key ) {
-			echo '<p class="description">' . esc_html__( 'When enabled, deleting the plugin removes its settings and the profile fields it added. WordPress user accounts, posts and comments are never removed.', 'moonlight-user-center' ) . '</p>';
+			echo '<p class="description">' . esc_html__( 'When enabled, deleting the plugin removes its settings and the profile fields it added. WordPress user accounts, posts and comments are never removed.', 'at8-moonlight-user-center' ) . '</p>';
 		}
 
 		if ( 'enable_registration' === $key && ! get_option( 'users_can_register' ) ) {
@@ -281,21 +281,21 @@ class MLUC_Settings {
 				'<p class="description">%s</p>',
 				sprintf(
 					/* translators: %s: link to the WordPress general settings screen. */
-					esc_html__( 'Registration also requires the “Anyone can register” option in %s.', 'moonlight-user-center' ),
-					'<a href="' . esc_url( $settings_url ) . '">' . esc_html__( 'General Settings', 'moonlight-user-center' ) . '</a>'
+					esc_html__( 'Registration also requires the “Anyone can register” option in %s.', 'at8-moonlight-user-center' ),
+					'<a href="' . esc_url( $settings_url ) . '">' . esc_html__( 'General Settings', 'at8-moonlight-user-center' ) . '</a>'
 				)
 			);
 		}
 
 		if ( 'enable_avatar' === $key ) {
-			$library_url = admin_url( 'edit.php?post_type=' . MLUC_Avatar::POST_TYPE );
+			$library_url = admin_url( 'edit.php?post_type=' . AT8_MLUC_Avatar::POST_TYPE );
 
 			printf(
 				'<p class="description">%s</p>',
 				sprintf(
 					/* translators: %s: link to the avatar library admin screen. */
-					esc_html__( 'Manage the selectable avatars in the %s.', 'moonlight-user-center' ),
-					'<a href="' . esc_url( $library_url ) . '">' . esc_html__( 'avatar library', 'moonlight-user-center' ) . '</a>'
+					esc_html__( 'Manage the selectable avatars in the %s.', 'at8-moonlight-user-center' ),
+					'<a href="' . esc_url( $library_url ) . '">' . esc_html__( 'avatar library', 'at8-moonlight-user-center' ) . '</a>'
 				)
 			);
 		}
@@ -307,33 +307,33 @@ class MLUC_Settings {
 	 * @return void
 	 */
 	public function render_page() {
-		if ( ! current_user_can( MLUC_Security::manage_capability() ) ) {
-			wp_die( esc_html__( 'You are not allowed to access this page.', 'moonlight-user-center' ), '', array( 'response' => 403 ) );
+		if ( ! current_user_can( AT8_MLUC_Security::manage_capability() ) ) {
+			wp_die( esc_html__( 'You are not allowed to access this page.', 'at8-moonlight-user-center' ), '', array( 'response' => 403 ) );
 		}
 		?>
 		<div class="wrap">
 			<h1><?php echo esc_html( get_admin_page_title() ); ?></h1>
 
 			<p>
-				<?php esc_html_e( 'Place these shortcodes in the pages you selected below:', 'moonlight-user-center' ); ?>
+				<?php esc_html_e( 'Place these shortcodes in the pages you selected below:', 'at8-moonlight-user-center' ); ?>
 			</p>
 			<table class="widefat striped" style="max-width:640px;margin-bottom:1.5em;">
 				<tbody>
 					<tr>
-						<td><code>[mluc_login]</code></td>
-						<td><?php esc_html_e( 'Login form', 'moonlight-user-center' ); ?></td>
+						<td><code>[at8_mluc_login]</code></td>
+						<td><?php esc_html_e( 'Login form', 'at8-moonlight-user-center' ); ?></td>
 					</tr>
 					<tr>
-						<td><code>[mluc_register]</code></td>
-						<td><?php esc_html_e( 'Registration form', 'moonlight-user-center' ); ?></td>
+						<td><code>[at8_mluc_register]</code></td>
+						<td><?php esc_html_e( 'Registration form', 'at8-moonlight-user-center' ); ?></td>
 					</tr>
 					<tr>
-						<td><code>[mluc_lostpassword]</code></td>
-						<td><?php esc_html_e( 'Password recovery form', 'moonlight-user-center' ); ?></td>
+						<td><code>[at8_mluc_lostpassword]</code></td>
+						<td><?php esc_html_e( 'Password recovery form', 'at8-moonlight-user-center' ); ?></td>
 					</tr>
 					<tr>
-						<td><code>[mluc_account]</code></td>
-						<td><?php esc_html_e( 'Account dashboard', 'moonlight-user-center' ); ?></td>
+						<td><code>[at8_mluc_account]</code></td>
+						<td><?php esc_html_e( 'Account dashboard', 'at8-moonlight-user-center' ); ?></td>
 					</tr>
 				</tbody>
 			</table>
@@ -356,7 +356,7 @@ class MLUC_Settings {
 	 * @return array<string, mixed>
 	 */
 	public function sanitize( $input ) {
-		$defaults = MLUC_Activator::defaults();
+		$defaults = AT8_MLUC_Activator::defaults();
 		$current  = get_option( self::OPTION, array() );
 		$current  = is_array( $current ) ? $current : array();
 		$input    = is_array( $input ) ? $input : array();
@@ -383,8 +383,8 @@ class MLUC_Settings {
 			$redirect = '';
 			add_settings_error(
 				self::OPTION,
-				'mluc_redirect_invalid',
-				__( 'The redirect address was not a valid URL, so it was cleared.', 'moonlight-user-center' ),
+				'at8_mluc_redirect_invalid',
+				__( 'The redirect address was not a valid URL, so it was cleared.', 'at8-moonlight-user-center' ),
 				'warning'
 			);
 		}
