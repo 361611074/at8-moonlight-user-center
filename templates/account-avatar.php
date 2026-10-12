@@ -16,14 +16,14 @@
 
 defined( 'ABSPATH' ) || exit;
 
-$user = isset( $args['user'] ) ? $args['user'] : null;
+$at8_mluc_user = isset( $args['user'] ) ? $args['user'] : null;
 
-if ( ! $user instanceof WP_User ) {
+if ( ! $at8_mluc_user instanceof WP_User ) {
 	return;
 }
 
-$library         = isset( $args['library'] ) && is_array( $args['library'] ) ? $args['library'] : array();
-$avatar_url      = isset( $args['avatar_url'] ) ? $args['avatar_url'] : '';
+$at8_mluc_library         = isset( $args['library'] ) && is_array( $args['library'] ) ? $args['library'] : array();
+$at8_mluc_avatar_url      = isset( $args['avatar_url'] ) ? $args['avatar_url'] : '';
 $at8_mluc_current_id = isset( $args['current_id'] ) ? absint( $args['current_id'] ) : 0;
 ?>
 <div class="at8-mluc-card at8-mluc-avatar">
@@ -32,14 +32,14 @@ $at8_mluc_current_id = isset( $args['current_id'] ) ? absint( $args['current_id'
 
 	<div class="at8-mluc-avatar-current">
 		<img data-at8-mluc-avatar-preview
-			src="<?php echo esc_url( $avatar_url ); ?>"
+			src="<?php echo esc_url( $at8_mluc_avatar_url ); ?>"
 			width="96" height="96" loading="lazy" decoding="async"
 			alt="<?php esc_attr_e( 'Your current avatar', 'at8-moonlight-user-center' ); ?>" />
 	</div>
 
 	<p class="at8-mluc-form-notice" id="at8-mluc-avatar-notice" role="status" aria-live="polite" hidden></p>
 
-	<?php if ( empty( $library ) ) : ?>
+	<?php if ( empty( $at8_mluc_library ) ) : ?>
 
 		<p class="at8-mluc-message at8-mluc-message--info">
 			<?php esc_html_e( 'No avatars are available yet. Please check back later.', 'at8-moonlight-user-center' ); ?>
@@ -48,7 +48,7 @@ $at8_mluc_current_id = isset( $args['current_id'] ) ? absint( $args['current_id'
 	<?php else : ?>
 
 		<div class="at8-mluc-avatar-grid" data-at8-mluc-avatar-picker data-at8-mluc-notice="at8-mluc-avatar-notice">
-			<?php foreach ( $library as $at8_mluc_item ) : ?>
+			<?php foreach ( $at8_mluc_library as $at8_mluc_item ) : ?>
 				<?php
 				$at8_mluc_is_active = ( (int) $at8_mluc_item['attachment_id'] === $at8_mluc_current_id );
 				$at8_mluc_label     = '' !== $at8_mluc_item['title']

@@ -344,7 +344,8 @@ class AT8_MLUC_Shortcodes {
 	 * @return string One of login, register, lostpassword.
 	 */
 	private function current_view( $default ) {
-		$view = isset( $_GET['at8_mluc_view'] ) ? sanitize_key( wp_unslash( $_GET['at8_mluc_view'] ) ) : '';
+		// phpcs:ignore WordPress.Security.NonceVerification.Recommended -- Read-only view switcher: the value is sanitised and whitelisted below.
+		$view = isset( $_GET['at8_mluc_view'] ) && is_string( $_GET['at8_mluc_view'] ) ? sanitize_key( wp_unslash( $_GET['at8_mluc_view'] ) ) : '';
 
 		return in_array( $view, array( 'login', 'register', 'lostpassword' ), true ) ? $view : $default;
 	}
@@ -357,7 +358,8 @@ class AT8_MLUC_Shortcodes {
 	 * @return string
 	 */
 	private function current_tab( $tabs, $default ) {
-		$requested = isset( $_GET['tab'] ) ? sanitize_key( wp_unslash( $_GET['tab'] ) ) : '';
+		// phpcs:ignore WordPress.Security.NonceVerification.Recommended -- Read-only tab switcher: the requested tab is matched against registered tabs only.
+		$requested = isset( $_GET['tab'] ) && is_string( $_GET['tab'] ) ? sanitize_key( wp_unslash( $_GET['tab'] ) ) : '';
 
 		if ( '' !== $requested && isset( $tabs[ $requested ] ) ) {
 			return $requested;

@@ -2,7 +2,7 @@
 # This file is distributed under the GPL-2.0-or-later license.
 msgid ""
 msgstr ""
-"Project-Id-Version: AT8 Moonlight User Center 1.0.1\n"
+"Project-Id-Version: AT8 Moonlight User Center 1.0.2\n"
 "Report-Msgid-Bugs-To: https://wordpress.org/support/plugin/at8-moonlight-user-center\n"
 "Last-Translator: 漫步白月光 <https://www.at8.fun/>\n"
 "Language-Team: Chinese (China)\n"
@@ -77,75 +77,79 @@ msgstr "回收站中没有头像。"
 msgid "Avatars that users can pick from in their account dashboard."
 msgstr "用户可在个人中心中选择的头像。"
 
-#: includes/class-avatar.php:256
+#: includes/class-avatar.php:253 includes/class-login.php:77 includes/class-login.php:175 includes/class-login.php:217 includes/class-profile.php:68 includes/class-register.php:126
+msgid "The security check failed. Please reload the page and try again."
+msgstr "安全校验失败，请刷新页面后重试。"
+
+#: includes/class-avatar.php:258
 msgid "The avatar library is disabled."
 msgstr "头像库功能未启用。"
 
-#: includes/class-avatar.php:275
+#: includes/class-avatar.php:277
 msgid "Your avatar has been reset."
 msgstr "头像已恢复为默认。"
 
-#: includes/class-avatar.php:283
+#: includes/class-avatar.php:285
 msgid "Please choose an avatar."
 msgstr "请选择一个头像。"
 
-#: includes/class-avatar.php:287
+#: includes/class-avatar.php:289
 msgid "That avatar is not available."
 msgstr "该头像不可用。"
 
-#: includes/class-avatar.php:293
+#: includes/class-avatar.php:295
 msgid "That avatar has no image attached."
 msgstr "该头像尚未设置图片。"
 
-#: includes/class-avatar.php:299
+#: includes/class-avatar.php:301
 msgid "That avatar image could not be loaded."
 msgstr "无法加载该头像图片。"
 
-#: includes/class-avatar.php:318
+#: includes/class-avatar.php:320
 msgid "Your avatar has been updated."
 msgstr "头像已更新。"
 
-#: includes/class-login.php:88
+#: includes/class-login.php:90
 msgid "Please enter your username and password."
 msgstr "请输入用户名和密码。"
 
-#: includes/class-login.php:114 includes/functions.php:236
+#: includes/class-login.php:116 includes/functions.php:236
 msgid "Incorrect username or password."
 msgstr "用户名或密码不正确。"
 
-#: includes/class-login.php:125
+#: includes/class-login.php:132
 msgid "You are now logged in."
 msgstr "登录成功。"
 
-#: includes/class-login.php:175
+#: includes/class-login.php:185
 msgid "Please enter your username or email address."
 msgstr "请输入您的用户名或邮箱地址。"
 
-#: includes/class-login.php:195
+#: includes/class-login.php:205
 msgid "If that account exists, a password reset link has been sent to its email address."
 msgstr "如果该账户存在，重置密码的链接已发送至其邮箱。"
 
-#: includes/class-login.php:221
+#: includes/class-login.php:233
 msgid "Please fill in every password field."
 msgstr "请填写所有密码栏位。"
 
-#: includes/class-login.php:225
+#: includes/class-login.php:237
 msgid "The two new passwords do not match."
 msgstr "两次输入的新密码不一致。"
 
-#: includes/class-login.php:229 includes/class-register.php:173
+#: includes/class-login.php:241 includes/class-register.php:175
 msgid "Please choose a password of at least 8 characters."
 msgstr "请设置至少 8 个字符的密码。"
 
-#: includes/class-login.php:235 includes/class-security.php:100
+#: includes/class-login.php:247 includes/class-security.php:73
 msgid "Please log in first."
 msgstr "请先登录。"
 
-#: includes/class-login.php:239
+#: includes/class-login.php:251
 msgid "Your current password is incorrect."
 msgstr "当前密码不正确。"
 
-#: includes/class-login.php:274
+#: includes/class-login.php:286
 msgid "Your password has been changed."
 msgstr "密码已修改。"
 
@@ -173,79 +177,75 @@ msgstr "本插件不会向任何外部服务发送数据，不内嵌第三方跟
 msgid "You can request an export of your personal data, or the erasure of the information listed above, at any time through the privacy tools on this site."
 msgstr "您可以随时通过本站的隐私工具申请导出个人数据，或删除上述信息。"
 
-#: includes/class-profile.php:88
+#: includes/class-profile.php:90
 msgid "Please enter a display name."
 msgstr "请输入显示名称。"
 
-#: includes/class-profile.php:93
+#: includes/class-profile.php:95
 msgid "That display name is too long."
 msgstr "该显示名称过长。"
 
-#: includes/class-profile.php:97
+#: includes/class-profile.php:99
 msgid "That display name contains characters that are not allowed."
 msgstr "该显示名称包含不允许的字符。"
 
-#: includes/class-profile.php:105
+#: includes/class-profile.php:107
 msgid "That nickname contains characters that are not allowed."
 msgstr "该昵称包含不允许的字符。"
 
-#: includes/class-profile.php:109
+#: includes/class-profile.php:111
 msgid "That website address is not valid."
 msgstr "该网站地址格式不正确。"
 
-#: includes/class-profile.php:113
+#: includes/class-profile.php:115
 msgid "That phone number is too long."
 msgstr "该手机号码过长。"
 
-#: includes/class-profile.php:162
+#: includes/class-profile.php:164
 msgid "Your profile has been updated."
 msgstr "资料已更新。"
 
-#: includes/class-register.php:128 templates/register.php:24
+#: includes/class-register.php:130 templates/register.php:24
 msgid "Registration is currently disabled on this site."
 msgstr "本站当前已关闭注册。"
 
-#: includes/class-register.php:138 includes/class-register.php:143
+#: includes/class-register.php:140 includes/class-register.php:145
 msgid "Registration failed. Please try again."
 msgstr "注册失败，请重试。"
 
-#: includes/class-register.php:157
+#: includes/class-register.php:159
 msgid "The password contains characters that are not allowed."
 msgstr "密码中包含不允许的字符。"
 
-#: includes/class-register.php:161
+#: includes/class-register.php:163
 msgid "Please fill in a username, an email address and a password."
 msgstr "请填写用户名、邮箱地址和密码。"
 
-#: includes/class-register.php:165
+#: includes/class-register.php:167
 msgid "That username contains invalid characters."
 msgstr "该用户名包含无效字符。"
 
-#: includes/class-register.php:169 includes/functions.php:241
+#: includes/class-register.php:171 includes/functions.php:241
 msgid "That email address is not valid."
 msgstr "该邮箱地址格式不正确。"
 
-#: includes/class-register.php:177 includes/functions.php:239
+#: includes/class-register.php:179 includes/functions.php:239
 msgid "That username is already taken."
 msgstr "该用户名已被使用。"
 
-#: includes/class-register.php:181 includes/functions.php:240
+#: includes/class-register.php:183 includes/functions.php:240
 msgid "That email address is already registered."
 msgstr "该邮箱地址已被注册。"
 
-#: includes/class-register.php:227
+#: includes/class-register.php:229
 msgid "Your account was created."
 msgstr "账户创建成功。"
 
 #: includes/class-security.php:85
-msgid "The security check failed. Please reload the page and try again."
-msgstr "安全校验失败，请刷新页面后重试。"
-
-#: includes/class-security.php:112
 msgid "You are not allowed to perform this action."
 msgstr "您无权执行此操作。"
 
-#: includes/class-security.php:181
+#: includes/class-security.php:154
 msgid "Too many attempts. Please wait a moment and try again."
 msgstr "尝试过于频繁，请稍后再试。"
 
@@ -389,23 +389,23 @@ msgstr "用户中心栏目"
 msgid "Log Out"
 msgstr "退出登录"
 
-#: includes/class-shortcodes.php:407
+#: includes/class-shortcodes.php:411
 msgid "You are already logged in. Go to %1$s or %2$s."
 msgstr "您已登录，可前往%1$s或%2$s。"
 
-#: includes/class-shortcodes.php:408
+#: includes/class-shortcodes.php:412
 msgid "your account"
 msgstr "个人中心"
 
-#: includes/class-shortcodes.php:409
+#: includes/class-shortcodes.php:413
 msgid "log out"
 msgstr "退出登录"
 
-#: includes/class-shortcodes.php:424
+#: includes/class-shortcodes.php:428
 msgid "Please %s to view your account."
 msgstr "请%s后查看您的账户。"
 
-#: includes/class-shortcodes.php:425
+#: includes/class-shortcodes.php:429
 msgid "log in"
 msgstr "登录"
 

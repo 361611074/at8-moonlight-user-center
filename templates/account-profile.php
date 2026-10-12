@@ -16,13 +16,13 @@
 
 defined( 'ABSPATH' ) || exit;
 
-$user = isset( $args['user'] ) ? $args['user'] : null;
+$at8_mluc_user = isset( $args['user'] ) ? $args['user'] : null;
 
-if ( ! $user instanceof WP_User ) {
+if ( ! $at8_mluc_user instanceof WP_User ) {
 	return;
 }
 
-$at8_mluc_phone = (string) get_user_meta( $user->ID, 'at8_mluc_phone', true );
+$at8_mluc_phone = (string) get_user_meta( $at8_mluc_user->ID, 'at8_mluc_phone', true );
 ?>
 <div class="at8-mluc-card at8-mluc-profile">
 
@@ -36,7 +36,7 @@ $at8_mluc_phone = (string) get_user_meta( $user->ID, 'at8_mluc_phone', true );
 		<p class="at8-mluc-field">
 			<label for="at8-mluc-profile-display"><?php esc_html_e( 'Display name', 'at8-moonlight-user-center' ); ?></label>
 			<input type="text" id="at8-mluc-profile-display" name="display_name" maxlength="100" required
-				value="<?php echo esc_attr( $user->display_name ); ?>" />
+				value="<?php echo esc_attr( $at8_mluc_user->display_name ); ?>" />
 			<span class="at8-mluc-field-hint">
 				<?php esc_html_e( 'This is the name shown publicly with your posts and comments.', 'at8-moonlight-user-center' ); ?>
 			</span>
@@ -45,27 +45,27 @@ $at8_mluc_phone = (string) get_user_meta( $user->ID, 'at8_mluc_phone', true );
 		<p class="at8-mluc-field">
 			<label for="at8-mluc-profile-nickname"><?php esc_html_e( 'Nickname', 'at8-moonlight-user-center' ); ?></label>
 			<input type="text" id="at8-mluc-profile-nickname" name="nickname" maxlength="100"
-				value="<?php echo esc_attr( $user->nickname ); ?>" />
+				value="<?php echo esc_attr( $at8_mluc_user->nickname ); ?>" />
 		</p>
 
 		<div class="at8-mluc-field-group">
 			<p class="at8-mluc-field">
 				<label for="at8-mluc-profile-first"><?php esc_html_e( 'First name', 'at8-moonlight-user-center' ); ?></label>
 				<input type="text" id="at8-mluc-profile-first" name="first_name" maxlength="100"
-					value="<?php echo esc_attr( $user->first_name ); ?>" />
+					value="<?php echo esc_attr( $at8_mluc_user->first_name ); ?>" />
 			</p>
 
 			<p class="at8-mluc-field">
 				<label for="at8-mluc-profile-last"><?php esc_html_e( 'Last name', 'at8-moonlight-user-center' ); ?></label>
 				<input type="text" id="at8-mluc-profile-last" name="last_name" maxlength="100"
-					value="<?php echo esc_attr( $user->last_name ); ?>" />
+					value="<?php echo esc_attr( $at8_mluc_user->last_name ); ?>" />
 			</p>
 		</div>
 
 		<p class="at8-mluc-field">
 			<label for="at8-mluc-profile-url"><?php esc_html_e( 'Website', 'at8-moonlight-user-center' ); ?></label>
 			<input type="url" id="at8-mluc-profile-url" name="user_url"
-				value="<?php echo esc_url( $user->user_url ); ?>" />
+				value="<?php echo esc_url( $at8_mluc_user->user_url ); ?>" />
 		</p>
 
 		<p class="at8-mluc-field">
@@ -76,12 +76,12 @@ $at8_mluc_phone = (string) get_user_meta( $user->ID, 'at8_mluc_phone', true );
 
 		<p class="at8-mluc-field">
 			<label for="at8-mluc-profile-bio"><?php esc_html_e( 'Biographical info', 'at8-moonlight-user-center' ); ?></label>
-			<textarea id="at8-mluc-profile-bio" name="description" rows="5"><?php echo esc_textarea( $user->description ); ?></textarea>
+			<textarea id="at8-mluc-profile-bio" name="description" rows="5"><?php echo esc_textarea( $at8_mluc_user->description ); ?></textarea>
 		</p>
 
 		<p class="at8-mluc-field at8-mluc-field--static">
 			<span class="at8-mluc-field-label"><?php esc_html_e( 'Email address', 'at8-moonlight-user-center' ); ?></span>
-			<span class="at8-mluc-field-value"><?php echo esc_html( $user->user_email ); ?></span>
+			<span class="at8-mluc-field-value"><?php echo esc_html( $at8_mluc_user->user_email ); ?></span>
 			<span class="at8-mluc-field-hint">
 				<?php esc_html_e( 'Contact an administrator to change the email address on your account.', 'at8-moonlight-user-center' ); ?>
 			</span>
@@ -93,9 +93,9 @@ $at8_mluc_phone = (string) get_user_meta( $user->ID, 'at8_mluc_phone', true );
 		 *
 		 * @since 1.0.0
 		 *
-		 * @param WP_User $user Current user.
+		 * @param WP_User $at8_mluc_user Current user.
 		 */
-		do_action( 'at8_mluc_account_profile_fields', $user );
+		do_action( 'at8_mluc_account_profile_fields', $at8_mluc_user );
 		?>
 
 		<p class="at8-mluc-form-notice" id="at8-mluc-profile-notice" role="status" aria-live="polite" hidden></p>

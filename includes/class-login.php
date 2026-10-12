@@ -73,7 +73,9 @@ class AT8_MLUC_Login {
 	 * @return void
 	 */
 	public function handle_login() {
-		AT8_MLUC_Security::require_ajax_nonce( self::NONCE_ACTION );
+		if ( ! check_ajax_referer( self::NONCE_ACTION, AT8_MLUC_Security::NONCE_FIELD, false ) ) {
+			at8_mluc_send_json( false, __( 'The security check failed. Please reload the page and try again.', 'at8-moonlight-user-center' ) );
+		}
 
 		if ( ! AT8_MLUC_Security::allow( 'login' ) ) {
 			AT8_MLUC_Security::reject_throttled();
@@ -120,10 +122,15 @@ class AT8_MLUC_Login {
 		wp_set_current_user( $user->ID );
 		wp_set_auth_cookie( $user->ID, $remember );
 
+		$requested_redirect = '';
+		if ( isset( $_POST['redirect_to'] ) && is_string( $_POST['redirect_to'] ) ) {
+			$requested_redirect = esc_url_raw( wp_unslash( $_POST['redirect_to'] ) );
+		}
+
 		at8_mluc_send_json(
 			true,
 			__( 'You are now logged in.', 'at8-moonlight-user-center' ),
-			array( 'redirect' => self::resolve_redirect( $user->ID ) )
+			array( 'redirect' => self::resolve_redirect( $user->ID, $requested_redirect ) )
 		);
 	}
 
@@ -132,11 +139,13 @@ class AT8_MLUC_Login {
 	 *
 	 * The submitted `redirect_to` value is accepted only when it points back to
 	 * this site, which prevents the form from being used as an open redirect.
+	 * It is passed in by the caller, which has already verified the nonce.
 	 *
-	 * @param int $user_id Authenticated user ID.
+	 * @param int    $user_id           Authenticated user ID.
+	 * @param string $requested_redirect Sanitised redirect target submitted with the form.
 	 * @return string Safe absolute URL.
 	 */
-	private static function resolve_redirect( $user_id ) {
+	private static function resolve_redirect( $user_id, $requested_redirect = '' ) {
 		$fallback = at8_mluc_get_account_url();
 		$admin    = admin_url();
 
@@ -149,9 +158,8 @@ class AT8_MLUC_Login {
 			$fallback = $configured;
 		}
 
-		if ( isset( $_POST['redirect_to'] ) ) {
-			$requested = esc_url_raw( wp_unslash( $_POST['redirect_to'] ) );
-			$fallback  = wp_validate_redirect( $requested, $fallback );
+		if ( '' !== $requested_redirect ) {
+			$fallback = wp_validate_redirect( $requested_redirect, $fallback );
 		}
 
 		return $fallback;
@@ -163,7 +171,9 @@ class AT8_MLUC_Login {
 	 * @return void
 	 */
 	public function handle_lost_password() {
-		AT8_MLUC_Security::require_ajax_nonce( self::LOST_NONCE_ACTION );
+		if ( ! check_ajax_referer( self::LOST_NONCE_ACTION, AT8_MLUC_Security::NONCE_FIELD, false ) ) {
+			at8_mluc_send_json( false, __( 'The security check failed. Please reload the page and try again.', 'at8-moonlight-user-center' ) );
+		}
 
 		if ( ! AT8_MLUC_Security::allow( 'lost_password' ) ) {
 			AT8_MLUC_Security::reject_throttled();
@@ -203,7 +213,9 @@ class AT8_MLUC_Login {
 	 * @return void
 	 */
 	public function handle_change_password() {
-		AT8_MLUC_Security::require_ajax_nonce( self::PASSWORD_NONCE_ACTION );
+		if ( ! check_ajax_referer( self::PASSWORD_NONCE_ACTION, AT8_MLUC_Security::NONCE_FIELD, false ) ) {
+			at8_mluc_send_json( false, __( 'The security check failed. Please reload the page and try again.', 'at8-moonlight-user-center' ) );
+		}
 		AT8_MLUC_Security::require_login();
 
 		if ( ! AT8_MLUC_Security::allow( 'password' ) ) {

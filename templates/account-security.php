@@ -13,9 +13,9 @@
 
 defined( 'ABSPATH' ) || exit;
 
-$user = isset( $args['user'] ) ? $args['user'] : null;
+$at8_mluc_user = isset( $args['user'] ) ? $args['user'] : null;
 
-if ( ! $user instanceof WP_User ) {
+if ( ! $at8_mluc_user instanceof WP_User ) {
 	return;
 }
 ?>
@@ -58,9 +58,9 @@ if ( ! $user instanceof WP_User ) {
 		 *
 		 * @since 1.0.0
 		 *
-		 * @param WP_User $user Current user.
+		 * @param WP_User $at8_mluc_user Current user.
 		 */
-		do_action( 'at8_mluc_account_security_fields', $user );
+		do_action( 'at8_mluc_account_security_fields', $at8_mluc_user );
 		?>
 
 		<p class="at8-mluc-form-notice" id="at8-mluc-password-notice" role="status" aria-live="polite" hidden></p>

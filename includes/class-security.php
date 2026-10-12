@@ -1,9 +1,11 @@
 <?php
 /**
- * Shared request security: nonce checks, capability checks and rate limiting.
+ * Shared request security: capability checks and rate limiting.
  *
- * Every AJAX handler in this plugin routes its nonce, capability and throttling
- * checks through this class so the checks cannot drift apart.
+ * Capability, login and throttling checks all route through this class so
+ * they cannot drift apart. Nonce verification is performed inline in every
+ * handler with `check_ajax_referer()`, which keeps the check visible to both
+ * readers and static analysis tools.
  *
  * @package AT8_Moonlight_User_Center
  */
@@ -16,14 +18,10 @@ defined( 'ABSPATH' ) || exit;
 class AT8_MLUC_Security {
 
 	/**
-	 * Nonce action used by every front-end AJAX request.
-	 *
-	 * @var string
-	 */
-	const NONCE_ACTION = 'at8_mluc_ajax';
-
-	/**
 	 * Request field carrying the nonce.
+	 *
+	 * The front-end script posts the nonce in this field; the two must stay
+	 * in sync with `assets/js/at8-mluc.js`.
 	 *
 	 * @var string
 	 */
@@ -60,31 +58,6 @@ class AT8_MLUC_Security {
 			'window' => 600,
 		),
 	);
-
-	/**
-	 * Verify the AJAX nonce for a handler.
-	 *
-	 * Uses `check_ajax_referer()` with `$die = false` so the caller decides how
-	 * the failure is reported.
-	 *
-	 * @param string $action Nonce action; defaults to the shared AJAX action.
-	 * @return bool True when the nonce is present and valid.
-	 */
-	public static function verify_ajax_nonce( $action = self::NONCE_ACTION ) {
-		return (bool) check_ajax_referer( $action, self::NONCE_FIELD, false );
-	}
-
-	/**
-	 * Reject an AJAX request whose nonce is missing or invalid.
-	 *
-	 * @param string $action Nonce action.
-	 * @return void
-	 */
-	public static function require_ajax_nonce( $action = self::NONCE_ACTION ) {
-		if ( ! self::verify_ajax_nonce( $action ) ) {
-			at8_mluc_send_json( false, __( 'The security check failed. Please reload the page and try again.', 'at8-moonlight-user-center' ) );
-		}
-	}
 
 	/**
 	 * Reject an AJAX request from a logged-out visitor.

@@ -4,7 +4,7 @@ A lightweight, theme-agnostic front-end user center for WordPress. It gives a si
 front-end login, registration, password recovery and a personal account area without
 touching the WordPress admin.
 
-**Version 1.0.1** · GPL-2.0-or-later · PHP 7.4+ · WordPress 5.8+
+**Version 1.0.2** · GPL-2.0-or-later · PHP 7.4+ · WordPress 5.8+
 
 ---
 
@@ -53,7 +53,7 @@ WordPress screen.
 
 ## Installation
 
-1. Download `at8-moonlight-user-center-1.0.1.zip` from the releases, or clone this
+1. Download `at8-moonlight-user-center-1.0.2.zip` from the releases, or clone this
    repository into `wp-content/plugins/at8-moonlight-user-center/`.
 2. Activate the plugin under **Plugins**.
 3. Create pages containing the shortcodes listed above.
@@ -188,6 +188,28 @@ Paid features continue in the separate repository
 [moonlight-user-center-pro](https://github.com/361611074/moonlight-user-center-pro),
 which this plugin does not depend on. All extension points are plain WordPress hooks
 (`at8_mluc_loaded`, `at8_mluc_account_tabs`, `at8_mluc_template_args`, `at8_mluc_after_register`, …).
+
+### 1.0.2 — WordPress Plugin Check clean-up
+
+Version 1.0.2 addresses every finding of the Plugin Check (PCP) report so the plugin is
+ready for the WordPress.org directory:
+
+- **Removed the `load_plugin_textdomain()` call.** Since WordPress 4.6 core loads the
+  translation catalog for directory-hosted plugins from the translate server by itself;
+  the manual call is discouraged there.
+- **Nonce verification is inline.** Each AJAX handler calls
+  `check_ajax_referer( …, false )` directly instead of routing the check through a
+  helper method, so the verification is visible to static analysis. The two nonce
+  helpers on `AT8_MLUC_Security` were removed; capability, login and rate-limit checks
+  still go through that class.
+- **Template variables are prefixed.** The account templates' local variables are now
+  `$at8_mluc_user`, `$at8_mluc_avatar_url`, `$at8_mluc_library`, … matching the rest of
+  the codebase.
+- **The login redirect hint is passed as a parameter** to `resolve_redirect()` instead
+  of being read from `$_POST` inside a helper, and both query-string readers
+  (`current_view()`, `current_tab()`) now reject non-string input.
+- **The release zip no longer contains `.gitignore`** — hidden files are not permitted
+  in distributed plugins.
 
 ### Security fixes carried into 1.0.0
 

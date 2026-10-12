@@ -122,7 +122,9 @@ class AT8_MLUC_Register {
 	 * @return void
 	 */
 	public function handle_ajax() {
-		AT8_MLUC_Security::require_ajax_nonce( self::NONCE_ACTION );
+		if ( ! check_ajax_referer( self::NONCE_ACTION, AT8_MLUC_Security::NONCE_FIELD, false ) ) {
+			at8_mluc_send_json( false, __( 'The security check failed. Please reload the page and try again.', 'at8-moonlight-user-center' ) );
+		}
 
 		if ( ! self::is_enabled() ) {
 			at8_mluc_send_json( false, __( 'Registration is currently disabled on this site.', 'at8-moonlight-user-center' ) );

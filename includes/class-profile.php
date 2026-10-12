@@ -64,7 +64,9 @@ class AT8_MLUC_Profile {
 	 * @return void
 	 */
 	public function handle_update() {
-		AT8_MLUC_Security::require_ajax_nonce( self::NONCE_ACTION );
+		if ( ! check_ajax_referer( self::NONCE_ACTION, AT8_MLUC_Security::NONCE_FIELD, false ) ) {
+			at8_mluc_send_json( false, __( 'The security check failed. Please reload the page and try again.', 'at8-moonlight-user-center' ) );
+		}
 		AT8_MLUC_Security::require_login();
 
 		if ( ! AT8_MLUC_Security::allow( 'profile' ) ) {

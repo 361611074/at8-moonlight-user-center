@@ -3,7 +3,7 @@ Contributors: 361611074
 Tags: user profile, login, registration, avatar, user center
 Requires at least: 5.8
 Tested up to: 7.1
-Stable tag: 1.0.1
+Stable tag: 1.0.2
 Requires PHP: 7.4
 License: GPL-2.0-or-later
 License URI: https://www.gnu.org/licenses/gpl-2.0.html
@@ -89,6 +89,10 @@ Yes. Styles are namespaced and inherit the theme wherever possible, and any temp
 4. The front-end login form.
 
 == Changelog ==
+
+= 1.0.2 =
+* Plugin Check clean-up: removed the discouraged load_plugin_textdomain() call, every AJAX handler now verifies its nonce inline with check_ajax_referer(), and the account templates use prefixed local variables.
+* The release zip no longer ships .gitignore: hidden files are not permitted in distributed plugins.
 
 = 1.0.1 =
 * Rebranded to AT8 Moonlight User Center (plugin slug, text domain and all internal identifiers).
