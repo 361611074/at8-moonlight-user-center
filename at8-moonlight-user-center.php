@@ -2,8 +2,8 @@
 /**
  * Plugin Name:       AT8 Moonlight User Center
  * Plugin URI:        https://www.at8.fun/
- * Description:       A lightweight, theme-agnostic front-end user center. Provides login, registration, password recovery, an account dashboard, profile editing and an admin-curated avatar library.
- * Version:           2.0.0
+ * Description:       A lightweight, theme-agnostic front-end user center. Provides login, registration, password recovery, an account dashboard, profile editing, an admin-curated avatar library and social login.
+ * Version:           2.1.0
  * Requires at least: 5.8
  * Requires PHP:      7.4
  * Author:            漫步白月光
@@ -25,7 +25,7 @@ defined( 'ABSPATH' ) || exit;
  * relative to __DIR__ instead, so a constant defined elsewhere can never
  * redirect this plugin's class loading.
  */
-define( 'AT8_MLUC_VERSION', '2.0.0' );
+define( 'AT8_MLUC_VERSION', '2.1.0' );
 define( 'AT8_MLUC_PLUGIN_FILE', __FILE__ );
 define( 'AT8_MLUC_PLUGIN_DIR', plugin_dir_path( __FILE__ ) );
 define( 'AT8_MLUC_PLUGIN_URL', plugin_dir_url( __FILE__ ) );
@@ -87,6 +87,12 @@ function at8_mluc_bootstrap() {
 		'AT8_MLUC_Login',
 		'AT8_MLUC_Profile',
 		'AT8_MLUC_Avatar',
+		'AT8_MLUC_OAuth',
+		'AT8_MLUC_Hidecontent',
+		'AT8_MLUC_Editor_Button',
+		// Elementor integration self-guards on class_exists, so it is safe
+		// to instantiate even when Elementor is not installed.
+		'AT8_MLUC_Elementor',
 		'AT8_MLUC_Shortcodes',
 		'AT8_MLUC_Menu',
 		'AT8_MLUC_Privacy',

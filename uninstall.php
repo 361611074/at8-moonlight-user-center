@@ -54,6 +54,18 @@ function at8_mluc_uninstall_site() {
 		delete_metadata( 'user', 0, $meta_key, '', true );
 	}
 
+	// Social login bindings use dynamic per-provider keys
+	// (at8_mluc_oauth_<provider>_id), so they are matched by prefix.
+	global $wpdb;
+
+	// phpcs:ignore WordPress.DB.DirectDatabaseQuery.DirectQuery, WordPress.DB.DirectDatabaseQuery.NoCaching -- Uninstall cleanup has no cache to use and must be exhaustive.
+	$wpdb->query(
+		$wpdb->prepare(
+			"DELETE FROM {$wpdb->usermeta} WHERE meta_key LIKE %s",
+			$wpdb->esc_like( 'at8_mluc_oauth_' ) . '%'
+		)
+	);
+
 	// Avatars published by an administrator are plugin content: remove them
 	// together with their meta, but never touch other post types.
 	$avatar_posts = get_posts(

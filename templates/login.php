@@ -60,10 +60,34 @@ $at8_mluc_user_login  = isset( $args['user_login'] ) ? $args['user_login'] : '';
 	</form>
 
 	<?php
+	/*
+	 * OAuth failures bounce back here with ?oauth_error=<code>. Show a
+	 * human-readable message instead of a silent return. Read-only display:
+	 * no nonce applies to a third-party redirect landing.
+	 */
+	// phpcs:ignore WordPress.Security.NonceVerification.Recommended -- Read-only display of an OAuth error code in the query string.
+	$at8_mluc_oauth_error = isset( $_GET['oauth_error'] ) ? sanitize_key( wp_unslash( $_GET['oauth_error'] ) ) : '';
+	$at8_mluc_oauth_messages = array(
+		'state'          => __( 'Security check failed, please try again.', 'at8-moonlight-user-center' ),
+		'cancelled'      => __( 'Authorization was cancelled, please retry or use another method.', 'at8-moonlight-user-center' ),
+		'token'          => __( 'Could not sign you in with that provider, please try again.', 'at8-moonlight-user-center' ),
+		'profile'        => __( 'Could not read your profile from that provider, please try again.', 'at8-moonlight-user-center' ),
+		'unsupported'    => __( 'That sign-in method is not supported.', 'at8-moonlight-user-center' ),
+		'register_closed' => __( 'Registration is closed and no matching account was found.', 'at8-moonlight-user-center' ),
+		'register_fail'  => __( 'Account creation failed, please try again.', 'at8-moonlight-user-center' ),
+	);
+	if ( '' !== $at8_mluc_oauth_error && isset( $at8_mluc_oauth_messages[ $at8_mluc_oauth_error ] ) ) :
+		?>
+		<p class="at8-mluc-form-notice at8-mluc-form-notice--error" role="alert">
+			<?php echo esc_html( $at8_mluc_oauth_messages[ $at8_mluc_oauth_error ] ); ?>
+		</p>
+	<?php endif; ?>
+
+	<?php
 	/**
 	 * Fires at the bottom of the login form, after the submit button.
 	 *
-	 * The Pro add-on hooks here to render social login buttons.
+	 * Social login buttons render here (see includes/class-oauth.php).
 	 *
 	 * @since 2.0.0
 	 */

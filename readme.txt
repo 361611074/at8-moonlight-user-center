@@ -3,12 +3,12 @@ Contributors: 361611074
 Tags: user profile, login, registration, avatar, user center
 Requires at least: 5.8
 Tested up to: 7.1
-Stable tag: 2.0.0
+Stable tag: 2.1.0
 Requires PHP: 7.4
 License: GPL-2.0-or-later
 License URI: https://www.gnu.org/licenses/gpl-2.0.html
 
-A lightweight, theme-agnostic user center: front-end login, registration, password recovery, profile editing and an avatar library.
+Front-end user center: login, registration, password recovery, account dashboard, avatars, social login and hidden content.
 
 == Description ==
 
@@ -23,6 +23,8 @@ AT8 Moonlight User Center gives a WordPress site a complete front-end account ar
 * Profile editing for the display name, nickname, first and last name, website address, phone number and biographical info
 * An avatar library: an administrator publishes a set of avatars and each user picks one
 * A password change form that signs the user out of every other device
+* Social login: WeChat, QQ, GitHub, Google and Apple sign-in, configured per provider in the admin
+* A hidden-content shortcode that reveals content after login or after an approved comment
 
 **Shortcodes**
 
@@ -30,6 +32,8 @@ AT8 Moonlight User Center gives a WordPress site a complete front-end account ar
 * `[at8_mluc_register]` — registration form
 * `[at8_mluc_lostpassword]` — password recovery form
 * `[at8_mluc_account]` — account dashboard
+* `[at8_mluc_hide type="logged|reply"]` — hidden content, revealed after login or after an approved comment
+* `[at8_mluc_oauth_buttons]` — social login buttons on any page
 
 Place each shortcode on its own page, then choose those pages under Settings → User Center. Any page you leave unset falls back to the equivalent WordPress screen.
 
@@ -38,7 +42,7 @@ Place each shortcode on its own page, then choose those pages under Settings →
 * All accounts are created with the WordPress user API. Passwords are hashed by WordPress and are never read, stored, displayed or transmitted by this plugin.
 * Every form submission is protected by a nonce, every action is checked against the user's capabilities, all input is sanitised and all output is escaped.
 * Submission endpoints are rate limited.
-* The plugin makes no external requests, loads no third-party scripts or fonts, and embeds no trackers or analytics.
+* The plugin embeds no trackers or analytics and loads no third-party scripts or fonts. The only outbound requests happen when a visitor uses social login: the browser is then redirected to the chosen provider and back.
 * It registers a personal data exporter and eraser, so a user's information can be exported or erased through Tools → Export Personal Data and Tools → Erase Personal Data.
 * On uninstall you choose whether the plugin's settings and the profile fields it added are removed. WordPress user accounts, posts and comments are never deleted.
 
@@ -89,6 +93,12 @@ Yes. Styles are namespaced and inherit the theme wherever possible, and any temp
 4. The front-end login form.
 
 == Changelog ==
+
+= 2.1.0 =
+* New: social login (WeChat, QQ, GitHub, Google, Apple) with per-provider credentials in Settings → User Center; buttons render under the login and registration forms.
+* New: `[at8_mluc_hide type="logged|reply"]` hidden-content shortcode with an editor button; Pro add-ons extend it with membership and purchase gates through the `at8_mluc_hide_types` filter.
+* New: login/register/profile Elementor widgets.
+* The `[at8_mlucp_hide]` shortcode name from the Pro 1.0.x era is accepted as an alias, so old content never breaks.
 
 = 2.0.0 =
 * New: menu items can be shown to logged-in users only or logged-out visitors only, and custom links accept the magic placeholders #at8-mluc-login, #at8-mluc-register, #at8-mluc-account, #at8-mluc-lostpassword and #at8-mluc-logout.

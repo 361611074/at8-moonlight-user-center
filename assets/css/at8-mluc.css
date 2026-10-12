@@ -373,3 +373,214 @@
 		padding-left: 0;
 	}
 }
+
+/* 第三方登录按钮 */
+/* 第三方登录按钮 */
+.at8-mluc-oauth {
+    margin: 18px 0 6px;
+}
+
+.at8-mluc-oauth-divider {
+    display: flex;
+    align-items: center;
+    text-align: center;
+    color: #999;
+    font-size: 13px;
+    margin: 8px 0 14px;
+}
+
+.at8-mluc-oauth-divider::before,
+.at8-mluc-oauth-divider::after {
+    content: '';
+    flex: 1;
+    height: 1px;
+    background: #e4e4e4;
+}
+
+.at8-mluc-oauth-divider span {
+    padding: 0 12px;
+}
+
+.at8-mluc-oauth-buttons {
+    display: flex;
+    flex-wrap: wrap;
+    gap: 10px;
+}
+
+.at8-mluc-oauth-btn {
+    flex: 1 1 140px;
+    min-width: 140px;
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
+    gap: 8px;
+    text-align: center;
+    padding: 11px 14px;
+    border-radius: 8px;
+    color: #fff;
+    font-size: 14px;
+    font-weight: 600;
+    text-decoration: none;
+    transition: opacity 0.2s ease;
+}
+
+.at8-mluc-oauth-btn svg {
+    display: block;
+    width: 18px;
+    height: 18px;
+    flex: 0 0 auto;
+}
+
+.at8-mluc-oauth-btn:hover {
+    opacity: 0.88;
+    color: #fff;
+}
+/* ===== [hidecontent] 锁定卡（基础 2 型，Pro 扩展 vip/payshow） ===== */
+.at8-mluc-hidecontent {
+    --at8-mluc-hc-accent: #2271b1;
+    --at8-mluc-hc-tint:   #eaf2fb;
+    --at8-mluc-hc-border: #d6e2ef;
+    --at8-mluc-hc-text:   #1d2327;
+    --at8-mluc-hc-tip:    #50575e;
+    margin: 1.75em 0;
+    padding: 22px 26px;
+    border: 1px solid var(--at8-mluc-hc-border);
+    border-left: 4px solid var(--at8-mluc-hc-accent);
+    border-radius: 12px;
+    background: #fff;
+    box-shadow: 0 1px 2px rgba(20, 30, 50, 0.04), 0 10px 28px -14px rgba(20, 30, 50, 0.18);
+    color: var(--at8-mluc-hc-text);
+    box-sizing: border-box;
+    font-family: inherit;
+}
+
+.at8-mluc-hidecontent .at8-mluc-hc-inner {
+    display: flex;
+    align-items: center;
+    gap: 20px;
+    flex-wrap: wrap;
+}
+
+.at8-mluc-hidecontent .at8-mluc-hc-icon {
+    flex: 0 0 auto;
+    width: 52px;
+    height: 52px;
+    border-radius: 14px;
+    background: var(--at8-mluc-hc-tint);
+    color: var(--at8-mluc-hc-accent);
+    font-size: 26px;
+    line-height: 52px;
+    text-align: center;
+    display: inline-block;
+    font-style: normal;
+}
+
+.at8-mluc-hidecontent .at8-mluc-hc-text {
+    flex: 1 1 240px;
+    min-width: 0;
+}
+
+.at8-mluc-hidecontent .at8-mluc-hc-title {
+    font-weight: 600;
+    font-size: 16px;
+    color: var(--at8-mluc-hc-text);
+    margin: 0 0 6px;
+    line-height: 1.4;
+}
+
+.at8-mluc-hidecontent .at8-mluc-hc-tip {
+    font-size: 14px;
+    color: var(--at8-mluc-hc-tip);
+    margin: 0;
+    line-height: 1.65;
+}
+
+.at8-mluc-hidecontent .at8-mluc-hc-action {
+    flex: 0 0 auto;
+    margin-left: auto;
+}
+
+.at8-mluc-hidecontent .at8-mluc-hc-btn {
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
+    gap: 6px;
+    padding: 0 22px;
+    height: 40px;
+    border-radius: 10px;
+    background: var(--at8-mluc-hc-accent);
+    color: #fff;
+    text-decoration: none;
+    font-size: 14px;
+    font-weight: 600;
+    line-height: 1;
+    letter-spacing: 0.02em;
+    box-shadow: 0 2px 6px rgba(0, 0, 0, 0.08);
+    transition: transform 0.15s ease, box-shadow 0.15s ease, filter 0.15s ease;
+}
+
+.at8-mluc-hidecontent .at8-mluc-hc-btn::after {
+    content: "\2192";
+    font-weight: 400;
+    margin-left: 2px;
+    transition: transform 0.15s ease;
+}
+
+.at8-mluc-hidecontent .at8-mluc-hc-btn:hover,
+.at8-mluc-hidecontent .at8-mluc-hc-btn:focus {
+    color: #fff;
+    filter: brightness(1.06);
+    transform: translateY(-1px);
+    box-shadow: 0 6px 16px rgba(0, 0, 0, 0.14);
+    outline: none;
+}
+
+.at8-mluc-hidecontent .at8-mluc-hc-btn:hover::after,
+.at8-mluc-hidecontent .at8-mluc-hc-btn:focus::after {
+    transform: translateX(2px);
+}
+
+/* 评论后可查看 — 蓝灰（社交语气） */
+.at8-mluc-hc-reply {
+    --at8-mluc-hc-accent: #4a5568;
+    --at8-mluc-hc-tint:   #eef1f5;
+    --at8-mluc-hc-border: #dde2e8;
+}
+
+/* 登录后可查看 — WP 蓝（系统提示语气） */
+.at8-mluc-hc-logged {
+    --at8-mluc-hc-accent: #2271b1;
+    --at8-mluc-hc-tint:   #e7f0f9;
+    --at8-mluc-hc-border: #cfdcec;
+}
+
+/* 会员可查看 — 金色（升级引导语气） */
+.at8-mluc-hc-vip1 {
+    --at8-mluc-hc-accent: #b88700;
+    --at8-mluc-hc-tint:   #fbf2d9;
+    --at8-mluc-hc-border: #ecdda4;
+}
+
+/* 付费后可查看 — 紫蓝（购买语气） */
+.at8-mluc-hc-payshow {
+    --at8-mluc-hc-accent: #5b3ed6;
+    --at8-mluc-hc-tint:   #ece4fb;
+    --at8-mluc-hc-border: #d5c8f3;
+}
+
+/* 移动端：CTA 单独一行 */
+@media (max-width: 540px) {
+    .at8-mluc-hidecontent {
+        padding: 18px;
+    }
+    .at8-mluc-hidecontent .at8-mluc-hc-inner {
+        gap: 14px;
+    }
+    .at8-mluc-hidecontent .at8-mluc-hc-action {
+        margin-left: 0;
+        flex-basis: 100%;
+    }
+    .at8-mluc-hidecontent .at8-mluc-hc-btn {
+        width: 100%;
+    }
+}

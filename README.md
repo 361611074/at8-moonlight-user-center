@@ -4,7 +4,7 @@ A lightweight, theme-agnostic front-end user center for WordPress. It gives a si
 front-end login, registration, password recovery and a personal account area without
 touching the WordPress admin.
 
-**Version 1.0.2** · GPL-2.0-or-later · PHP 7.4+ · WordPress 5.8+
+**Version 2.1.0** · GPL-2.0-or-later · PHP 7.4+ · WordPress 5.8+
 
 ---
 
@@ -16,6 +16,8 @@ touching the WordPress admin.
 | Registration form | `[at8_mluc_register]` |
 | Password recovery form | `[at8_mluc_lostpassword]` |
 | Account dashboard | `[at8_mluc_account]` |
+| Hidden content | `[at8_mluc_hide type="logged\|reply"]` |
+| Social login buttons | `[at8_mluc_oauth_buttons]` |
 
 The account dashboard has four sections:
 

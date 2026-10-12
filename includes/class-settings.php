@@ -143,6 +143,21 @@ class AT8_MLUC_Settings {
 		$this->add_field( 'redirect_after_login', __( 'Redirect after login', 'at8-moonlight-user-center' ), 'behaviour', 'url' );
 
 		add_settings_section(
+			'at8_mluc_oauth',
+			__( 'Social Login', 'at8-moonlight-user-center' ),
+			'__return_false',
+			self::PAGE
+		);
+
+		add_settings_field(
+			'at8_mluc_oauth',
+			__( 'OAuth credentials', 'at8-moonlight-user-center' ),
+			array( $this, 'render_oauth_field' ),
+			self::PAGE,
+			'at8_mluc_oauth'
+		);
+
+		add_settings_section(
 			'at8_mluc_uninstall',
 			__( 'Uninstall', 'at8-moonlight-user-center' ),
 			array( $this, 'section_uninstall' ),
@@ -302,6 +317,56 @@ class AT8_MLUC_Settings {
 	}
 
 	/**
+	 * Render the OAuth credentials table.
+	 *
+	 * @return void
+	 */
+	public function render_oauth_field() {
+		if ( ! class_exists( 'AT8_MLUC_OAuth' ) ) {
+			echo '<p class="description">' . esc_html__( 'The social login module is not loaded.', 'at8-moonlight-user-center' ) . '</p>';
+			return;
+		}
+
+		$providers = AT8_MLUC_OAuth::providers();
+		$saved     = at8_mluc_get_option( 'oauth', array() );
+		$saved     = is_array( $saved ) ? $saved : array();
+		?>
+		<p class="description">
+			<?php
+			printf(
+				/* translators: %s: example callback URL */
+				esc_html__( 'Register the callback URL (example: %s) on the provider platform. Only providers with both a client ID and a secret appear as front-end login buttons.', 'at8-moonlight-user-center' ),
+				'<code>' . esc_html( home_url( '/?at8_mluc_oauth=wechat' ) ) . '</code>'
+			);
+			?>
+		</p>
+		<table class="at8-mluc-oauth-table widefat">
+			<thead>
+				<tr>
+					<th><?php esc_html_e( 'Provider', 'at8-moonlight-user-center' ); ?></th>
+					<th><?php esc_html_e( 'Client ID / App ID', 'at8-moonlight-user-center' ); ?></th>
+					<th><?php esc_html_e( 'Client Secret', 'at8-moonlight-user-center' ); ?></th>
+				</tr>
+			</thead>
+			<tbody>
+				<?php foreach ( $providers as $id => $provider ) : ?>
+					<?php
+					$credentials = isset( $saved[ $id ] ) && is_array( $saved[ $id ] ) ? $saved[ $id ] : array();
+					$client_id   = isset( $credentials['client_id'] ) ? $credentials['client_id'] : '';
+					$secret      = isset( $credentials['client_secret'] ) ? $credentials['client_secret'] : '';
+					?>
+					<tr>
+						<td><strong><?php echo esc_html( $provider['label'] ); ?></strong></td>
+						<td><input type="text" class="regular-text" name="<?php echo esc_attr( self::OPTION ); ?>[oauth][<?php echo esc_attr( $id ); ?>][client_id]" value="<?php echo esc_attr( $client_id ); ?>"></td>
+						<td><input type="password" class="regular-text" name="<?php echo esc_attr( self::OPTION ); ?>[oauth][<?php echo esc_attr( $id ); ?>][client_secret]" value="<?php echo esc_attr( $secret ); ?>"></td>
+					</tr>
+				<?php endforeach; ?>
+			</tbody>
+		</table>
+		<?php
+	}
+
+	/**
 	 * Render the settings screen.
 	 *
 	 * @return void
@@ -390,6 +455,27 @@ class AT8_MLUC_Settings {
 		}
 
 		$clean['redirect_after_login'] = $redirect;
+
+		$clean['oauth'] = array();
+		if ( isset( $input['oauth'] ) && is_array( $input['oauth'] ) ) {
+			foreach ( $input['oauth'] as $provider => $credentials ) {
+				$provider = sanitize_key( $provider );
+
+				if ( '' === $provider || ! is_array( $credentials ) ) {
+					continue;
+				}
+
+				$client_id = isset( $credentials['client_id'] ) ? sanitize_text_field( wp_unslash( $credentials['client_id'] ) ) : '';
+				$secret    = isset( $credentials['client_secret'] ) ? sanitize_text_field( wp_unslash( $credentials['client_secret'] ) ) : '';
+
+				if ( '' !== $client_id || '' !== $secret ) {
+					$clean['oauth'][ $provider ] = array(
+						'client_id'     => $client_id,
+						'client_secret' => $secret,
+					);
+				}
+			}
+		}
 
 		// Anything not handled above is dropped rather than stored unvalidated.
 		return array_merge( $defaults, $clean );

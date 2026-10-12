@@ -2,14 +2,14 @@
 # This file is distributed under the GPL-2.0-or-later.
 msgid ""
 msgstr ""
-"Project-Id-Version: AT8 Moonlight User Center 1.0.2\n"
+"Project-Id-Version: AT8 Moonlight User Center 2.1.0\n"
 "Report-Msgid-Bugs-To: https://wordpress.org/support/plugin/at8-moonlight-user-center\n"
 "Last-Translator: FULL NAME <EMAIL@ADDRESS>\n"
 "Language-Team: LANGUAGE <LL@li.org>\n"
 "MIME-Version: 1.0\n"
 "Content-Type: text/plain; charset=UTF-8\n"
 "Content-Transfer-Encoding: 8bit\n"
-"POT-Creation-Date: 2026-10-12T09:24:31+00:00\n"
+"POT-Creation-Date: 2026-10-12T12:31:56+00:00\n"
 "PO-Revision-Date: YEAR-MO-DA HO:MI+ZONE\n"
 "X-Generator: WP-CLI 2.12.0\n"
 "X-Domain: at8-moonlight-user-center\n"
@@ -31,20 +31,39 @@ msgstr ""
 
 #. Description of the plugin
 #: at8-moonlight-user-center.php
-msgid "A lightweight, theme-agnostic front-end user center. Provides login, registration, password recovery, an account dashboard, profile editing and an admin-curated avatar library."
+msgid "A lightweight, theme-agnostic front-end user center. Provides login, registration, password recovery, an account dashboard, profile editing, an admin-curated avatar library and social login."
 msgstr ""
 
 #. Author of the plugin
 #: at8-moonlight-user-center.php
+#: includes/class-elementor.php:42
 msgid "漫步白月光"
 msgstr ""
 
-#: includes/class-assets.php:91
+#: includes/class-assets.php:92
 msgid "Something went wrong. Please try again."
 msgstr ""
 
-#: includes/class-assets.php:92
+#: includes/class-assets.php:93
 msgid "Please wait…"
+msgstr ""
+
+#: includes/class-assets.php:133
+#: includes/class-hidecontent.php:71
+msgid "Comment to View"
+msgstr ""
+
+#: includes/class-assets.php:134
+#: includes/class-hidecontent.php:76
+msgid "Log in to View"
+msgstr ""
+
+#: includes/class-assets.php:140
+msgid "Hidden Content"
+msgstr ""
+
+#: includes/class-assets.php:141
+msgid "Choose a visibility rule…"
 msgstr ""
 
 #: includes/class-avatar.php:102
@@ -128,12 +147,59 @@ msgstr ""
 msgid "Your avatar has been updated."
 msgstr ""
 
+#: includes/class-elementor-widgets.php:32
+msgid "内容"
+msgstr ""
+
+#: includes/class-elementor-widgets.php:35
+msgid "该组件直接渲染对应前端表单，样式由主题配合。"
+msgstr ""
+
+#: includes/class-elementor-widgets.php:55
+msgid "漫步白月光 · 登录表单"
+msgstr ""
+
+#: includes/class-elementor-widgets.php:73
+msgid "漫步白月光 · 注册表单"
+msgstr ""
+
+#: includes/class-elementor-widgets.php:91
+msgid "漫步白月光 · 用户资料卡"
+msgstr ""
+
+#: includes/class-hidecontent.php:249
+#: includes/class-hidecontent.php:298
+msgid "Locked Content"
+msgstr ""
+
+#: includes/class-hidecontent.php:259
+#: templates/login.php:17
+#: templates/login.php:58
+msgid "Log In"
+msgstr ""
+
+#: includes/class-hidecontent.php:261
+msgid "Log in to view the content below."
+msgstr ""
+
+#: includes/class-hidecontent.php:268
+msgid "Post a Comment"
+msgstr ""
+
+#: includes/class-hidecontent.php:270
+msgid "Your comment must be approved before the content is revealed."
+msgstr ""
+
+#: includes/class-hidecontent.php:291
+msgid "This content is locked."
+msgstr ""
+
 #: includes/class-login.php:90
 msgid "Please enter your username and password."
 msgstr ""
 
 #: includes/class-login.php:116
-#: includes/functions.php:236
+#: includes/functions.php:262
 msgid "Incorrect username or password."
 msgstr ""
 
@@ -173,6 +239,160 @@ msgstr ""
 
 #: includes/class-login.php:286
 msgid "Your password has been changed."
+msgstr ""
+
+#: includes/class-menu.php:98
+msgid "User Center · Visibility"
+msgstr ""
+
+#: includes/class-menu.php:101
+msgid "Always show"
+msgstr ""
+
+#: includes/class-menu.php:105
+msgid "Logged-in users only"
+msgstr ""
+
+#: includes/class-menu.php:109
+msgid "Logged-out visitors only"
+msgstr ""
+
+#: includes/class-menu.php:113
+msgid "Note: hiding a parent item hides its whole submenu. Magic links: #at8-mluc-login / #at8-mluc-register / #at8-mluc-account / #at8-mluc-lostpassword / #at8-mluc-logout — put one of these in the URL of a custom link and the front end replaces it with the real address."
+msgstr ""
+
+#: includes/class-oauth.php:46
+msgid "微信"
+msgstr ""
+
+#: includes/class-oauth.php:57
+msgid "QQ"
+msgstr ""
+
+#: includes/class-oauth.php:68
+msgid "GitHub"
+msgstr ""
+
+#: includes/class-oauth.php:79
+msgid "Google"
+msgstr ""
+
+#: includes/class-oauth.php:91
+msgid "Apple"
+msgstr ""
+
+#: includes/class-oauth.php:237
+msgid "或使用第三方账号登录"
+msgstr ""
+
+#. translators: %s: social network name (WeChat, QQ, Weibo, ...).
+#: includes/class-oauth.php:243
+#, php-format
+msgid "使用 %s 登录"
+msgstr ""
+
+#: includes/class-oauth.php:276
+msgid "不支持的登录方式。"
+msgstr ""
+
+#: includes/class-oauth.php:282
+msgid "已取消授权，请重试或使用其他方式登录。"
+msgstr ""
+
+#: includes/class-oauth.php:291
+msgid "安全校验失败（state 无效），请重试。"
+msgstr ""
+
+#: includes/class-oauth.php:298
+msgid "安全校验失败（state 不匹配），请重试。"
+msgstr ""
+
+#: includes/class-oauth.php:304
+msgid "安全校验失败（登录身份不一致），请重试。"
+msgstr ""
+
+#: includes/class-oauth.php:367
+msgid "换取令牌失败。"
+msgstr ""
+
+#: includes/class-oauth.php:385
+msgid "获取微信 openid 失败。"
+msgstr ""
+
+#: includes/class-oauth.php:404
+msgid "获取 QQ openid 失败。"
+msgstr ""
+
+#: includes/class-oauth.php:464
+msgid "获取 Apple 用户信息失败。"
+msgstr ""
+
+#: includes/class-oauth.php:471
+msgid "解析 Apple 身份失败。"
+msgstr ""
+
+#: includes/class-oauth.php:479
+msgid "Apple 用户"
+msgstr ""
+
+#: includes/class-oauth.php:484
+msgid "暂不支持该登录方式。"
+msgstr ""
+
+#: includes/class-oauth.php:488
+msgid "未能获取第三方用户标识。"
+msgstr ""
+
+#: includes/class-oauth.php:527
+msgid "站点已关闭注册，且未找到匹配的账号。"
+msgstr ""
+
+#: includes/class-oauth.php:584
+msgid "第三方返回数据解析失败。"
+msgstr ""
+
+#: includes/class-oauth.php:597
+msgid "Apple 令牌格式错误。"
+msgstr ""
+
+#: includes/class-oauth.php:602
+msgid "Apple 令牌算法不支持。"
+msgstr ""
+
+#: includes/class-oauth.php:606
+msgid "无法获取 Apple 公钥。"
+msgstr ""
+
+#: includes/class-oauth.php:616
+msgid "Apple 公钥不匹配。"
+msgstr ""
+
+#: includes/class-oauth.php:620
+msgid "构建 Apple 公钥失败。"
+msgstr ""
+
+#: includes/class-oauth.php:624
+msgid "加载 Apple 公钥失败。"
+msgstr ""
+
+#: includes/class-oauth.php:631
+msgid "Apple 令牌签名校验失败。"
+msgstr ""
+
+#: includes/class-oauth.php:635
+msgid "Apple 令牌解析失败。"
+msgstr ""
+
+#: includes/class-oauth.php:639
+msgid "Apple 令牌受众不符。"
+msgstr ""
+
+#: includes/class-oauth.php:642
+msgid "Apple 令牌签发方不符。"
+msgstr ""
+
+#: includes/class-oauth.php:645
+msgid "Apple 令牌已过期。"
 msgstr ""
 
 #: includes/class-privacy.php:143
@@ -251,17 +471,17 @@ msgid "That username contains invalid characters."
 msgstr ""
 
 #: includes/class-register.php:171
-#: includes/functions.php:241
+#: includes/functions.php:267
 msgid "That email address is not valid."
 msgstr ""
 
 #: includes/class-register.php:179
-#: includes/functions.php:239
+#: includes/functions.php:265
 msgid "That username is already taken."
 msgstr ""
 
 #: includes/class-register.php:183
-#: includes/functions.php:240
+#: includes/functions.php:266
 msgid "That email address is already registered."
 msgstr ""
 
@@ -322,82 +542,112 @@ msgid "Redirect after login"
 msgstr ""
 
 #: includes/class-settings.php:147
+msgid "Social Login"
+msgstr ""
+
+#: includes/class-settings.php:154
+msgid "OAuth credentials"
+msgstr ""
+
+#: includes/class-settings.php:162
 msgid "Uninstall"
 msgstr ""
 
-#: includes/class-settings.php:152
+#: includes/class-settings.php:167
 msgid "Delete data on uninstall"
 msgstr ""
 
-#: includes/class-settings.php:185
+#: includes/class-settings.php:200
 msgid "Choose which pages hold the plugin shortcodes. Leave a page unset to fall back to the WordPress login screens."
 msgstr ""
 
-#: includes/class-settings.php:194
+#: includes/class-settings.php:209
 msgid "Control what visitors can do on the front end."
 msgstr ""
 
-#: includes/class-settings.php:203
+#: includes/class-settings.php:218
 msgid "Choose what happens to the data this plugin stored if it is deleted."
 msgstr ""
 
-#: includes/class-settings.php:229
+#: includes/class-settings.php:244
 msgid "— Not set —"
 msgstr ""
 
-#: includes/class-settings.php:249
+#: includes/class-settings.php:264
 msgid "Enabled"
 msgstr ""
 
-#: includes/class-settings.php:274
+#: includes/class-settings.php:289
 msgid "When enabled, deleting the plugin removes its settings and the profile fields it added. WordPress user accounts, posts and comments are never removed."
 msgstr ""
 
 #. translators: %s: link to the WordPress general settings screen.
-#: includes/class-settings.php:284
+#: includes/class-settings.php:299
 #, php-format
 msgid "Registration also requires the “Anyone can register” option in %s."
 msgstr ""
 
-#: includes/class-settings.php:285
+#: includes/class-settings.php:300
 msgid "General Settings"
 msgstr ""
 
 #. translators: %s: link to the avatar library admin screen.
-#: includes/class-settings.php:297
+#: includes/class-settings.php:312
 #, php-format
 msgid "Manage the selectable avatars in the %s."
 msgstr ""
 
-#: includes/class-settings.php:298
+#: includes/class-settings.php:313
 msgid "avatar library"
 msgstr ""
 
-#: includes/class-settings.php:311
+#: includes/class-settings.php:326
+msgid "The social login module is not loaded."
+msgstr ""
+
+#. translators: %s: example callback URL
+#: includes/class-settings.php:338
+#, php-format
+msgid "Register the callback URL (example: %s) on the provider platform. Only providers with both a client ID and a secret appear as front-end login buttons."
+msgstr ""
+
+#: includes/class-settings.php:346
+msgid "Provider"
+msgstr ""
+
+#: includes/class-settings.php:347
+msgid "Client ID / App ID"
+msgstr ""
+
+#: includes/class-settings.php:348
+msgid "Client Secret"
+msgstr ""
+
+#: includes/class-settings.php:376
 msgid "You are not allowed to access this page."
 msgstr ""
 
-#: includes/class-settings.php:318
+#: includes/class-settings.php:383
 msgid "Place these shortcodes in the pages you selected below:"
 msgstr ""
 
-#: includes/class-settings.php:324
+#: includes/class-settings.php:389
 msgid "Login form"
 msgstr ""
 
-#: includes/class-settings.php:328
+#: includes/class-settings.php:393
 msgid "Registration form"
 msgstr ""
 
-#: includes/class-settings.php:332
+#: includes/class-settings.php:397
 msgid "Password recovery form"
 msgstr ""
 
-#: includes/class-settings.php:336
+#: includes/class-settings.php:401
 msgid "Account dashboard"
 msgstr ""
 
-#: includes/class-settings.php:387
+#: includes/class-settings.php:452
 msgid "The redirect address was not a valid URL, so it was cleared."
 msgstr ""
 
@@ -426,59 +676,59 @@ msgid "Log Out"
 msgstr ""
 
 #. translators: 1: account dashboard link, 2: log out link.
-#: includes/class-shortcodes.php:411
+#: includes/class-shortcodes.php:409
 #, php-format
 msgid "You are already logged in. Go to %1$s or %2$s."
 msgstr ""
 
-#: includes/class-shortcodes.php:412
+#: includes/class-shortcodes.php:410
 msgid "your account"
 msgstr ""
 
-#: includes/class-shortcodes.php:413
+#: includes/class-shortcodes.php:411
 msgid "log out"
 msgstr ""
 
 #. translators: %s: login link.
-#: includes/class-shortcodes.php:428
+#: includes/class-shortcodes.php:426
 #, php-format
 msgid "Please %s to view your account."
 msgstr ""
 
-#: includes/class-shortcodes.php:429
+#: includes/class-shortcodes.php:427
 msgid "log in"
 msgstr ""
 
-#: includes/functions.php:235
+#: includes/functions.php:261
 msgid "That username does not exist."
 msgstr ""
 
-#: includes/functions.php:237
+#: includes/functions.php:263
 msgid "Please enter a username."
 msgstr ""
 
-#: includes/functions.php:238
+#: includes/functions.php:264
 msgid "Please enter a password."
 msgstr ""
 
-#: includes/functions.php:259
+#: includes/functions.php:285
 #: templates/account-profile.php:72
 msgid "Phone number"
 msgstr ""
 
-#: includes/functions.php:260
+#: includes/functions.php:286
 msgid "Selected avatar URL"
 msgstr ""
 
-#: includes/functions.php:261
+#: includes/functions.php:287
 msgid "Selected avatar media ID"
 msgstr ""
 
-#: includes/functions.php:262
+#: includes/functions.php:288
 msgid "Avatar source"
 msgstr ""
 
-#: includes/functions.php:263
+#: includes/functions.php:289
 msgid "Last login date"
 msgstr ""
 
@@ -581,11 +831,6 @@ msgstr ""
 msgid "Update password"
 msgstr ""
 
-#: templates/login.php:17
-#: templates/login.php:58
-msgid "Log In"
-msgstr ""
-
 #: templates/login.php:35
 #: templates/lostpassword.php:37
 msgid "Username or Email Address"
@@ -595,11 +840,39 @@ msgstr ""
 msgid "Remember me"
 msgstr ""
 
-#: templates/login.php:66
-msgid "Create an account"
+#: templates/login.php:69
+msgid "Security check failed, please try again."
+msgstr ""
+
+#: templates/login.php:70
+msgid "Authorization was cancelled, please retry or use another method."
+msgstr ""
+
+#: templates/login.php:71
+msgid "Could not sign you in with that provider, please try again."
 msgstr ""
 
 #: templates/login.php:72
+msgid "Could not read your profile from that provider, please try again."
+msgstr ""
+
+#: templates/login.php:73
+msgid "That sign-in method is not supported."
+msgstr ""
+
+#: templates/login.php:74
+msgid "Registration is closed and no matching account was found."
+msgstr ""
+
+#: templates/login.php:75
+msgid "Account creation failed, please try again."
+msgstr ""
+
+#: templates/login.php:99
+msgid "Create an account"
+msgstr ""
+
+#: templates/login.php:105
 msgid "Forgot your password?"
 msgstr ""
 
@@ -639,6 +912,6 @@ msgstr ""
 msgid "Create Account"
 msgstr ""
 
-#: templates/register.php:86
+#: templates/register.php:97
 msgid "Already have an account? Log in"
 msgstr ""
