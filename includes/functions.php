@@ -8,6 +8,32 @@
 defined( 'ABSPATH' ) || exit;
 
 /**
+ * Whether the commercial add-on (AT8 Moonlight User Center Pro) is active.
+ *
+ * This is the single bridge between the free plugin and its paid add-on. The
+ * free plugin ships no premium code at all: every Pro capability point is a
+ * filter that defaults to "off" here, and the Pro plugin — hosted outside of
+ * WordPress.org — flips its own filters once a valid license is confirmed.
+ *
+ * Free sites therefore never contain locked functionality, and the Pro plugin
+ * can be installed, updated and removed independently of this one.
+ *
+ * @since 2.0.0
+ *
+ * @return bool True when a licensed Pro add-on is active.
+ */
+function at8_mluc_is_pro() {
+	/**
+	 * Filters whether the Pro add-on is active.
+	 *
+	 * @since 2.0.0
+	 *
+	 * @param bool $is_pro Whether Pro is active. Default false.
+	 */
+	return (bool) apply_filters( 'at8_mluc_is_pro', false );
+}
+
+/**
  * Read a single plugin setting.
  *
  * @param string $key     Setting key.

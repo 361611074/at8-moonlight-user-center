@@ -61,14 +61,14 @@ class AT8_MLUC_Assets {
 
 		wp_enqueue_style(
 			'at8-mluc-frontend',
-			AT8_MLUC_PLUGIN_URL . 'assets/css/mluc.css',
+			AT8_MLUC_PLUGIN_URL . 'assets/css/at8-mluc.css',
 			array( 'dashicons' ),
 			AT8_MLUC_VERSION
 		);
 
 		wp_enqueue_script(
 			'at8-mluc-frontend',
-			AT8_MLUC_PLUGIN_URL . 'assets/js/mluc.js',
+			AT8_MLUC_PLUGIN_URL . 'assets/js/at8-mluc.js',
 			array(),
 			AT8_MLUC_VERSION,
 			true

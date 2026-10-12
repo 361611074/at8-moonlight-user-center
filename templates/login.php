@@ -59,6 +59,17 @@ $at8_mluc_user_login  = isset( $args['user_login'] ) ? $args['user_login'] : '';
 		</p>
 	</form>
 
+	<?php
+	/**
+	 * Fires at the bottom of the login form, after the submit button.
+	 *
+	 * The Pro add-on hooks here to render social login buttons.
+	 *
+	 * @since 2.0.0
+	 */
+	do_action( 'at8_mluc_login_form_bottom' );
+	?>
+
 	<ul class="at8-mluc-auth-links">
 		<?php if ( AT8_MLUC_Register::is_enabled() ) : ?>
 			<li>

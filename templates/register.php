@@ -80,6 +80,17 @@ endif;
 		</p>
 	</form>
 
+	<?php
+	/**
+	 * Fires at the bottom of the registration form, after the submit button.
+	 *
+	 * The Pro add-on hooks here to render social login buttons.
+	 *
+	 * @since 2.0.0
+	 */
+	do_action( 'at8_mluc_register_form_bottom' );
+	?>
+
 	<ul class="at8-mluc-auth-links">
 		<li>
 			<a href="<?php echo esc_url( at8_mluc_get_login_url() ); ?>">

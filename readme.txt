@@ -3,7 +3,7 @@ Contributors: 361611074
 Tags: user profile, login, registration, avatar, user center
 Requires at least: 5.8
 Tested up to: 7.1
-Stable tag: 1.0.2
+Stable tag: 2.0.0
 Requires PHP: 7.4
 License: GPL-2.0-or-later
 License URI: https://www.gnu.org/licenses/gpl-2.0.html
@@ -89,6 +89,11 @@ Yes. Styles are namespaced and inherit the theme wherever possible, and any temp
 4. The front-end login form.
 
 == Changelog ==
+
+= 2.0.0 =
+* New: menu items can be shown to logged-in users only or logged-out visitors only, and custom links accept the magic placeholders #at8-mluc-login, #at8-mluc-register, #at8-mluc-account, #at8-mluc-lostpassword and #at8-mluc-logout.
+* New: documented extension points for the commercial add-on AT8 Moonlight User Center Pro (`at8_mluc_is_pro`, `at8_mluc_account_tabs`, `at8_mluc_login_form_bottom`, `at8_mluc_register_form_bottom`). The free plugin itself remains complete and functional on its own and ships no locked code.
+* Fix: the front-end stylesheet and script were still enqueued from their pre-rename paths, so the dashboard had no styling since 1.0.1.
 
 = 1.0.2 =
 * Plugin Check clean-up: removed the discouraged load_plugin_textdomain() call, every AJAX handler now verifies its nonce inline with check_ajax_referer(), and the account templates use prefixed local variables.
