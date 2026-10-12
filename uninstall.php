@@ -82,6 +82,23 @@ function at8_mluc_uninstall_site() {
 		wp_delete_post( (int) $avatar_id, true );
 	}
 
+	// Membership orders are plugin content as well.
+	$order_posts = get_posts(
+		array(
+			'post_type'        => 'at8_mluc_order',
+			'post_status'      => 'any',
+			'numberposts'      => -1,
+			'fields'           => 'ids',
+			'suppress_filters' => false,
+		)
+	);
+
+	foreach ( $order_posts as $order_id ) {
+		wp_delete_post( (int) $order_id, true );
+	}
+
+	wp_clear_scheduled_hook( 'at8_mluc_pay_autoclose' );
+
 	delete_option( AT8_MLUC_UNINSTALL_OPTION );
 	delete_option( 'at8_mluc_version' );
 }

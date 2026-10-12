@@ -4,13 +4,13 @@ A lightweight, theme-agnostic front-end user center for WordPress. It gives a si
 front-end login, registration, password recovery and a personal account area without
 touching the WordPress admin.
 
-**Version 2.1.0** · GPL-2.0-or-later · PHP 7.4+ · WordPress 5.8+
+**Version 2.2.0** · GPL-2.0-or-later · PHP 7.4+ · WordPress 5.8+
 
 ---
 
 ## What it does
 
-| Feature | Shortcode |
+| Feature | Shortcode / where |
 | --- | --- |
 | Login form | `[at8_mluc_login]` |
 | Registration form | `[at8_mluc_register]` |
@@ -18,17 +18,43 @@ touching the WordPress admin.
 | Account dashboard | `[at8_mluc_account]` |
 | Hidden content | `[at8_mluc_hide type="logged\|reply"]` |
 | Social login buttons | `[at8_mluc_oauth_buttons]` |
+| Membership purchase | Membership tab in the account dashboard |
 
-The account dashboard has four sections:
+The account dashboard has five sections:
 
 - **Overview** — display name, email, registration date, approved comment count
 - **Profile** — display name, nickname, first/last name, website, phone, bio
 - **Avatar** — pick from an administrator-curated avatar library
 - **Password** — change password, which signs the user out of every other device
+- **Membership** — current level, a level comparison table and a buy / upgrade card
 
 Place each shortcode on its own page, then choose those pages under
-**Settings → User Center**. Any page you leave unset falls back to the equivalent
+**User Center → Settings**. Any page you leave unset falls back to the equivalent
 WordPress screen.
+
+### Membership and offline payments
+
+The free plugin ships a complete membership sales flow with a **quantity limit**
+instead of missing features:
+
+- Up to **three** membership levels (a free base level plus paid ones with a price
+  and validity in days), edited in **User Center → Settings → Membership Levels**
+- Bank transfer as the offline gateway: the buyer sees transfer instructions, the
+  order stays pending, and an administrator confirms payment in
+  **User Center → Orders** — the level is then granted automatically
+- Paid levels expire on their own; abandoned pending orders close automatically
+  after a configurable number of hours
+- Purchase history is visible in the account dashboard
+
+**AT8 Moonlight User Center Pro** lifts the level cap from three to eight and
+adds PayPal and Stripe on top of bank transfer. The free plugin stays fully
+functional on its own; nothing is locked.
+
+### Admin menu
+
+Everything lives under one top-level **User Center** menu: Settings (a card-based
+screen with sticky section navigation), Orders, Avatar Library and — when Pro is
+installed — License (Pro).
 
 ### Design principles
 
@@ -55,13 +81,15 @@ WordPress screen.
 
 ## Installation
 
-1. Download `at8-moonlight-user-center-1.0.2.zip` from the releases, or clone this
+1. Download `at8-moonlight-user-center-2.2.0.zip` from the releases, or clone this
    repository into `wp-content/plugins/at8-moonlight-user-center/`.
 2. Activate the plugin under **Plugins**.
 3. Create pages containing the shortcodes listed above.
-4. Go to **Settings → User Center** and select those pages.
+4. Go to **User Center → Settings** and select those pages.
 5. To offer avatars, add entries under **Avatar Library**, set a featured image on
    each, and publish.
+6. To sell memberships, define levels under **Membership Levels** and enter your
+   transfer instructions under **Offline Payments**.
 
 ---
 
@@ -90,13 +118,17 @@ The plugin stores only what it needs:
 | `at8_mluc_avatar_url` | URL of the chosen avatar |
 | `at8_mluc_avatar_type` | How the avatar was chosen |
 | `at8_mluc_last_login` | Last login timestamp |
+| `at8_mluc_membership_level` | Membership level slug held by the user |
+| `at8_mluc_membership_expires` | Expiry timestamp of the current level (0 = never) |
 
-Settings live in a single `at8_mluc_options` option. There are **no custom database tables**.
+Settings live in a single `at8_mluc_options` option. Order records are stored as a
+custom post type (`at8_mluc_order`) with post meta — there are **no custom database
+tables**.
 
 It registers a personal data exporter and eraser with the WordPress privacy tools, and
 suggests privacy policy wording under **Settings → Privacy**. On uninstall you choose
-whether the plugin's settings and profile fields are removed; WordPress user accounts,
-posts and comments are never deleted.
+whether the plugin's settings, profile fields and order records are removed;
+WordPress user accounts, posts and comments are never deleted.
 
 ---
 
@@ -187,9 +219,30 @@ git checkout legacy-v2.1.1     # the old commercial Free edition
 ```
 
 Paid features continue in the separate repository
-[moonlight-user-center-pro](https://github.com/361611074/moonlight-user-center-pro),
+[at8-moonlight-user-center-pro](https://github.com/361611074/at8-moonlight-user-center-pro),
 which this plugin does not depend on. All extension points are plain WordPress hooks
 (`at8_mluc_loaded`, `at8_mluc_account_tabs`, `at8_mluc_template_args`, `at8_mluc_after_register`, …).
+
+### 2.2.0 — membership, offline payments and the User Center menu
+
+Version 2.2.0 rebalances the Free/Pro split so the free version offers the whole
+feature set with **quantity limits**, not a crippled subset:
+
+- **Membership levels** moved into the free plugin (up to three; Pro lifts the cap
+  to eight through the `at8_mluc_membership_level_limit` filter). The level
+  editor, the membership account tab and the purchase card ship unlocked.
+- **Offline payments** moved in as well: the order engine (custom post type
+  `at8_mluc_order` with an atomic pending→paid claim), the bank-transfer gateway
+  and admin confirmation. Pro contributes PayPal / Stripe through the
+  `at8_mluc_payment_gateways` and `at8_mluc_payment_order_response` filters.
+- **The admin menu** became a single top-level **User Center** screen with a
+  card-based settings page (general settings, membership levels, offline
+  payments, sidebar menu icons, interface text, social login, avatar library)
+  and sticky section navigation. Pro renders its own sections on the same screen
+  through the `at8_mluc_register_settings` action.
+- Pro is a pure add-on: no shared classes, no duplicated data. Pro-only order
+  types (paywall) complete through the `at8_mluc_complete_paywall_order` filter
+  so every payment type shares one atomic claim path.
 
 ### 1.0.2 — WordPress Plugin Check clean-up
 

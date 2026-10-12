@@ -287,6 +287,8 @@ function at8_mluc_meta_labels() {
 		'at8_mluc_avatar_attachment_id' => __( 'Selected avatar media ID', 'at8-moonlight-user-center' ),
 		'at8_mluc_avatar_type'          => __( 'Avatar source', 'at8-moonlight-user-center' ),
 		'at8_mluc_last_login'           => __( 'Last login date', 'at8-moonlight-user-center' ),
+		'at8_mluc_membership_level'     => __( 'Membership level', 'at8-moonlight-user-center' ),
+		'at8_mluc_membership_expires'   => __( 'Membership expiry date', 'at8-moonlight-user-center' ),
 	);
 }
 

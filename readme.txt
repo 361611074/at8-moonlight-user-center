@@ -3,12 +3,12 @@ Contributors: 361611074
 Tags: user profile, login, registration, avatar, user center
 Requires at least: 5.8
 Tested up to: 7.1
-Stable tag: 2.1.0
+Stable tag: 2.2.0
 Requires PHP: 7.4
 License: GPL-2.0-or-later
 License URI: https://www.gnu.org/licenses/gpl-2.0.html
 
-Front-end user center: login, registration, password recovery, account dashboard, avatars, social login and hidden content.
+Front-end user center: login, registration, password recovery, account dashboard, avatars, social login, hidden content, membership levels and offline payments.
 
 == Description ==
 
@@ -25,6 +25,16 @@ AT8 Moonlight User Center gives a WordPress site a complete front-end account ar
 * A password change form that signs the user out of every other device
 * Social login: WeChat, QQ, GitHub, Google and Apple sign-in, configured per provider in the admin
 * A hidden-content shortcode that reveals content after login or after an approved comment
+* Membership levels: define up to three levels (free base level plus paid ones with a price and validity in days); users buy a level from the account dashboard and an administrator confirms the bank transfer
+* Offline payment engine: order records, admin confirmation, automatic expiry of abandoned pending orders, and purchase history in the account dashboard
+* A dedicated top-level "User Center" menu in wp-admin, with a card-based settings screen covering general settings, membership levels, offline payments, sidebar menu icons, interface text, social login and the avatar library
+
+**Membership and payments**
+
+* Up to three membership levels in the free version (label, colour, price, validity in days, sort order); AT8 Moonlight User Center Pro lifts the cap to eight and adds PayPal and Stripe on top of bank transfer
+* Users pick a level on the Membership tab of the account dashboard; orders stay pending until an administrator confirms the transfer, then the level is granted automatically
+* Paid levels expire on their own and the free base level remains
+* Abandoned pending orders are closed automatically after a configurable number of hours
 
 **Shortcodes**
 
@@ -35,7 +45,7 @@ AT8 Moonlight User Center gives a WordPress site a complete front-end account ar
 * `[at8_mluc_hide type="logged|reply"]` — hidden content, revealed after login or after an approved comment
 * `[at8_mluc_oauth_buttons]` — social login buttons on any page
 
-Place each shortcode on its own page, then choose those pages under Settings → User Center. Any page you leave unset falls back to the equivalent WordPress screen.
+Place each shortcode on its own page, then choose those pages under User Center → Settings. Any page you leave unset falls back to the equivalent WordPress screen.
 
 **How it handles your data**
 
@@ -55,9 +65,10 @@ The plugin ships minimal, namespaced CSS that inherits your theme's colours and 
 1. Upload the plugin folder to `/wp-content/plugins/`, or install it through Plugins → Add New.
 2. Activate the plugin.
 3. Create a page for the account dashboard containing the `[at8_mluc_account]` shortcode, and a page each for `[at8_mluc_login]`, `[at8_mluc_register]` and `[at8_mluc_lostpassword]`.
-4. Go to Settings → User Center and select those pages.
+4. Go to User Center → Settings and select those pages.
 5. For registration, make sure "Anyone can register" is enabled in Settings → General.
 6. To offer avatars, add entries under Avatar Library, give each one a featured image, and publish.
+7. To sell memberships, define levels under Membership Levels and enter your transfer instructions under Offline Payments.
 
 == Frequently Asked Questions ==
 
@@ -79,7 +90,7 @@ Every string is translatable and uses the `at8-moonlight-user-center` text domai
 
 = What happens to my data if I delete the plugin? =
 
-Nothing is removed unless you enable "Delete data on uninstall" in Settings → User Center. With it enabled, deleting the plugin removes its settings and the profile fields it added. WordPress user accounts, posts and comments are always left alone.
+Nothing is removed unless you enable "Delete data on uninstall" in User Center → Settings. With it enabled, deleting the plugin removes its settings, the profile fields it added and the order records it created. WordPress user accounts, posts and comments are always left alone.
 
 = Does it work with any theme? =
 
@@ -93,6 +104,13 @@ Yes. Styles are namespaced and inherit the theme wherever possible, and any temp
 4. The front-end login form.
 
 == Changelog ==
+
+= 2.2.0 =
+* New: top-level "User Center" menu in wp-admin (settings, orders, avatar library and the Pro license page all live under it) with a card-based settings screen and sticky section navigation.
+* New: membership levels with a free base level, priced paid levels, automatic expiry, a level editor in the settings screen and a Membership tab with a comparison table and a buy / upgrade card in the account dashboard. The free version supports up to three levels; Pro lifts the cap to eight.
+* New: offline payments — a bank-transfer gateway, order records, admin confirmation, automatic closing of abandoned pending orders and purchase history in the account dashboard.
+* New: settings sections for membership levels, offline payments, sidebar menu icons, interface text, social login and the avatar library, all on one screen.
+* AT8 Moonlight User Center Pro now contributes its own sections (online payment gateways, order management) to this screen instead of shipping a separate settings page.
 
 = 2.1.0 =
 * New: social login (WeChat, QQ, GitHub, Google, Apple) with per-provider credentials in Settings → User Center; buttons render under the login and registration forms.

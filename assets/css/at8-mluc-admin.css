@@ -1,0 +1,237 @@
+/**
+ * AT8 Moonlight User Center — admin settings screen styles.
+ *
+ * Card sections with a sticky side navigation. The wrap starts hidden and is
+ * revealed by the `.at8-mluc-settings-layout` class the script adds, so the
+ * page never flashes the unstyled Settings API markup.
+ */
+
+.at8-mluc-settings-wrap {
+	visibility: hidden;
+}
+
+.at8-mluc-settings-wrap.at8-mluc-settings-layout {
+	display: grid;
+	grid-template-columns: 232px minmax(0, 1fr);
+	grid-template-rows: auto 1fr;
+	gap: 28px;
+	align-items: start;
+	visibility: visible;
+}
+
+.at8-mluc-settings-wrap.at8-mluc-settings-layout > h1 {
+	grid-row: 1;
+	grid-column: 1 / -1;
+	margin: 0;
+}
+
+.at8-mluc-settings-wrap > p,
+.at8-mluc-settings-wrap > table {
+	grid-row: 1;
+	grid-column: 1 / -1;
+}
+
+.at8-mluc-settings-nav {
+	grid-row: 2;
+	grid-column: 1;
+	position: sticky;
+	top: 32px;
+	align-self: start;
+	background: #fff;
+	border: 1px solid #e4e9f0;
+	border-radius: 10px;
+	padding: 10px 0;
+	width: 232px;
+	max-height: calc(100vh - 80px);
+	overflow-y: auto;
+}
+
+.at8-mluc-settings-nav-title {
+	font-size: 12px;
+	font-weight: 600;
+	letter-spacing: 0.04em;
+	text-transform: uppercase;
+	color: #8a9099;
+	padding: 4px 16px 8px;
+}
+
+.at8-mluc-settings-nav ul {
+	list-style: none;
+	margin: 0;
+	padding: 0;
+	border-left: 2px solid #eef1f5;
+}
+
+.at8-mluc-settings-nav li a {
+	display: block;
+	padding: 7px 16px;
+	margin-left: -2px;
+	border-left: 2px solid transparent;
+	color: #50575e;
+	font-size: 13px;
+	line-height: 1.4;
+	text-decoration: none;
+}
+
+.at8-mluc-settings-nav li a:hover,
+.at8-mluc-settings-nav li a.active {
+	color: #4f46e5;
+	border-left-color: #4f46e5;
+	font-weight: 600;
+	background: #f5f4ff;
+}
+
+.at8-mluc-settings-layout > form {
+	grid-row: 2;
+	grid-column: 2;
+	display: flex;
+	flex-direction: column;
+	gap: 22px;
+	min-width: 0;
+}
+
+.at8-mluc-card {
+	background: #fff;
+	border: 1px solid #e4e9f0;
+	border-radius: 10px;
+	padding: 20px 24px;
+	box-shadow: 0 1px 2px rgba(16, 24, 40, 0.04);
+	min-width: 0;
+	overflow-x: auto;
+	scroll-margin-top: 80px;
+}
+
+.at8-mluc-card-title {
+	font-size: 16px;
+	font-weight: 600;
+	margin: 0 0 16px;
+	padding-bottom: 12px;
+	border-bottom: 1px solid #f0f0f1;
+	color: #1f2937;
+	scroll-margin-top: 80px;
+}
+
+.at8-mluc-card .form-table,
+.at8-mluc-card .widefat {
+	width: 100%;
+	max-width: 100%;
+	border-collapse: collapse;
+	table-layout: auto;
+}
+
+.at8-mluc-card .form-table th {
+	padding: 14px 12px 14px 0;
+	vertical-align: top;
+}
+
+.at8-mluc-card .form-table td {
+	padding: 14px 10px;
+	vertical-align: top;
+}
+
+.at8-mluc-card .widefat th,
+.at8-mluc-card .widefat td {
+	padding: 10px 12px;
+	vertical-align: middle;
+}
+
+.at8-mluc-card .form-table tr:not(:last-child) td,
+.at8-mluc-card .form-table tr:not(:last-child) th {
+	border-bottom: 1px solid #f4f6f9;
+}
+
+.at8-mluc-card .description {
+	color: #6b7280;
+	font-size: 12.5px;
+	margin-top: 4px;
+}
+
+.at8-mluc-card h3 {
+	margin: 18px 0 8px;
+	font-size: 13.5px;
+	color: #1f2937;
+}
+
+.at8-mluc-fixed-tag {
+	display: inline-block;
+	margin-left: 6px;
+	padding: 1px 7px;
+	border-radius: 9px;
+	background: #eef2ff;
+	color: #4f46e5;
+	font-size: 11px;
+	line-height: 1.6;
+}
+
+.at8-mluc-del-level {
+	color: #d63638;
+	background: none;
+	border: 0;
+	padding: 0;
+	cursor: pointer;
+	text-decoration: underline;
+	font-size: 13px;
+}
+
+.at8-mluc-del-level:hover {
+	color: #b32d2e;
+}
+
+/* No-JS fallback for the delete buttons. */
+.at8-mluc-del-check {
+	display: none;
+	margin-left: 8px;
+	font-size: 12px;
+	color: #646970;
+}
+
+.at8-mluc-preview-img img {
+	width: 32px;
+	height: 32px;
+	object-fit: cover;
+	border-radius: 6px;
+	display: block;
+}
+
+.at8-mluc-icon-image[hidden] {
+	display: none;
+}
+
+.at8-mluc-avatar-library-preview {
+	display: flex;
+	flex-wrap: wrap;
+	gap: 10px;
+	margin: 12px 0;
+	padding: 0;
+	list-style: none;
+}
+
+.at8-mluc-avatar-library-preview li img {
+	width: 48px;
+	height: 48px;
+	border-radius: 50%;
+	border: 1px solid #e4e9f0;
+	object-fit: cover;
+}
+
+@media (max-width: 782px) {
+	.at8-mluc-settings-wrap.at8-mluc-settings-layout {
+		grid-template-columns: 1fr;
+		grid-template-rows: auto auto 1fr;
+	}
+
+	.at8-mluc-settings-wrap.at8-mluc-settings-layout > h1,
+	.at8-mluc-settings-wrap > p,
+	.at8-mluc-settings-wrap > table {
+		grid-row: 1;
+	}
+
+	.at8-mluc-settings-nav {
+		grid-row: 2;
+		grid-column: 1;
+		position: static;
+		margin-bottom: 0;
+		max-height: none;
+		width: auto;
+	}
+}

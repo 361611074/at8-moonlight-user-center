@@ -22,15 +22,25 @@ class AT8_MLUC_Activator {
 	 */
 	public static function defaults() {
 		return array(
-			'account_page_id'      => 0,
-			'login_page_id'        => 0,
-			'register_page_id'     => 0,
-			'lostpassword_page_id' => 0,
-			'redirect_after_login' => '',
-			'enable_registration'  => 1,
-			'enable_avatar'        => 1,
-			'auto_login'           => 1,
-			'delete_data'          => 0,
+			'account_page_id'           => 0,
+			'login_page_id'             => 0,
+			'register_page_id'          => 0,
+			'lostpassword_page_id'      => 0,
+			'redirect_after_login'      => '',
+			'enable_registration'       => 1,
+			'enable_avatar'             => 1,
+			'auto_login'                => 1,
+			'delete_data'               => 0,
+			'free_level_enabled'        => 1,
+			'manual_enabled'            => 1,
+			'pay_currency_symbol'       => '$',
+			'pay_currency_code'         => 'USD',
+			'pay_manual_instructions'   => '',
+			'order_auto_close_hours'    => 72,
+			'membership_levels'         => array(),
+			'nav_icons'                 => array(),
+			'ui_labels'                 => array(),
+			'oauth'                     => array(),
 		);
 	}
 

@@ -584,3 +584,290 @@
         width: 100%;
     }
 }
+
+/* ===== 会员等级 Tab ===== */
+.at8-mluc-membership {
+    display: flex;
+    flex-direction: column;
+    gap: 24px;
+}
+
+.at8-mluc-membership-current {
+    background: #f6f8fb;
+    border: 1px solid #e4e9f0;
+    border-radius: 10px;
+    padding: 20px 24px;
+}
+
+.at8-mluc-membership-current h3,
+.at8-mluc-membership-table h3 {
+    font-size: 16px;
+    font-weight: 600;
+    margin: 0 0 12px;
+    color: #2d2d2d;
+}
+
+.at8-mluc-membership-level {
+    margin: 8px 0 12px;
+    font-size: 18px;
+}
+
+.at8-mluc-membership-tip {
+    margin: 0;
+    color: #6b7280;
+    font-size: 14px;
+}
+
+.at8-mluc-level-badge {
+    display: inline-block;
+    padding: 4px 12px;
+    border-radius: 12px;
+    font-size: 13px;
+    font-weight: 600;
+    line-height: 1.5;
+    letter-spacing: 0.5px;
+    background: #e5e7eb;
+    color: #374151;
+}
+
+.at8-mluc-level-free {
+    background: #e5e7eb;
+    color: #374151;
+}
+
+.at8-mluc-level-monthly {
+    background: #dbeafe;
+    color: #1d4ed8;
+}
+
+.at8-mluc-level-premium {
+    background: linear-gradient(135deg, #fbbf24 0%, #f59e0b 100%);
+    color: #78350f;
+}
+
+.at8-mluc-membership-summary {
+    margin: 14px 0;
+    padding: 12px 16px;
+    background: #f9fafb;
+    border-radius: 8px;
+    font-size: 14px;
+    display: flex;
+    align-items: center;
+    gap: 10px;
+    flex-wrap: wrap;
+}
+
+.at8-mluc-membership-expire {
+    color: #6b7280;
+    font-size: 13px;
+}
+
+.at8-mluc-membership-table table {
+    width: 100%;
+    border-collapse: collapse;
+    margin-top: 10px;
+}
+
+.at8-mluc-membership-table th,
+.at8-mluc-membership-table td {
+    text-align: left;
+    padding: 10px 12px;
+    border-bottom: 1px solid #e4e9f0;
+    font-size: 14px;
+}
+
+.at8-mluc-membership-table tr.is-current {
+    background: #f0f7ff;
+}
+
+.at8-mluc-level-current {
+    color: #1d4ed8;
+    font-weight: 600;
+    font-size: 13px;
+}
+
+.at8-mluc-level-included {
+    color: #059669;
+    font-size: 13px;
+}
+
+.at8-mluc-level-locked {
+    color: #9ca3af;
+    font-size: 13px;
+}
+
+/* ===== 通用表格 ===== */
+.at8-mluc-table {
+    width: 100%;
+    border-collapse: collapse;
+}
+
+.at8-mluc-table th,
+.at8-mluc-table td {
+    text-align: left;
+    padding: 10px 12px;
+    border-bottom: 1px solid #e4e9f0;
+    font-size: 14px;
+}
+
+.at8-mluc-table th {
+    background: #f9fafb;
+
+/* ===== 会员购买卡片 ===== */
+.at8-mluc-buy-grid {
+    display: grid;
+    grid-template-columns: repeat(auto-fill, minmax(210px, 1fr));
+    gap: 16px;
+}
+
+.at8-mluc-buy-card {
+    display: flex;
+    flex-direction: column;
+    gap: 8px;
+    background: #fff;
+    border: 1px solid #e4e9f0;
+    border-top: 3px solid #2f6fed;
+    border-radius: 10px;
+    padding: 16px 18px;
+}
+
+.at8-mluc-buy-name {
+    font-size: 17px;
+    font-weight: 700;
+}
+
+.at8-mluc-buy-price {
+    font-size: 22px;
+    font-weight: 800;
+    line-height: 1.2;
+}
+
+.at8-mluc-buy-validity {
+    color: #667085;
+    font-size: 13px;
+}
+
+.at8-mluc-buy-actions {
+    display: flex;
+    flex-direction: column;
+    gap: 4px;
+}
+
+.at8-mluc-buy-gateway {
+    display: flex;
+    align-items: center;
+    gap: 6px;
+    font-size: 13px;
+}
+
+.at8-mluc-btn-buy {
+    align-self: flex-start;
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
+    border: 0;
+    border-radius: 8px;
+    background: #2f6fed;
+    color: #fff;
+    padding: 9px 20px;
+    cursor: pointer;
+    font-size: 14px;
+    font-weight: 600;
+    line-height: 1;
+    transition: background 0.15s ease, opacity 0.15s ease;
+}
+
+.at8-mluc-btn-buy:hover {
+    background: #245fd2;
+}
+
+.at8-mluc-btn-buy[disabled] {
+    opacity: 0.6;
+    cursor: wait;
+}
+
+.at8-mluc-buy-msg {
+    min-height: 1.4em;
+    margin: 12px 0 0;
+    color: #22763d;
+}
+
+.at8-mluc-buy-instructions {
+    background: #f7f8fc;
+    border: 1px solid #e4e9f0;
+    border-radius: 8px;
+    padding: 12px 16px;
+    margin: 12px 0 0;
+    font-size: 14px;
+}
+
+.at8-mluc-buy-instructions p {
+    margin: 6px 0 0;
+    white-space: pre-line;
+}
+
+.at8-mluc-order-list {
+    margin-top: 18px;
+}
+
+.at8-mluc-order-list .at8-mluc-table {
+    margin-top: 8px;
+}
+
+.at8-mluc-pill {
+    display: inline-block;
+    padding: 2px 10px;
+    border-radius: 999px;
+    font-size: 12px;
+    line-height: 1.6;
+}
+
+.at8-mluc-pill-pending {
+    background: #fff4dd;
+    color: #9a6b00;
+}
+
+.at8-mluc-pill-paid {
+    background: #e3f6e9;
+    color: #22763d;
+}
+
+.at8-mluc-pill-cancelled {
+    background: #fdeaea;
+    color: #a63636;
+}
+
+@media (max-width: 540px) {
+    .at8-mluc-buy-grid {
+        grid-template-columns: 1fr;
+    }
+}
+
+
+
+
+/* 在线支付：PayPal 按钮挂载区 + 支付结果提示 */
+.at8-mluc-pp-mount {
+    margin-top: 14px;
+    max-width: 340px;
+}
+
+.at8-mluc-buy-notice {
+    margin: 0 0 14px;
+    padding: 10px 14px;
+    border-radius: 8px;
+    background: #f2f5fa;
+    color: #45505e;
+    font-size: 14px;
+}
+
+.at8-mluc-buy-notice-ok {
+    background: #e3f6e9;
+    color: #22763d;
+}
+
+.at8-mluc-buy-notice-err {
+    background: #fdeaea;
+    color: #a63636;
+}
+
