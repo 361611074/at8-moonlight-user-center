@@ -1,103 +1,196 @@
-/* 漫步白月光用户中心 前端交互 */
-(function ($) {
-    'use strict';
+/**
+ * Moonlight User Center - front-end behaviour.
+ *
+ * Progressive enhancement: every form posts through AJAX when JavaScript is
+ * available, and falls back to the normal page reload when it is not.
+ */
+( function () {
+	'use strict';
 
-    var i18n = (typeof mluc_i18n !== 'undefined') ? mluc_i18n : {};
+	if ( typeof window.mlucData === 'undefined' ) {
+		return;
+	}
 
-    function showMsg($form, text, ok) {
-        var $msg = $form.find('.mluc-msg').length ? $form.find('.mluc-msg') : $form.siblings('.mluc-msg');
-        if (!$msg.length) {
-            $msg = $('<p class="mluc-msg" role="alert"></p>');
-            $form.prepend($msg);
-        }
-        $msg.removeClass('mluc-ok mluc-error').addClass(ok ? 'mluc-ok' : 'mluc-error').text(text).show();
-    }
+	var data = window.mlucData;
 
-    function doSubmit($form) {
-        var action = $form.data('action');
-        if (!action) {
-            return;
-        }
-        var $btn = $form.find('button[type="submit"]');
-        $btn.prop('disabled', true);
+	/**
+	 * Send a form to an admin-ajax action.
+	 *
+	 * @param {HTMLFormElement} form   The form element.
+	 * @param {string}          action AJAX action name.
+	 * @param {string}          nonce  Nonce for that action.
+	 * @param {HTMLElement}     notice Element that receives the message.
+	 */
+	function submitForm( form, action, nonce, notice ) {
+		var body = new FormData( form );
 
-        var data = $form.serializeArray();
-        data.push({ name: 'action', value: 'mluc_' + action });
-        data.push({ name: 'nonce', value: MLUC.nonce });
+		body.append( 'action', action );
+		body.append( 'nonce', nonce );
 
-        $.post(MLUC.ajax_url, $.param(data), function (res) {
-            $btn.prop('disabled', false);
-            if (res && res.success) {
-                showMsg($form, res.message, true);
-                if (res.data && res.data.redirect) {
-                    setTimeout(function () { window.location.href = res.data.redirect; }, 800);
-                } else {
-                    setTimeout(function () { location.reload(); }, 800);
-                }
-            } else {
-                showMsg($form, (res && res.message) ? res.message : (i18n.op_failed || '操作失败'), false);
-            }
-        }, 'json').fail(function () {
-            $btn.prop('disabled', false);
-            showMsg($form, i18n.network_error_retry || '网络错误，请重试', false);
-        });
-    }
+		setNotice( notice, data.i18n.sending, 'pending' );
+		form.classList.add( 'is-busy' );
 
-    $(function () {
-        $(document).on('submit', '.mluc-form', function (e) {
-            e.preventDefault();
-            doSubmit($(this));
-        });
+		window
+			.fetch( data.ajaxUrl, {
+				method: 'POST',
+				body: body,
+				credentials: 'same-origin'
+			} )
+			.then( function ( response ) {
+				return response.json();
+			} )
+			.then( function ( payload ) {
+				var success = payload && payload.success;
 
-        // 头像选择（点击 grid 中的头像立即切换）
-        $(document).on('click', '[data-mluc-pick-avatar]', function (e) {
-            e.preventDefault();
-            var $btn = $(this);
-            if ($btn.prop('disabled') || $btn.hasClass('is-busy')) {
-                return;
-            }
-            var avatarId = parseInt($btn.data('avatar-id'), 10) || 0;
-            if (!avatarId) {
-                return;
-            }
-            var $msg = $('#mluc_avatar_msg');
-            var $preview = $('#mluc_avatar_preview');
-            var $group = $btn.closest('.mluc-avatar-picker');
-            $btn.addClass('is-busy').prop('disabled', true);
-            if ($msg.length) {
-                $msg.removeClass('is-error').text(i18n.switching || '切換中…');
-            }
+				setNotice( notice, ( payload && payload.message ) || '', success ? 'success' : 'error' );
 
-            $.post(MLUC.ajax_url, {
-                action: 'mluc_select_avatar',
-                nonce: MLUC.nonce,
-                avatar_id: avatarId
-            }, function (res) {
-                $btn.removeClass('is-busy').prop('disabled', false);
-                if (res && res.success && res.data && res.data.url) {
-                    if ($preview.length) {
-                        $preview.attr('src', res.data.url);
-                    }
-                    if ($group.length) {
-                        $group.find('.mluc-avatar-option').removeClass('is-selected').attr('aria-checked', 'false');
-                        $btn.addClass('is-selected').attr('aria-checked', 'true');
-                    }
-                    if ($msg.length) {
-                        $msg.removeClass('is-error').text(res.message || (i18n.avatar_updated || '頭像已更新'));
-                    }
-                } else {
-                    if ($msg.length) {
-                        $msg.addClass('is-error').text((res && res.message) ? res.message : (i18n.op_failed || '操作失败'));
-                    }
-                }
-            }, 'json').fail(function () {
-                $btn.removeClass('is-busy').prop('disabled', false);
-                if ($msg.length) {
-                    $msg.addClass('is-error').text(i18n.network_error || '網絡錯誤');
-                }
-            });
-        });
+				if ( success && payload.data && payload.data.redirect ) {
+					window.location.assign( payload.data.redirect );
+					return;
+				}
 
-        // 后台「侧栏菜单图标」实时预览由 mluc-admin.js 处理（避免双绑定）。
-    });
-})(jQuery);
+				if ( success ) {
+					form.reset();
+					form.dispatchEvent(
+						new CustomEvent( 'mluc:success', {
+							bubbles: true,
+							detail: payload.data || {}
+						} )
+					);
+				}
+			} )
+			.catch( function () {
+				setNotice( notice, data.i18n.genericError, 'error' );
+			} )
+			.finally( function () {
+				form.classList.remove( 'is-busy' );
+			} );
+	}
+
+	/**
+	 * Write a message into a notice element.
+	 *
+	 * @param {HTMLElement} notice  Target element.
+	 * @param {string}      message Message text.
+	 * @param {string}      state   One of pending, success, error.
+	 */
+	function setNotice( notice, message, state ) {
+		if ( ! notice ) {
+			return;
+		}
+
+		notice.textContent = message;
+		notice.className = 'mluc-message mluc-message--' + state;
+
+		if ( ! message ) {
+			notice.hidden = true;
+		} else {
+			notice.hidden = false;
+		}
+	}
+
+	/**
+	 * Find the notice element that belongs to a form.
+	 *
+	 * @param {HTMLFormElement} form The form.
+	 * @return {HTMLElement|null} Notice element.
+	 */
+	function noticeFor( form ) {
+		var id = form.getAttribute( 'data-mluc-notice' );
+
+		if ( id ) {
+			return document.getElementById( id );
+		}
+
+		return form.querySelector( '.mluc-form-notice' );
+	}
+
+	/**
+	 * Bind every AJAX form on the page.
+	 */
+	function bindForms() {
+		var forms = document.querySelectorAll( 'form[data-mluc-action]' );
+
+		Array.prototype.forEach.call( forms, function ( form ) {
+			var action = form.getAttribute( 'data-mluc-action' );
+			var nonce = form.getAttribute( 'data-mluc-nonce' );
+			var notice = noticeFor( form );
+
+			if ( ! action ) {
+				return;
+			}
+
+			form.addEventListener( 'submit', function ( event ) {
+				event.preventDefault();
+				submitForm( form, action, nonce || '', notice );
+			} );
+		} );
+	}
+
+	/**
+	 * Bind the avatar picker.
+	 */
+	function bindAvatarPicker() {
+		var picker = document.querySelector( '[data-mluc-avatar-picker]' );
+
+		if ( ! picker ) {
+			return;
+		}
+
+		var notice = document.getElementById( picker.getAttribute( 'data-mluc-notice' ) || '' );
+		var preview = document.querySelector( '[data-mluc-avatar-preview]' );
+		var buttons = picker.querySelectorAll( '[data-mluc-avatar-id]' );
+
+		Array.prototype.forEach.call( buttons, function ( button ) {
+			button.addEventListener( 'click', function ( event ) {
+				event.preventDefault();
+
+				var body = new FormData();
+
+				body.append( 'action', 'mluc_select_avatar' );
+				body.append( 'nonce', data.nonces.avatar );
+
+				if ( 'reset' === button.getAttribute( 'data-mluc-avatar-reset' ) ) {
+					body.append( 'mluc_reset', '1' );
+				} else {
+					body.append( 'avatar_id', button.getAttribute( 'data-mluc-avatar-id' ) );
+				}
+
+				setNotice( notice, data.i18n.sending, 'pending' );
+
+				window
+					.fetch( data.ajaxUrl, {
+						method: 'POST',
+						body: body,
+						credentials: 'same-origin'
+					} )
+					.then( function ( response ) {
+						return response.json();
+					} )
+					.then( function ( payload ) {
+						var success = payload && payload.success;
+
+						setNotice( notice, ( payload && payload.message ) || '', success ? 'success' : 'error' );
+
+						if ( success && payload.data && payload.data.avatar_url && preview ) {
+							preview.src = payload.data.avatar_url;
+							preview.removeAttribute( 'srcset' );
+						}
+					} )
+					.catch( function () {
+						setNotice( notice, data.i18n.genericError, 'error' );
+					} );
+			} );
+		} );
+	}
+
+	if ( 'loading' === document.readyState ) {
+		document.addEventListener( 'DOMContentLoaded', function () {
+			bindForms();
+			bindAvatarPicker();
+		} );
+	} else {
+		bindForms();
+		bindAvatarPicker();
+	}
+} )();

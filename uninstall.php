@@ -1,75 +1,119 @@
 <?php
 /**
- * 卸载脚本：仅在 WordPress 标准卸载流程下执行。
+ * Uninstall routine.
+ *
+ * Runs only when the site owner deletes the plugin from the Plugins screen.
+ * Data is removed only when the "Delete data on uninstall" setting is enabled,
+ * so nothing is ever discarded silently.
  *
  * @package Moonlight_User_Center
  */
 
-if (!defined('WP_UNINSTALL_PLUGIN')) {
-    exit;
+// This file is executed by WordPress outside of the normal plugin bootstrap.
+if ( ! defined( 'WP_UNINSTALL_PLUGIN' ) ) {
+	exit;
 }
 
-// 先读取选项（再删除），用于清理自动创建的页面。
-$options  = get_option('mluc_options', array());
+/*
+ * functions.php only declares functions, so it is safe to load directly and
+ * gives this script the single shared meta key list used by the privacy tools.
+ */
+require_once __DIR__ . '/includes/functions.php';
 
-// 可选：删除自动创建的页面（仅当页面内容仍是本插件短代码时）
-foreach (array('account_page_id', 'login_page_id', 'register_page_id') as $opt) {
-    $page_id = isset($options[$opt]) ? (int) $options[$opt] : 0;
-    if (!$page_id) {
-        continue;
-    }
-    $page = get_post($page_id);
-    if ($page && strpos($page->post_content, 'mluc_') !== false) {
-        wp_delete_post($page_id, true);
-    }
+if ( ! defined( 'MLUC_UNINSTALL_OPTION' ) ) {
+	define( 'MLUC_UNINSTALL_OPTION', 'mluc_options' );
 }
 
-// 取消计划任务（Pending 订单自动关闭 / License 到期提醒）
-if (function_exists('wp_clear_scheduled_hook')) {
-    wp_clear_scheduled_hook('mluc_pay_autoclose');
-    wp_clear_scheduled_hook('mluc_license_expiry_check');
+/**
+ * Remove every trace of the plugin from a single site.
+ *
+ * @return void
+ */
+function mluc_uninstall_site() {
+	$options = get_option( MLUC_UNINSTALL_OPTION, array() );
+
+	$delete_data = is_array( $options ) && ! empty( $options['delete_data'] );
+
+	// Transients and scheduled events are always cleaned up, because they are
+	// cache state rather than user content.
+	mluc_uninstall_clear_transients();
+	wp_clear_scheduled_hook( 'mluc_daily_maintenance' );
+
+	if ( ! $delete_data ) {
+		return;
+	}
+
+	/*
+	 * The meta key list lives in functions.php so that the privacy exporter,
+	 * the privacy eraser and this file always remove exactly the same keys.
+	 * Only the plugin's own prefixed keys are ever touched.
+	 */
+	$meta_keys = mluc_user_meta_keys();
+
+	foreach ( $meta_keys as $meta_key ) {
+		delete_metadata( 'user', 0, $meta_key, '', true );
+	}
+
+	// Avatars published by an administrator are plugin content: remove them
+	// together with their meta, but never touch other post types.
+	$avatar_posts = get_posts(
+		array(
+			'post_type'        => 'mluc_avatar',
+			'post_status'      => 'any',
+			'numberposts'      => -1,
+			'fields'           => 'ids',
+			'suppress_filters' => false,
+		)
+	);
+
+	foreach ( $avatar_posts as $avatar_id ) {
+		wp_delete_post( (int) $avatar_id, true );
+	}
+
+	delete_option( MLUC_UNINSTALL_OPTION );
+	delete_option( 'mluc_version' );
 }
 
-// 删除订单数据（mluc_order 为交易凭证，随插件一同移除）
-$orders = get_posts(array(
-    'post_type'      => 'mluc_order',
-    'post_status'    => 'any',
-    'posts_per_page' => -1,
-    'fields'         => 'ids',
-    'no_found_rows'  => true,
-));
-foreach ($orders as $order_id) {
-    wp_delete_post((int) $order_id, true);
+/**
+ * Delete the plugin's rate limit transients.
+ *
+ * @return void
+ */
+function mluc_uninstall_clear_transients() {
+	global $wpdb;
+
+	// phpcs:ignore WordPress.DB.DirectDatabaseQuery.DirectQuery, WordPress.DB.DirectDatabaseQuery.NoCaching -- Uninstall cleanup has no cache to use and must be exhaustive.
+	$wpdb->query(
+		$wpdb->prepare(
+			"DELETE FROM {$wpdb->options} WHERE option_name LIKE %s OR option_name LIKE %s",
+			$wpdb->esc_like( '_transient_mluc_rl_' ) . '%',
+			$wpdb->esc_like( '_transient_timeout_mluc_rl_' ) . '%'
+		)
+	);
+
+	// phpcs:ignore WordPress.DB.DirectDatabaseQuery.DirectQuery, WordPress.DB.DirectDatabaseQuery.NoCaching -- Uninstall cleanup has no cache to use and must be exhaustive.
+	$wpdb->query(
+		$wpdb->prepare(
+			"DELETE FROM {$wpdb->options} WHERE option_name LIKE %s OR option_name LIKE %s",
+			$wpdb->esc_like( '_transient_mluc_reg_tk_' ) . '%',
+			$wpdb->esc_like( '_transient_timeout_mluc_reg_tk_' ) . '%'
+		)
+	);
 }
 
-// 删除 License 数据（mluc_license 随插件一同移除）
-$licenses = get_posts(array(
-    'post_type'      => 'mluc_license',
-    'post_status'    => 'any',
-    'posts_per_page' => -1,
-    'fields'         => 'ids',
-    'no_found_rows'  => true,
-));
-foreach ($licenses as $license_id) {
-    wp_delete_post((int) $license_id, true);
+if ( is_multisite() ) {
+	$mluc_site_ids = get_sites(
+		array(
+			'fields' => 'ids',
+			'number' => 0,
+		)
+	);
+
+	foreach ( $mluc_site_ids as $mluc_site_id ) {
+		switch_to_blog( (int) $mluc_site_id );
+		mluc_uninstall_site();
+		restore_current_blog();
+	}
+} else {
+	mluc_uninstall_site();
 }
-
-// 清理本插件写入的用户资料（会员等级 / 到期 / 付费解锁 / 第三方绑定 / 头像 / 下载计数）
-global $wpdb;
-// 注意：不清理通用键（如 phone），避免误删其他插件写入的用户资料。
-$wpdb->query(
-    "DELETE FROM {$wpdb->usermeta} WHERE meta_key LIKE 'mluc_%'"
-);
-
-// 清理 transient（限流 / OAuth state / 下载令牌 / 后台提示）
-$wpdb->query(
-    "DELETE FROM {$wpdb->options}
-     WHERE option_name LIKE '\_transient\_mluc\_%'
-        OR option_name LIKE '\_transient\_timeout\_mluc\_%'"
-);
-
-// 删除插件创建的选项
-delete_option('mluc_options');
-
-// 说明：教材（mluc_material）/ 影片（mluc_video）/ 头像库（mluc_avatar）属于站长创建的内容，
-// 卸载时保留不删，避免误删站点内容；如需彻底清理请在后台手动删除。

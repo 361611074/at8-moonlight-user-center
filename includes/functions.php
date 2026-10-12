@@ -1,342 +1,274 @@
 <?php
 /**
- * 通用辅助函数。
+ * Shared helper functions.
  *
  * @package Moonlight_User_Center
  */
 
-if (!defined('ABSPATH')) {
-    exit;
-}
+defined( 'ABSPATH' ) || exit;
 
 /**
- * 读取插件选项。
- */
-function mluc_get_option($key, $default = '')
-{
-    $options = get_option('mluc_options', array());
-    return isset($options[$key]) ? $options[$key] : $default;
-}
-
-/**
- * 获取账户中心界面文案：后台「用户中心 → 设置 → 界面文案」可自定义，
- * 未填写或留空时回退到内置默认（可传英文等其他语言）。
- */
-function mluc_ui_label($key, $default = '')
-{
-    $labels = mluc_get_option('ui_labels', array());
-    if (is_array($labels) && isset($labels[$key]) && '' !== trim((string) $labels[$key])) {
-        return (string) $labels[$key];
-    }
-    return $default;
-}
-
-/**
- * 获取账户中心页面 URL。
- */
-function mluc_get_account_url()
-{
-    $page_id = (int) mluc_get_option('account_page_id', 0);
-    if ($page_id) {
-        return get_permalink($page_id);
-    }
-    return home_url('/account/');
-}
-
-/**
- * 获取登录页 URL（无专用页面时回退到 WP 登录页并带回跳）。
+ * Read a single plugin setting.
  *
- * @param string $redirect 登录后回跳地址（同站 URL）。留空则回跳账户中心。
+ * @param string $key     Setting key.
+ * @param mixed  $default Value returned when the key is absent.
+ * @return mixed Setting value or the supplied default.
  */
-function mluc_get_login_url($redirect = '')
-{
-    $page_id = (int) mluc_get_option('login_page_id', 0);
-    if ($page_id && get_post($page_id)) {
-        $url = get_permalink($page_id);
-        if ($redirect) {
-            $url = add_query_arg('redirect_to', $redirect, $url);
-        }
-        return $url;
-    }
-    return wp_login_url($redirect ? $redirect : mluc_get_account_url());
+function mluc_get_option( $key, $default = '' ) {
+	$options = get_option( 'mluc_options', array() );
+
+	if ( ! is_array( $options ) || ! isset( $options[ $key ] ) ) {
+		return $default;
+	}
+
+	return $options[ $key ];
 }
 
 /**
- * 获取注册页 URL（无专用页面时回退到 WP 注册页）。
- */
-function mluc_get_register_url()
-{
-    $page_id = (int) mluc_get_option('register_page_id', 0);
-    if ($page_id && get_post($page_id)) {
-        return get_permalink($page_id);
-    }
-    return wp_registration_url();
-}
-
-/**
- * 获取找回密码页 URL（无专用页面时回退到登录页内的找回密码视图）。
- */
-function mluc_get_lostpassword_url()
-{
-    $page_id = (int) mluc_get_option('lostpassword_page_id', 0);
-    if ($page_id && get_post($page_id)) {
-        return get_permalink($page_id);
-    }
-    return add_query_arg('mluc_view', 'lostpassword', mluc_get_login_url());
-}
-
-/**
- * 加载模板文件，主题可通过同名覆盖。
+ * Read a front-end interface label.
  *
- * @param string $slug 模板标识（不含 .php）
- * @param array  $args 传给模板的变量
- */
-function mluc_get_template($slug, $args = array())
-{
-    if (is_array($args)) {
-        extract($args);
-    }
-
-    $theme_file  = get_stylesheet_directory() . '/mluc/' . $slug . '.php';
-    $plugin_file = MLUC_PLUGIN_DIR . 'templates/' . $slug . '.php';
-
-    $file = file_exists($theme_file) ? $theme_file : $plugin_file;
-    if (file_exists($file)) {
-        include $file;
-    }
-}
-
-/**
- * 生成前端 AJAX 用的 nonce 与 action。
- */
-function mluc_ajax_data()
-{
-    return array(
-        'ajax_url' => admin_url('admin-ajax.php'),
-        'nonce'    => wp_create_nonce('mluc_nonce'),
-    );
-}
-
-/**
- * 统计用户已通过审核的评论数。
- */
-function mluc_count_user_comments($user_id)
-{
-    $count = get_comments(array(
-        'user_id' => $user_id,
-        'status'  => 'approve',
-        'count'   => true,
-    ));
-    return $count ? (int) $count : 0;
-}
-
-/**
- * 判断请求是否来自 AJAX 并返回 JSON 错误。
- */
-function mluc_send_json($success, $message, $data = array())
-{
-    wp_send_json(array(
-        'success' => (bool) $success,
-        'message' => $message,
-        'data'    => $data,
-    ));
-}
-
-/* -----------------------------------------------------------------
- * 积分与余额（v2.1.0）：原子账本辅助 + 充值/兑换比例配置读取。
- * 比例全部来自后台「用户中心 → 设置 → 积分与余额」，前台绝不传价。
- * ----------------------------------------------------------------- */
-
-/**
- * 积分体系是否启用。
- */
-function mluc_credit_enabled()
-{
-    return !empty(mluc_get_option('credit_enabled', 0));
-}
-
-/**
- * 余额钱包是否启用（余额支付 + 积分兑换的目标账本）。
- */
-function mluc_balance_enabled()
-{
-    return !empty(mluc_get_option('balance_enabled', 0));
-}
-
-/**
- * 积分名称（积分 / 金币 / Z币 等）。
- */
-function mluc_get_credit_name()
-{
-    $name = trim((string) mluc_get_option('credit_name', ''));
-    return '' !== $name ? $name : __('积分', 'moonlight-user-center');
-}
-
-/**
- * 充值比例：1 个货币单位 = N 积分（N > 0，默认 10）。
- */
-function mluc_get_credit_rate()
-{
-    $rate = (float) mluc_get_option('credit_rate', 10);
-    return $rate > 0 ? $rate : 10;
-}
-
-/**
- * 积分兑换余额比例：N 积分 = 1 个货币单位余额（N > 0，默认 100）。
- */
-function mluc_get_credit_exchange_rate()
-{
-    $rate = (float) mluc_get_option('credit_exchange_rate', 100);
-    return $rate > 0 ? $rate : 100;
-}
-
-/**
- * 充值套餐：后台「积分|金额」文本或已清洗的数组（设置页保存后为数组）。
- * 留空 / 无合法行时回退内置默认。
+ * Labels are translated strings and can be replaced by a filter, which keeps
+ * the plugin fully localisable: no wording is stored in the database.
  *
- * @return array<int,array{credit:float,price:float}>
+ * @param string $key     Label key.
+ * @param string $default Already-translated default text.
+ * @return string
  */
-function mluc_get_recharge_packages()
-{
-    $saved = mluc_get_option('credit_packages', array());
-    $out   = array();
-    if (is_array($saved)) {
-        // 设置页保存后的结构：[ ['credit' => 100, 'price' => 10], … ]
-        foreach ($saved as $pkg) {
-            if (is_array($pkg) && isset($pkg['credit'], $pkg['price'])) {
-                $credit = (float) $pkg['credit'];
-                $price  = (float) $pkg['price'];
-                if ($credit > 0 && $price > 0) {
-                    $out[] = array('credit' => $credit, 'price' => $price);
-                }
-            }
-        }
-    } else {
-        // 兼容文本存储（每行一条「积分|金额」）。
-        $lines = preg_split('/\r\n|\r|\n/', (string) $saved);
-        if (is_array($lines)) {
-            foreach ($lines as $line) {
-                $line = trim((string) $line);
-                if ('' === $line || false === strpos($line, '|')) {
-                    continue;
-                }
-                list($credit, $price) = array_map('trim', explode('|', $line, 2));
-                $credit = (float) $credit;
-                $price  = (float) $price;
-                if ($credit > 0 && $price > 0) {
-                    $out[] = array('credit' => $credit, 'price' => $price);
-                }
-            }
-        }
-    }
-    if (empty($out)) {
-        $out = array(
-            array('credit' => 100, 'price' => 10),
-            array('credit' => 500, 'price' => 45),
-            array('credit' => 1000, 'price' => 80),
-        );
-    }
-    return apply_filters('mluc_recharge_packages', $out);
+function mluc_ui_label( $key, $default = '' ) {
+	/**
+	 * Filters a front-end interface label.
+	 *
+	 * @since 1.0.0
+	 *
+	 * @param string $default Already-translated default text.
+	 * @param string $key     Label key.
+	 */
+	return (string) apply_filters( 'mluc_ui_label', $default, $key );
 }
 
 /**
- * 自定义充值限额：array(min, max)，max = 0 表示不限制。
+ * Resolve a stored page ID to a permalink.
  *
- * @return array{min:int,max:int}
+ * @param string $option_key Option holding the page ID.
+ * @param string $fallback   URL used when no page is configured.
+ * @return string
  */
-function mluc_get_recharge_custom_limits()
-{
-    return array(
-        'min' => max(1, (int) mluc_get_option('credit_custom_min', 10)),
-        'max' => max(0, (int) mluc_get_option('credit_custom_max', 0)),
-    );
+function mluc_page_url( $option_key, $fallback = '' ) {
+	$page_id = absint( mluc_get_option( $option_key, 0 ) );
+
+	if ( $page_id && 'page' === get_post_type( $page_id ) && 'publish' === get_post_status( $page_id ) ) {
+		$permalink = get_permalink( $page_id );
+		if ( $permalink ) {
+			return $permalink;
+		}
+	}
+
+	return $fallback;
 }
 
 /**
- * 原子累加数值型 user meta（并发充值 / 回补不丢更新）。
+ * URL of the account dashboard.
  *
- * usermeta 表没有 (user_id, meta_key) 唯一索引，无法用 ON DUPLICATE KEY：
- * 先原子 UPDATE；无对应行时 INSERT（并发下另一请求可能已插入，
- * 依据 rows_affected 再试一次 UPDATE 兜底）。写入后清理 user_meta
- * 对象缓存，避免同请求内 get_user_meta 读到旧值。
- *
- * @param int    $user_id  用户 ID。
- * @param string $meta_key meta 键。
- * @param float  $amount   增量（> 0）。
- * @return float 更新后的值（失败返回当前值）。
+ * @return string
  */
-function mluc_atomic_increment_user_meta($user_id, $meta_key, $amount)
-{
-    global $wpdb;
-    $user_id = (int) $user_id;
-    $amount  = (float) $amount;
-    if ($user_id <= 0 || '' === $meta_key || $amount <= 0) {
-        return (float) get_user_meta($user_id, $meta_key, true);
-    }
+function mluc_get_account_url() {
+	$url = mluc_page_url( 'account_page_id', '' );
 
-    $affected = $wpdb->query($wpdb->prepare(
-        "UPDATE {$wpdb->usermeta} SET meta_value = CAST(meta_value AS DECIMAL(20,4)) + %f
-         WHERE user_id = %d AND meta_key = %s",
-        $amount,
-        $user_id,
-        $meta_key
-    ));
-    if (!$affected) {
-        $exists = $wpdb->get_var($wpdb->prepare(
-            "SELECT umeta_id FROM {$wpdb->usermeta} WHERE user_id = %d AND meta_key = %s LIMIT 1",
-            $user_id,
-            $meta_key
-        ));
-        if (!$exists) {
-            $wpdb->insert(
-                $wpdb->usermeta,
-                array('user_id' => $user_id, 'meta_key' => $meta_key, 'meta_value' => (string) $amount),
-                array('%d', '%s', '%s')
-            );
-            // 并发下另一请求可能已插入（唯一性不受保护），此时改为再次原子累加。
-            if (!$wpdb->rows_affected) {
-                $wpdb->query($wpdb->prepare(
-                    "UPDATE {$wpdb->usermeta} SET meta_value = CAST(meta_value AS DECIMAL(20,4)) + %f
-                     WHERE user_id = %d AND meta_key = %s",
-                    $amount,
-                    $user_id,
-                    $meta_key
-                ));
-            }
-        }
-    }
-    wp_cache_delete($user_id, 'user_meta');
-    return (float) get_user_meta($user_id, $meta_key, true);
+	if ( $url ) {
+		return $url;
+	}
+
+	$fallback = home_url( '/' );
+
+	/**
+	 * Filters the fallback account URL used when no page is configured.
+	 *
+	 * @since 1.0.0
+	 *
+	 * @param string $fallback Default fallback URL.
+	 */
+	return apply_filters( 'mluc_default_account_url', $fallback );
 }
 
 /**
- * 原子扣减数值型 user meta：SQL 条件保证「余额充足才扣」，
- * 并发请求同时消费时只有充足的那次成功，杜绝扣成负数。
- * 写入后清理 user_meta 对象缓存。
+ * URL of the login screen.
  *
- * @param int    $user_id  用户 ID。
- * @param string $meta_key meta 键。
- * @param float  $amount   扣减量（> 0）。
- * @return bool 是否扣减成功（false = 余额不足或记录不存在）。
+ * @param string $redirect Optional same-site URL to return to after login.
+ * @return string
  */
-function mluc_atomic_decrement_user_meta($user_id, $meta_key, $amount)
-{
-    global $wpdb;
-    $user_id = (int) $user_id;
-    $amount  = (float) $amount;
-    if ($user_id <= 0 || '' === $meta_key || $amount <= 0) {
-        return false;
-    }
-    $affected = $wpdb->query($wpdb->prepare(
-        "UPDATE {$wpdb->usermeta} SET meta_value = CAST(meta_value AS DECIMAL(20,4)) - %f
-         WHERE user_id = %d AND meta_key = %s AND CAST(meta_value AS DECIMAL(20,4)) >= %f",
-        $amount,
-        $user_id,
-        $meta_key,
-        $amount
-    ));
-    if ($affected) {
-        wp_cache_delete($user_id, 'user_meta');
-    }
-    return (bool) $affected;
+function mluc_get_login_url( $redirect = '' ) {
+	$redirect = $redirect ? $redirect : mluc_get_account_url();
+	$url      = mluc_page_url( 'login_page_id', '' );
+
+	if ( $url ) {
+		return add_query_arg( 'redirect_to', rawurlencode( $redirect ), $url );
+	}
+
+	return wp_login_url( $redirect );
+}
+
+/**
+ * URL of the registration screen.
+ *
+ * @return string
+ */
+function mluc_get_register_url() {
+	$url = mluc_page_url( 'register_page_id', '' );
+
+	if ( $url ) {
+		return $url;
+	}
+
+	return wp_registration_url();
+}
+
+/**
+ * URL of the password recovery screen.
+ *
+ * @return string
+ */
+function mluc_get_lostpassword_url() {
+	$url = mluc_page_url( 'lostpassword_page_id', '' );
+
+	if ( $url ) {
+		return $url;
+	}
+
+	$login_url = mluc_page_url( 'login_page_id', '' );
+
+	if ( $login_url ) {
+		return add_query_arg( 'mluc_view', 'lostpassword', $login_url );
+	}
+
+	return wp_lostpassword_url();
+}
+
+/**
+ * Render a plugin template.
+ *
+ * Themes may override any template by creating
+ * `wp-content/themes/<theme>/moonlight-user-center/<slug>.php`.
+ *
+ * The template receives the arguments array as `$args` and must read its values
+ * from there, for example `$args['user']`.
+ *
+ * @param string $slug Template slug without the `.php` extension.
+ * @param array  $args Variables exposed to the template.
+ * @return void
+ */
+function mluc_get_template( $slug, $args = array() ) {
+	$slug = sanitize_file_name( $slug );
+
+	$theme_file  = trailingslashit( get_stylesheet_directory() ) . 'moonlight-user-center/' . $slug . '.php';
+	$plugin_file = MLUC_PLUGIN_DIR . 'templates/' . $slug . '.php';
+
+	$file = file_exists( $theme_file ) ? $theme_file : $plugin_file;
+
+	if ( ! file_exists( $file ) ) {
+		return;
+	}
+
+	/**
+	 * Filters the template arguments before the template is rendered.
+	 *
+	 * @since 1.0.0
+	 *
+	 * @param array  $args Template arguments.
+	 * @param string $slug Template slug.
+	 */
+	$args = apply_filters( 'mluc_template_args', $args, $slug );
+	$args = is_array( $args ) ? $args : array();
+
+	include $file;
+}
+
+/**
+ * Send a JSON response and stop.
+ *
+ * @param bool   $success Whether the request succeeded.
+ * @param string $message Human readable message.
+ * @param array  $data    Optional extra payload.
+ * @return void
+ */
+function mluc_send_json( $success, $message, $data = array() ) {
+	wp_send_json(
+		array(
+			'success' => (bool) $success,
+			'message' => (string) $message,
+			'data'    => is_array( $data ) ? $data : array(),
+		)
+	);
+}
+
+/**
+ * Count a user's approved comments.
+ *
+ * @param int $user_id User ID.
+ * @return int
+ */
+function mluc_count_user_comments( $user_id ) {
+	$count = get_comments(
+		array(
+			'user_id' => absint( $user_id ),
+			'status'  => 'approve',
+			'count'   => true,
+		)
+	);
+
+	return $count ? (int) $count : 0;
+}
+
+/**
+ * Translate a WP_Error raised by the WordPress user APIs.
+ *
+ * Unknown errors fall back to the original (already translated) message.
+ *
+ * @param WP_Error $error Error object.
+ * @return string
+ */
+function mluc_translate_wp_error( $error ) {
+	if ( ! is_wp_error( $error ) ) {
+		return '';
+	}
+
+	$map = array(
+		'invalid_username'   => __( 'That username does not exist.', 'moonlight-user-center' ),
+		'incorrect_password' => __( 'Incorrect username or password.', 'moonlight-user-center' ),
+		'empty_username'     => __( 'Please enter a username.', 'moonlight-user-center' ),
+		'empty_password'     => __( 'Please enter a password.', 'moonlight-user-center' ),
+		'existing_user_login' => __( 'That username is already taken.', 'moonlight-user-center' ),
+		'existing_user_email' => __( 'That email address is already registered.', 'moonlight-user-center' ),
+		'invalid_email'      => __( 'That email address is not valid.', 'moonlight-user-center' ),
+	);
+
+	$code = $error->get_error_code();
+
+	return isset( $map[ $code ] ) ? $map[ $code ] : $error->get_error_message();
+}
+
+/**
+ * User meta keys owned by this plugin, with human-readable labels.
+ *
+ * The privacy exporter, the privacy eraser and uninstall.php all read from this
+ * single list, so the three can never drift apart.
+ *
+ * @return array<string, string> Meta key => field label.
+ */
+function mluc_meta_labels() {
+	return array(
+		'mluc_phone'                => __( 'Phone number', 'moonlight-user-center' ),
+		'mluc_avatar_url'           => __( 'Selected avatar URL', 'moonlight-user-center' ),
+		'mluc_avatar_attachment_id' => __( 'Selected avatar media ID', 'moonlight-user-center' ),
+		'mluc_avatar_type'          => __( 'Avatar source', 'moonlight-user-center' ),
+		'mluc_last_login'           => __( 'Last login date', 'moonlight-user-center' ),
+	);
+}
+
+/**
+ * The user meta keys owned by this plugin.
+ *
+ * @return string[] Meta keys.
+ */
+function mluc_user_meta_keys() {
+	return array_keys( mluc_meta_labels() );
 }

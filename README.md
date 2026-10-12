@@ -1,76 +1,193 @@
-# 漫步白月光用户中心 (moonlight-user-center)
+# Moonlight User Center
 
-轻量、主题无关的 WordPress 用户中心插件，兼容 **Astra 主题** 与 **Elementor 页面构建器**。提供前端登录、注册、找回密码、账户仪表盘、资料编辑、头像上传等完整功能，内置**统一支付抽象层**（支付宝 / PayPal / Stripe / 线下转账）与 **License 授权体系**，构成 Free + Pro 可商业化产品架构。
+A lightweight, theme-agnostic front-end user center for WordPress. It gives a site
+front-end login, registration, password recovery and a personal account area without
+touching the WordPress admin.
 
-- 作者：漫步白月光
-- 官网：https://www.at8.fun/
-- 版本：2.0.0
-- 授权：GPL-2.0-or-later
-- 最低要求：WordPress 5.8 / PHP 7.4（支付宝需 PHP OpenSSL 扩展）
+**Version 1.0.0** · GPL-2.0-or-later · PHP 7.4+ · WordPress 5.8+
 
-## 产品架构
+---
 
-```text
-moonlight-user-center (Free 核心，本仓库)
-│   用户系统 / 账户中心 / Elementor / 统一支付抽象 / 订单 / License 管理
-│
-└── moonlight-user-center-pro (Pro 扩展，独立仓库)
-        https://github.com/361611074/moonlight-user-center-pro
-        License 激活管理 / Elementor 会员状态卡 / 订单 CSV 导出
-        （依赖方向 Pro → Free 单向，Pro 缺失或失效不影响 Free 任何功能）
-```
+## What it does
 
-## 功能特性
-
-- **前端登录 / 注册 / 找回密码**：短代码驱动，任意主题可用，样式作用域限定 `.mluc-`。
-- **账户中心仪表盘**：概览 / 资料编辑 / 会员等级 / 已购内容 / **我的订单** / **我的 License**，Tab 通过 `mluc_account_tabs` 过滤器可扩展。
-- **统一支付抽象层**：`MLUC_Payment_Gateway_Interface` + `MLUC_Payment_Manager` 注册表；内置 manual / PayPal / Stripe / Alipay / **Balance** / **Credit**，第三方可通过 `mluc_payment_gateways_registered` 追加网关。
-- **积分与余额（v2.1.0）**：独立积分体系——积分充值（套餐 + 自定义，充值比例后台可配）、**积分兑换余额（兑换比例后台可配）**、余额支付 / 积分支付购买会员与解锁内容、每日签到送积分（基础奖励 + 连续加成可配）、管理员调账留痕；账本增减全部原子操作并记录流水。与 Moonlight Shop 同装时商城积分模块优先，本模块自动让位。
-- **支付宝（电脑网站支付）**：RSA2 签名（OpenSSL 实现，PKCS#1 / PKCS#8 均可）；异步 notify 验签 + 商户身份 + 订单号 + 金额 + 状态四重校验；浏览器回跳以服务端 `alipay.trade.query` 复核为准；重复通知幂等；支持退款；仅 CNY。
-- **PayPal / Stripe（零回归）**：既有 Smart Buttons 与 Checkout 流程原样保留；Stripe Webhook 兜底端点 `/wp-json/mluc/v1/stripe-webhook`；支付宝 notify 端点 `/wp-json/mluc/v1/alipay/notify`。
-- **License 授权体系**：`MLUC-PRO-XXXX-XXXX-XXXX-XXXX` 安全随机 Key；签发 / 激活 / 停用 / 验证 / 撤销 / 续期；订单与 License 分离（续费叠加有效期，不新建）；远程 License Server 模式可选（验证缓存 12h，断网宽限 7 天，**Server 故障绝不影响 Free**）；支付成功可按配置自动颁发 License；退款自动撤销。
-- **后台管理**：License 管理、系统状态体检、订单管理（超时自动关闭）、支付日志（随订单记录、调试上下文可开关）、邮件通知（购买成功 + License 到期提醒）。
-- **界面文案全量可自定义** + 多语言（简体中文 / 繁体 / 英文）。
-
-## 商业链路
-
-```text
-用户选择套餐 → 服务端定价建单 → 支付宝 / PayPal / Stripe / 线下转账
-→ 异步通知验签（或管理员确认）→ complete_order 原子完单
-→ 开通会员等级 →（按配置）自动颁发 / 续期 License → Pro 功能启用
-```
-
-金额始终以服务端等级配置为准，客户端仅传递 `level` 与 `gateway`；浏览器回跳不作为开通依据。
-
-## 短代码
-
-| 短代码 | 说明 |
+| Feature | Shortcode |
 | --- | --- |
-| `[mluc_login]` | 登录表单 |
-| `[mluc_register]` | 注册表单 |
-| `[mluc_lostpassword]` | 找回密码 |
-| `[mluc_account]` | 账户中心 |
+| Login form | `[mluc_login]` |
+| Registration form | `[mluc_register]` |
+| Password recovery form | `[mluc_lostpassword]` |
+| Account dashboard | `[mluc_account]` |
 
-## 安装
+The account dashboard has four sections:
 
-1. 将本仓库内容上传至 `wp-content/plugins/moonlight-user-center/`；
-2. 在 WordPress 后台「插件」中启用「漫步白月光用户中心」；如需 Pro 功能，从独立仓库 [moonlight-user-center-pro](https://github.com/361611074/moonlight-user-center-pro) 安装并启用「漫步白月光用户中心 Pro」；
-3. 进入「用户中心 → 设置」配置货币、支付网关与 License；「系统状态」可一键体检。
+- **Overview** — display name, email, registration date, approved comment count
+- **Profile** — display name, nickname, first/last name, website, phone, bio
+- **Avatar** — pick from an administrator-curated avatar library
+- **Password** — change password, which signs the user out of every other device
 
-## 文档
+Place each shortcode on its own page, then choose those pages under
+**Settings → User Center**. Any page you leave unset falls back to the equivalent
+WordPress screen.
 
-- [AUDIT.md](AUDIT.md) — Phase 0 架构审计报告
-- [SECURITY-CHECK.md](SECURITY-CHECK.md) — Phase 8 安全审计清单
-- [TEST-PLAN.md](TEST-PLAN.md) — Phase 10 回归测试计划
-- [CHANGELOG.md](CHANGELOG.md) — 更新日志
-- [Pro 插件说明](https://github.com/361611074/moonlight-user-center-pro) （独立仓库）
+### Design principles
 
-## 兼容性
+- **The WordPress user system is the only user system.** Accounts are created with
+  `wp_create_user()`, authenticated with `wp_signon()`, and reset through
+  `retrieve_password()`. This plugin never reads, stores, displays or transmits a
+  plain-text password, and stores no password hash of its own.
+- **No external communication.** No external HTTP requests, no third-party scripts
+  or fonts, no trackers, no analytics, no license or update server.
+- **No telemetry.** Nothing about your site or your users leaves the server.
+- **Nothing is locked.** Every feature described here is present and unlocked.
+- **Security by default.** Per-action nonces, capability checks on every state-changing
+  handler, sanitised input, escaped output, and rate limiting on public endpoints.
 
-- 与 Astra 主题无冲突（样式作用域限定 `.mluc-`）；
-- 与 Elementor 集成，提供专用组件（Pro 可通过 `mluc_elementor_widgets` 追加）；
-- 不依赖主题全局函数，可独立运行；Pro 缺失 / 禁用 / 授权失效时 Free 全功能正常。
+---
 
-## 版权
+## Requirements
 
-本插件为原创实现，采用 GPL-2.0-or-later 授权，作者：漫步白月光。官网：https://www.at8.fun/
+- WordPress 5.8 or newer
+- PHP 7.4 or newer
+- For registration: the **Anyone can register** option enabled in Settings → General
+
+---
+
+## Installation
+
+1. Download `moonlight-user-center-1.0.0.zip` from the releases, or clone this
+   repository into `wp-content/plugins/moonlight-user-center/`.
+2. Activate the plugin under **Plugins**.
+3. Create pages containing the shortcodes listed above.
+4. Go to **Settings → User Center** and select those pages.
+5. To offer avatars, add entries under **Avatar Library**, set a featured image on
+   each, and publish.
+
+---
+
+## Theme overrides
+
+Every template can be overridden from your theme. Copy a file from
+`templates/` into `moonlight-user-center/` inside your active theme:
+
+```
+wp-content/themes/your-theme/moonlight-user-center/account-profile.php
+```
+
+Templates receive their data through an `$args` array, for example
+`$args['user']` or `$args['library']`.
+
+---
+
+## Privacy and data
+
+The plugin stores only what it needs:
+
+| User meta key | Contents |
+| --- | --- |
+| `mluc_phone` | Phone number entered in the profile |
+| `mluc_avatar_attachment_id` | Media ID of the chosen avatar |
+| `mluc_avatar_url` | URL of the chosen avatar |
+| `mluc_avatar_type` | How the avatar was chosen |
+| `mluc_last_login` | Last login timestamp |
+
+Settings live in a single `mluc_options` option. There are **no custom database tables**.
+
+It registers a personal data exporter and eraser with the WordPress privacy tools, and
+suggests privacy policy wording under **Settings → Privacy**. On uninstall you choose
+whether the plugin's settings and profile fields are removed; WordPress user accounts,
+posts and comments are never deleted.
+
+---
+
+## Development
+
+### Package layout
+
+```
+moonlight-user-center/
+├── moonlight-user-center.php   # bootstrap: constants, autoloader, module wiring
+├── includes/                   # MLUC_* classes + helper functions
+├── templates/                  # front-end templates (theme-overridable)
+├── assets/css/ · assets/js/
+├── languages/                  # .pot + zh_CN (.po/.mo)
+├── uninstall.php
+├── readme.txt                  # WordPress.org readme
+└── LICENSE                     # GPL-2.0 full text
+```
+
+The autoloader maps `MLUC_Foo_Bar` to `includes/class-foo-bar.php`, so a new class
+needs no registration.
+
+### Conventions
+
+- Every global function is prefixed `mluc_`, every class and constant `MLUC_`,
+  every option and transient `mluc_`.
+- All user-facing strings use the `moonlight-user-center` text domain with **English**
+  source strings, so GlotPress and language packs work normally.
+- All request input is unslashed and sanitised; all output is escaped late.
+- State-changing handlers verify a nonce *and* a capability. Nonces are not authorization.
+
+### Regenerating translations
+
+The `.pot` was generated from source rather than hand-maintained. Regenerate it after
+changing any translatable string:
+
+```bash
+# canonical method, using WP-CLI
+wp i18n make-pot . languages/moonlight-user-center.pot --domain=moonlight-user-center
+
+# compile an edited .po into the .mo that WordPress loads
+msgfmt languages/moonlight-user-center-zh_CN.po \
+       -o languages/moonlight-user-center-zh_CN.mo
+```
+
+`msgfmt` ships with gettext. On Windows it is available through Git for Windows or MSYS2.
+
+---
+
+## Project history
+
+This repository previously hosted a **commercialised Free edition (v2.1.1)** that bundled
+payment gateways (Alipay, PayPal, Stripe), a paywall, a license manager, paid membership
+tiers, and a credits/balance ledger.
+
+Version 1.0.0 is a rebuild to meet the WordPress.org Plugin Directory Guidelines. Under
+guideline 5, functionality may not be restricted or locked behind payment, and premium
+code belongs in a separate add-on plugin hosted off WordPress.org. The commercial code
+was therefore removed entirely and the free plugin was rebuilt around login, registration,
+password recovery, the account dashboard and the avatar library.
+
+**The previous version is preserved.** It is reachable at any time:
+
+```bash
+git fetch --tags
+git checkout legacy-v2.1.1     # the old commercial Free edition
+```
+
+Paid features continue in the separate repository
+[moonlight-user-center-pro](https://github.com/361611074/moonlight-user-center-pro),
+which this plugin does not depend on. All extension points are plain WordPress hooks
+(`mluc_loaded`, `mluc_account_tabs`, `mluc_template_args`, `mluc_after_register`, …).
+
+### Security fixes carried into 1.0.0
+
+The rebuild also fixes defects found while auditing the previous code:
+
+- **Passwords were read without `wp_unslash()`** in login, registration, password change
+  and password reset — any password containing a backslash locked the user out.
+- **The post-login redirect was validated with `wp_http_validate_url()`**, which allows
+  external hosts, turning the login form into an open redirect.
+- **All seven AJAX endpoints shared one nonce**, including the password-change endpoint.
+  Every action now has its own nonce.
+- **`uninstall.php` deleted meta with `LIKE 'mluc_%'`**, which would have destroyed other
+  plugins' `mluc_*` keys. It now removes an explicit list of keys.
+- **Every translatable string had a Chinese msgid**, which made language packs and
+  GlotPress unusable. Source strings are now English.
+
+---
+
+## License
+
+GPL-2.0-or-later. See [LICENSE](LICENSE).
+
+WordPress itself is licensed under the GPL, and plugins distributed through the
+WordPress.org directory must be GPL-compatible.

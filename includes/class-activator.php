@@ -1,75 +1,66 @@
 <?php
 /**
- * 激活 / 停用逻辑。
+ * Activation and deactivation routines.
+ *
+ * The plugin stores no custom database tables. All persistent state lives in
+ * the `mluc_options` option and in user meta owned by the plugin.
  *
  * @package Moonlight_User_Center
  */
 
-if (!defined('ABSPATH')) {
-    exit;
-}
+defined( 'ABSPATH' ) || exit;
 
-class MLUC_Activator
-{
-    /**
-     * 插件激活：创建账户中心页面、初始化选项、刷新重写规则。
-     */
-    public static function activate()
-    {
-        $options = get_option('mluc_options', array());
+/**
+ * Lifecycle hooks.
+ */
+class MLUC_Activator {
 
-        if (empty($options['account_page_id']) || !get_post($options['account_page_id'])) {
-            $page_id = wp_insert_post(array(
-                'post_title'   => '账户中心',
-                'post_name'    => 'account',
-                'post_content' => '[mluc_account]',
-                'post_status'  => 'publish',
-                'post_type'    => 'page',
-            ));
-            if ($page_id && !is_wp_error($page_id)) {
-                $options['account_page_id'] = $page_id;
-            }
-        }
+	/**
+	 * Default settings.
+	 *
+	 * @return array<string, mixed>
+	 */
+	public static function defaults() {
+		return array(
+			'account_page_id'      => 0,
+			'login_page_id'        => 0,
+			'register_page_id'     => 0,
+			'lostpassword_page_id' => 0,
+			'redirect_after_login' => '',
+			'enable_registration'  => 1,
+			'enable_avatar'        => 1,
+			'auto_login'           => 1,
+			'delete_data'          => 0,
+		);
+	}
 
-        // 自动创建登录 / 注册页，供账户中心跳转与独立访问。
-        $auth_pages = array(
-            'login_page_id'        => array('登录', 'login', '[mluc_login]'),
-            'register_page_id'     => array('注册', 'register', '[mluc_register]'),
-            'lostpassword_page_id' => array('找回密码', 'lost-password', '[mluc_lostpassword]'),
-        );
-        foreach ($auth_pages as $opt_key => $cfg) {
-            if (empty($options[$opt_key]) || !get_post($options[$opt_key])) {
-                $page_id = wp_insert_post(array(
-                    'post_title'   => $cfg[0],
-                    'post_name'    => $cfg[1],
-                    'post_content' => $cfg[2],
-                    'post_status'  => 'publish',
-                    'post_type'    => 'page',
-                ));
-                if ($page_id && !is_wp_error($page_id)) {
-                    $options[$opt_key] = $page_id;
-                }
-            }
-        }
+	/**
+	 * Run on activation.
+	 *
+	 * @return void
+	 */
+	public static function activate() {
+		$existing = get_option( 'mluc_options', array() );
 
-        if (!isset($options['enable_avatar'])) {
-            $options['enable_avatar'] = 1;
-        }
-        if (!isset($options['redirect_after_login'])) {
-            $options['redirect_after_login'] = '';
-        }
+		if ( ! is_array( $existing ) ) {
+			$existing = array();
+		}
 
-        update_option('mluc_options', $options);
+		update_option( 'mluc_options', array_merge( self::defaults(), $existing ), false );
 
-        // 默认角色能力无需改动，使用 WordPress 原生。
-        flush_rewrite_rules();
-    }
+		// Record the plugin version so upgrades can run migrations later.
+		update_option( 'mluc_version', MLUC_VERSION, false );
+	}
 
-    /**
-     * 插件停用：仅刷新规则，不删除用户数据。
-     */
-    public static function deactivate()
-    {
-        flush_rewrite_rules();
-    }
+	/**
+	 * Run on deactivation.
+	 *
+	 * No user data is removed here; removal only happens on uninstall and only
+	 * when the site owner asked for it.
+	 *
+	 * @return void
+	 */
+	public static function deactivate() {
+		// Intentionally empty: nothing to undo on deactivation.
+	}
 }

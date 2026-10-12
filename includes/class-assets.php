@@ -1,118 +1,145 @@
 <?php
 /**
- * 前端资源（CSS / JS）加载与本地化。
+ * Front-end and admin asset loading.
+ *
+ * Assets are only enqueued on screens that actually render the plugin, so no
+ * other page pays for them.
  *
  * @package Moonlight_User_Center
  */
 
-if (!defined('ABSPATH')) {
-    exit;
-}
+defined( 'ABSPATH' ) || exit;
 
-class MLUC_Assets
-{
-    private static $instance;
+/**
+ * Conditional asset registration.
+ */
+class MLUC_Assets {
 
-    public static function get_instance()
-    {
-        if (!self::$instance) {
-            self::$instance = new self();
-        }
-        return self::$instance;
-    }
+	/**
+	 * Shortcodes that need front-end assets when they are present.
+	 *
+	 * @var string[]
+	 */
+	const SHORTCODES = array( 'mluc_login', 'mluc_register', 'mluc_lostpassword', 'mluc_account' );
 
-    private function __construct()
-    {
-        add_action('wp_enqueue_scripts', array($this, 'enqueue'));
-        add_action('admin_enqueue_scripts', array($this, 'enqueue_admin'));
-    }
+	/**
+	 * Singleton instance.
+	 *
+	 * @var MLUC_Assets|null
+	 */
+	private static $instance = null;
 
-    public function enqueue()
-    {
-        // 站点通用样式：hidecontent 锁定卡 + 账户中心基础样式。
-        // 全站加载（~32KB），避免 Elementor 模板 / 可复用区块等场景下条件检测漏检导致卡片无样式。
-        wp_enqueue_style('mluc-style', MLUC_PLUGIN_URL . 'assets/css/mluc.css', array(), MLUC_VERSION);
+	/**
+	 * Retrieve the singleton.
+	 *
+	 * @return MLUC_Assets
+	 */
+	public static function get_instance() {
+		if ( null === self::$instance ) {
+			self::$instance = new self();
+		}
 
-        // 交互资源（dashicons + mluc.js）仅在真正用到账户中心交互的页面加载。
-        $has = false;
-        if (is_singular()) {
-            $content = get_post_field('post_content', get_the_ID());
-            $has = has_shortcode($content, 'mluc_login')
-                || has_shortcode($content, 'mluc_register')
-                || has_shortcode($content, 'mluc_lostpassword')
-                || has_shortcode($content, 'mluc_account')
-                || has_shortcode($content, 'mluc_videos')
-                || has_shortcode($content, 'mluc_video')
-                || has_shortcode($content, 'mluc_materials')
-                || has_shortcode($content, 'mluc_downloads')
-                || has_shortcode($content, 'mluc_purchases');
-        }
-        // CPT 归錄页加载（主题启用 mluc_demo_video / mluc_material 归錄时仍可正常加載樣式與腳本）
-        if (!$has && is_post_type_archive(array('mluc_demo_video', 'mluc_material'))) {
-            $has = true;
-        }
+		return self::$instance;
+	}
 
-        if (!$has) {
-            return;
-        }
+	/**
+	 * Register hooks.
+	 */
+	private function __construct() {
+		add_action( 'wp_enqueue_scripts', array( $this, 'maybe_enqueue' ) );
+	}
 
-        // 前台账户中心侧栏使用 dashicons 字体；前台默认未启用，需显式 enqueue
-        // 避免图标在前端显示为方块。
-        wp_enqueue_style('dashicons');
-        wp_enqueue_script('mluc-script', MLUC_PLUGIN_URL . 'assets/js/mluc.js', array('jquery'), MLUC_VERSION, true);
-        wp_localize_script('mluc-script', 'MLUC', mluc_ajax_data());
-        wp_localize_script('mluc-script', 'mluc_i18n', array(
-            'op_failed'           => mluc_ui_label('av_op_failed', 'Operation failed.'),
-            'network_error_retry' => mluc_ui_label('av_network_retry', 'Network error. Please retry.'),
-            'uploading'           => mluc_ui_label('av_uploading', 'Uploading…'),
-            'upload_failed'       => mluc_ui_label('av_upload_failed', 'Upload failed.'),
-            'network_error'       => mluc_ui_label('av_network_error', 'Network error.'),
-            'switching'           => mluc_ui_label('av_switching', 'Switching…'),
-            'avatar_updated'      => mluc_ui_label('av_avatar_updated', 'Avatar updated.'),
-        ));
-    }
+	/**
+	 * Enqueue the front-end styles and scripts when they are needed.
+	 *
+	 * @return void
+	 */
+	public function maybe_enqueue() {
+		if ( ! $this->should_enqueue() ) {
+			return;
+		}
 
-    /**
-     * 后台编辑器页面：将「隐藏内容」TinyMCE 下拉按钮所需文案写到 head 内联变量。
-     *
-     * 改为内联输出而非 wp_localize_script('wp-editor', ...)，避免依赖 WP 核心 handle
-     * 的注册顺序（post.php 上 _WP_Editors 与本钩子都挂在 admin_enqueue_scripts p10，
-     * 存在竞争）。实际 JS 在 MLUC_Editor_Button 注册的 mce_external_plugins 时机加载。
-     */
-    public function enqueue_admin($hook)
-    {
-        if (!in_array($hook, array('post.php', 'post-new.php'), true)) {
-            return;
-        }
-        add_action('admin_head', array($this, 'print_tinymce_i18n'));
+		wp_enqueue_style(
+			'mluc-frontend',
+			MLUC_PLUGIN_URL . 'assets/css/mluc.css',
+			array( 'dashicons' ),
+			MLUC_VERSION
+		);
 
-        // 「付费功能（用户中心）」Meta Box 交互（文章 / 页面编辑器）。
-        $screen = function_exists('get_current_screen') ? get_current_screen() : null;
-        if ($screen && isset($screen->post_type) && in_array($screen->post_type, array('post', 'page'), true)) {
-            wp_enqueue_media();
-            wp_enqueue_script('mluc-pw-admin', MLUC_PLUGIN_URL . 'assets/js/mluc-pw-admin.js', array('jquery'), MLUC_VERSION, true);
-        }
-    }
+		wp_enqueue_script(
+			'mluc-frontend',
+			MLUC_PLUGIN_URL . 'assets/js/mluc.js',
+			array(),
+			MLUC_VERSION,
+			true
+		);
 
-    /**
-     * admin_head 输出 mluc_tinymce_i18n 全局变量。
-     */
-    public function print_tinymce_i18n()
-    {
-        $types = array();
-        if (class_exists('MLUC_Hidecontent')) {
-            foreach (MLUC_Hidecontent::$types as $key => $info) {
-                $types[] = array(
-                    'value' => $key,
-                    'label' => isset($info['label']) ? __((string) $info['label'], 'moonlight-user-center') : $key,
-                );
-            }
-        }
-        $payload = array(
-            'button_label' => __('隐藏内容', 'moonlight-user-center'),
-            'inserting'    => __('请选择一种隐藏类型…', 'moonlight-user-center'),
-            'types'        => $types,
-        );
-        echo '<script>window.mluc_tinymce_i18n = ' . wp_json_encode($payload) . ';</script>';
-    }
+		wp_localize_script(
+			'mluc-frontend',
+			'mlucData',
+			array(
+				'ajaxUrl' => admin_url( 'admin-ajax.php' ),
+				'nonces'  => array(
+					'login'          => wp_create_nonce( MLUC_Login::NONCE_ACTION ),
+					'lostPassword'   => wp_create_nonce( MLUC_Login::LOST_NONCE_ACTION ),
+					'changePassword' => wp_create_nonce( MLUC_Login::PASSWORD_NONCE_ACTION ),
+					'register'       => wp_create_nonce( MLUC_Register::NONCE_ACTION ),
+					'profile'        => wp_create_nonce( MLUC_Profile::NONCE_ACTION ),
+					'avatar'         => wp_create_nonce( MLUC_Avatar::NONCE_ACTION ),
+				),
+				'i18n'    => array(
+					'genericError' => __( 'Something went wrong. Please try again.', 'moonlight-user-center' ),
+					'sending'      => __( 'Please wait…', 'moonlight-user-center' ),
+				),
+			)
+		);
+	}
+
+	/**
+	 * Decide whether this request renders the plugin.
+	 *
+	 * @return bool
+	 */
+	private function should_enqueue() {
+		$needed = false;
+
+		foreach ( self::SHORTCODES as $shortcode ) {
+			if ( is_singular() && has_shortcode( (string) get_post_field( 'post_content', get_queried_object_id() ), $shortcode ) ) {
+				$needed = true;
+				break;
+			}
+		}
+
+		if ( ! $needed && is_singular() ) {
+			$content = (string) get_post_field( 'post_content', get_queried_object_id() );
+
+			foreach ( self::SHORTCODES as $shortcode ) {
+				// Shortcodes can also be placed inside a shortcode block.
+				if ( false !== strpos( $content, '[' . $shortcode ) ) {
+					$needed = true;
+					break;
+				}
+			}
+		}
+
+		if ( ! $needed && is_page() ) {
+			$page_id = get_queried_object_id();
+
+			foreach ( array( 'account_page_id', 'login_page_id', 'register_page_id', 'lostpassword_page_id' ) as $option ) {
+				if ( absint( mluc_get_option( $option, 0 ) ) === (int) $page_id ) {
+					$needed = true;
+					break;
+				}
+			}
+		}
+
+		/**
+		 * Filters whether the front-end assets should load on this request.
+		 *
+		 * @since 1.0.0
+		 *
+		 * @param bool $needed Whether the plugin renders on this request.
+		 */
+		return (bool) apply_filters( 'mluc_enqueue_assets', $needed );
+	}
 }
