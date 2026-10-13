@@ -1,8 +1,8 @@
 /**
- * Membership purchase card: buy buttons, gateway radio, order history actions.
+ * Membership purchase card: buy buttons and gateway radios.
  *
  * Configuration arrives through window.at8MlucPurchase (localized by
- * AT8_MLUC_Payments::render_purchase_card()): ajaxUrl, nonce and the
+ * AT8_MLUC_Payments::render_purchase_path()): ajaxUrl, nonce and the
  * translated strings used by the PayPal flow.
  */
 (function () {

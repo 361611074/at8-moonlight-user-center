@@ -60,8 +60,21 @@ class AT8_MLUC_Payments {
 		add_action( 'manage_' . self::CPT . '_posts_custom_column', array( $this, 'render_list_column' ), 10, 2 );
 		add_filter( 'post_row_actions', array( $this, 'list_row_actions' ), 10, 2 );
 		add_action( 'at8_mluc_pay_autoclose', array( $this, 'autoclose_orders' ) );
-		add_action( 'at8_mluc_membership_purchase', array( $this, 'render_purchase_card' ) );
+		add_action( 'at8_mluc_membership_purchase', array( $this, 'render_order_history' ), 30 );
 		add_filter( 'at8_mluc_payment_gateways', array( $this, 'register_gateways' ) );
+	}
+
+	/**
+	 * Whether a level can be bought through the offline gateway.
+	 *
+	 * Registered as the `purchase` upgrade path: a level without a price has
+	 * nothing to sell, so the path card skips it.
+	 *
+	 * @param array $level Level definition.
+	 * @return bool
+	 */
+	public static function purchase_usable( $level ) {
+		return isset( $level['price'] ) && (float) $level['price'] > 0;
 	}
 
 	/**
@@ -475,23 +488,30 @@ class AT8_MLUC_Payments {
 	}
 
 	/**
-	 * Render the purchase card inside the membership account tab.
+	 * Render the purchase card as the `purchase` upgrade path.
 	 *
+	 * The path registry passes only the levels this member can still move up
+	 * to; a direct call without levels falls back to the full catalogue.
+	 *
+	 * @param array $levels  Levels this path can unlock.
+	 * @param int   $user_id Current user ID.
 	 * @return void
 	 */
-	public function render_purchase_card() {
+	public static function render_purchase_path( $levels = array(), $user_id = 0 ) {
 		if ( ! is_user_logged_in() ) {
 			echo '<p>' . esc_html( at8_mluc_ui_label( 'purchases_login', __( 'Please log in first to view your purchased content.', 'at8-moonlight-user-center' ) ) ) . '</p>';
 			return;
 		}
 
+		$user_id = $user_id > 0 ? (int) $user_id : get_current_user_id();
+		$levels  = is_array( $levels ) && $levels ? $levels : AT8_MLUC_Membership::get_levels();
+
 		// Read-only notice code echoed back after a payment attempt; no state changes.
 		$notice = isset( $_GET['at8_mluc_pay_notice'] ) ? sanitize_key( wp_unslash( $_GET['at8_mluc_pay_notice'] ) ) : ''; // phpcs:ignore WordPress.Security.NonceVerification.Recommended -- display only.
 
 		$args = array(
-			'levels'       => AT8_MLUC_Membership::get_levels(),
+			'levels'       => $levels,
 			'gateways'     => self::get_gateways(),
-			'orders'       => self::get_user_orders( get_current_user_id(), 5 ),
 			'symbol'       => self::get_currency_symbol(),
 			'instructions' => self::get_instructions(),
 			'nonce'        => wp_create_nonce( 'at8_mluc_nonce' ),
@@ -550,6 +570,26 @@ class AT8_MLUC_Payments {
 		}
 
 		at8_mluc_get_template( 'membership-purchase', $args );
+	}
+
+	/**
+	 * Render the member's order history below the upgrade paths.
+	 *
+	 * @return void
+	 */
+	public function render_order_history() {
+		if ( ! is_user_logged_in() ) {
+			echo '<p>' . esc_html( at8_mluc_ui_label( 'purchases_login', __( 'Please log in first to view your purchased content.', 'at8-moonlight-user-center' ) ) ) . '</p>';
+			return;
+		}
+
+		at8_mluc_get_template(
+			'membership-orders',
+			array(
+				'orders' => self::get_user_orders( get_current_user_id(), 5 ),
+				'symbol' => self::get_currency_symbol(),
+			)
+		);
 	}
 
 	/**

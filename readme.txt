@@ -3,7 +3,7 @@ Contributors: 361611074
 Tags: user profile, login, registration, avatar, user center
 Requires at least: 5.8
 Tested up to: 7.1
-Stable tag: 2.4.0
+Stable tag: 2.4.1
 Requires PHP: 7.4
 License: GPL-2.0-or-later
 License URI: https://www.gnu.org/licenses/gpl-2.0.html
@@ -104,6 +104,13 @@ Yes. Styles are namespaced and inherit the theme wherever possible, and any temp
 4. The front-end login form.
 
 == Changelog ==
+
+= 2.4.1 =
+* New: the paywall core is now an extension surface. The gate always runs and an add-on extends the same post fields through the `at8_mluc_paywall_enabled`, `at8_mluc_paywall_levels`, `at8_mluc_paywall_price`, `at8_mluc_paywall_days`, `at8_mluc_paywall_unlock_expire`, `at8_mluc_paywall_locked_html`, `at8_mluc_paywall_unlocked_html`, `at8_mluc_paywall_meta_extra` and `at8_mluc_paywall_can_purchase` filters instead of shipping its own content filter, so two gates can never double-lock the same post.
+* New: every upgrade method now renders from one registry. The Membership tab draws the points redemption card and the offline purchase card side by side, and an add-on adds its own paths (card payment, tier ladders, bulk seats) through the `at8_mluc_upgrade_paths` filter.
+* Improved: order history moved into its own block below the upgrade paths.
+* Improved: paid content is never served in feeds.
+* Fixed: `claim_order()` is public so the delivery handler owns the pending → paid transition; a second confirmation can never grant twice.
 
 = 2.4.0 =
 * New: custom registration and profile fields. Define any number of extra fields in User Center → Settings → Registration & Profile Fields, choose where each one appears (registration form, profile form, or both), and administrators edit the values on the user profile screen. Text, multi-line, number, date, website, email, dropdown, radio group and single checkbox are supported.

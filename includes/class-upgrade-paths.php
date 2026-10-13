@@ -2,10 +2,11 @@
 /**
  * Membership upgrade paths.
  *
- * The free plugin registers exactly one way to move a member to another level:
- * spending points. Everything else — paying with a card, buying a tier ladder,
- * bulk seats — belongs to the add-on, which registers itself through the
- * `at8_mluc_upgrade_paths` filter without touching this class.
+ * The free plugin registers two ways to move a member to another level:
+ * spending points and buying with the offline gateway. Everything else —
+ * card gateways, tier ladders, bulk seats — belongs to the add-on, which
+ * registers itself through the `at8_mluc_upgrade_paths` filter without
+ * touching this class.
  *
  * Each path is a self-contained card: a label, whether it is usable for a given
  * level, and a render callback. The membership tab draws one card per path, so
@@ -63,19 +64,24 @@ class AT8_MLUC_Upgrade_Paths {
 	 */
 	public static function paths() {
 		$paths = array(
-			'points' => array(
-				'label'    => __( 'Redeem with points', 'at8-moonlight-user-center' ),
-				'usable'   => array( __CLASS__, 'points_usable' ),
-				'render'   => array( __CLASS__, 'render_points_card' ),
-				'supports' => array( __CLASS__, 'points_usable' ),
+			'points'    => array(
+				'label'  => __( 'Redeem with points', 'at8-moonlight-user-center' ),
+				'usable' => array( __CLASS__, 'points_usable' ),
+				'render' => array( __CLASS__, 'render_points_card' ),
+			),
+			'purchase'  => array(
+				'label'  => at8_mluc_ui_label( 'path_purchase', __( 'Purchase', 'at8-moonlight-user-center' ) ),
+				'usable' => array( 'AT8_MLUC_Payments', 'purchase_usable' ),
+				'render' => array( 'AT8_MLUC_Payments', 'render_purchase_path' ),
 			),
 		);
 
 		/**
 		 * Filters the ways a member can move to another membership level.
 		 *
-		 * The free plugin registers the points path only. An add-on registers
-		 * the remaining paths (card payment, tier ladders, bulk seats) here.
+		 * The free plugin registers the points and offline purchase paths. An
+		 * add-on registers the remaining paths (card payment, tier ladders,
+		 * bulk seats) here.
 		 *
 		 * @since 2.4.0
 		 *
@@ -107,12 +113,10 @@ class AT8_MLUC_Upgrade_Paths {
 		$user_id = get_current_user_id();
 		$paths   = self::paths();
 		$current = AT8_MLUC_Membership::get_user_level( $user_id );
-
-		$cards = array();
+		$levels  = AT8_MLUC_Membership::get_levels();
+		$cards   = array();
 
 		foreach ( $paths as $id => $path ) {
-			$levels = AT8_MLUC_Membership::get_levels();
-
 			foreach ( $levels as $key => $level ) {
 				if ( $key === $current || 'free' === $key ) {
 					continue;

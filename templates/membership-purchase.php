@@ -1,6 +1,9 @@
 <?php
 /**
- * Membership purchase card: levels, gateways and order history.
+ * Membership purchase card: levels and gateways.
+ *
+ * Rendered as the `purchase` upgrade path; order history lives in
+ * membership-orders.php below the path cards.
  *
  * Online gateways (PayPal / Stripe) contribute their own flow through the
  * `at8_mluc_payment_order_response` filter and pass their front-end flags via
@@ -16,7 +19,6 @@ defined( 'ABSPATH' ) || exit;
 
 $at8_mluc_levels       = isset( $args['levels'] ) && is_array( $args['levels'] ) ? $args['levels'] : array();
 $at8_mluc_gateways     = isset( $args['gateways'] ) && is_array( $args['gateways'] ) ? $args['gateways'] : array();
-$at8_mluc_orders       = isset( $args['orders'] ) && is_array( $args['orders'] ) ? $args['orders'] : array();
 $at8_mluc_symbol       = isset( $args['symbol'] ) ? (string) $args['symbol'] : '$';
 $at8_mluc_instructions = isset( $args['instructions'] ) ? (string) $args['instructions'] : '';
 $at8_mluc_nonce        = isset( $args['nonce'] ) ? (string) $args['nonce'] : '';
@@ -80,39 +82,6 @@ $at8_mluc_paypal_sdk   = ! empty( $args['paypal_sdk'] ) ? (string) $args['paypal
 		<div class="at8-mluc-buy-instructions">
 			<strong><?php esc_html_e( 'Payment Instructions', 'at8-moonlight-user-center' ); ?></strong>
 			<p><?php echo esc_html( $at8_mluc_instructions ); ?></p>
-		</div>
-	<?php endif; ?>
-
-	<?php if ( ! empty( $at8_mluc_orders ) ) : ?>
-		<div class="at8-mluc-order-list">
-			<strong><?php esc_html_e( 'My Purchase History', 'at8-moonlight-user-center' ); ?></strong>
-			<table class="at8-mluc-table">
-				<thead>
-					<tr>
-						<th><?php esc_html_e( 'Order', 'at8-moonlight-user-center' ); ?></th>
-						<th><?php esc_html_e( 'Level', 'at8-moonlight-user-center' ); ?></th>
-						<th><?php esc_html_e( 'Amount', 'at8-moonlight-user-center' ); ?></th>
-						<th><?php esc_html_e( 'Status', 'at8-moonlight-user-center' ); ?></th>
-						<th><?php esc_html_e( 'Date', 'at8-moonlight-user-center' ); ?></th>
-					</tr>
-				</thead>
-				<tbody>
-					<?php
-					$at8_mluc_status_labels = AT8_MLUC_Payments::status_labels();
-
-					foreach ( $at8_mluc_orders as $at8_mluc_o ) :
-						$at8_mluc_st = isset( $at8_mluc_status_labels[ $at8_mluc_o['status'] ] ) ? $at8_mluc_status_labels[ $at8_mluc_o['status'] ] : $at8_mluc_o['status'];
-						?>
-						<tr>
-							<td><?php echo esc_html( $at8_mluc_o['title'] ); ?></td>
-							<td><?php echo esc_html( AT8_MLUC_Membership::get_level_label( $at8_mluc_o['level'] ) ); ?></td>
-							<td><?php echo esc_html( $at8_mluc_symbol . number_format( $at8_mluc_o['price'], 2 ) ); ?></td>
-							<td><span class="at8-mluc-pill at8-mluc-pill-<?php echo esc_attr( $at8_mluc_o['status'] ); ?>"><?php echo esc_html( $at8_mluc_st ); ?></span></td>
-							<td><?php echo esc_html( $at8_mluc_o['date'] ); ?></td>
-						</tr>
-					<?php endforeach; ?>
-				</tbody>
-			</table>
 		</div>
 	<?php endif; ?>
 </div>
