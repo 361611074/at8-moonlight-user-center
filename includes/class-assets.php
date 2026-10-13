@@ -67,6 +67,8 @@ class AT8_MLUC_Assets {
 			AT8_MLUC_VERSION
 		);
 
+		wp_add_inline_style( 'at8-mluc-frontend', $this->theme_variables() );
+
 		wp_enqueue_script(
 			'at8-mluc-frontend',
 			AT8_MLUC_PLUGIN_URL . 'assets/js/at8-mluc.js',
@@ -143,6 +145,65 @@ class AT8_MLUC_Assets {
 		);
 
 		echo '<script>window.at8_mluc_tinymce_i18n = ' . wp_json_encode( $payload ) . ";</script>\n";
+	}
+
+	/**
+	 * Accent colour as a custom property so every surface can tint itself.
+	 *
+	 * The colour is a validated hex value from the settings screen; anything
+	 * else falls back to the plugin default.
+	 *
+	 * @return string
+	 */
+	private function theme_variables() {
+		$accent = sanitize_hex_color( (string) at8_mluc_get_option( 'accent_color', '' ) );
+
+		if ( ! $accent ) {
+			$accent = '#4f46e5';
+		}
+
+		/**
+		 * Filters the accent colour used by the front-end stylesheets.
+		 *
+		 * @since 2.3.0
+		 *
+		 * @param string $accent Hex colour.
+		 */
+		$accent = (string) apply_filters( 'at8_mluc_accent_color', $accent );
+		$accent = sanitize_hex_color( $accent ) ?: '#4f46e5';
+
+		$radius = (int) apply_filters( 'at8_mluc_border_radius', 14 );
+		$radius = max( 0, min( 28, $radius ) );
+
+		return sprintf(
+			':root{--at8-mluc-accent:%1$s;--at8-mluc-accent-soft:%2$s;--at8-mluc-radius:%3$dpx;}',
+			esc_attr( $accent ),
+			esc_attr( self::rgba_from_hex( $accent, 0.1 ) ),
+			$radius
+		);
+	}
+
+	/**
+	 * Build an rgba() string from a hex colour.
+	 *
+	 * @param string $hex   Hex colour such as `#4f46e5`.
+	 * @param float  $alpha Alpha channel.
+	 * @return string
+	 */
+	private static function rgba_from_hex( $hex, $alpha ) {
+		$hex = ltrim( (string) $hex, '#' );
+
+		if ( 6 !== strlen( $hex ) ) {
+			return 'rgba(79, 70, 229, ' . (float) $alpha . ')';
+		}
+
+		return sprintf(
+			'rgba(%1$d, %2$d, %3$d, %4$s)',
+			hexdec( substr( $hex, 0, 2 ) ),
+			hexdec( substr( $hex, 2, 2 ) ),
+			hexdec( substr( $hex, 4, 2 ) ),
+			(float) $alpha
+		);
 	}
 
 	/**

@@ -56,6 +56,9 @@ class AT8_MLUC_Payments {
 		add_action( 'add_meta_boxes_' . self::CPT, array( $this, 'register_meta_box' ) );
 		add_action( 'admin_post_at8_mluc_pay_confirm', array( $this, 'admin_confirm' ) );
 		add_action( 'admin_post_at8_mluc_pay_cancel', array( $this, 'admin_cancel' ) );
+		add_filter( 'manage_' . self::CPT . '_posts_columns', array( $this, 'list_columns' ) );
+		add_action( 'manage_' . self::CPT . '_posts_custom_column', array( $this, 'render_list_column' ), 10, 2 );
+		add_filter( 'post_row_actions', array( $this, 'list_row_actions' ), 10, 2 );
 		add_action( 'at8_mluc_pay_autoclose', array( $this, 'autoclose_orders' ) );
 		add_action( 'at8_mluc_membership_purchase', array( $this, 'render_purchase_card' ) );
 		add_filter( 'at8_mluc_payment_gateways', array( $this, 'register_gateways' ) );
@@ -111,7 +114,47 @@ class AT8_MLUC_Payments {
 		 *
 		 * @param array $gateways Gateway id => title.
 		 */
-		return (array) apply_filters( 'at8_mluc_payment_gateways', array() );
+		$gateways = (array) apply_filters( 'at8_mluc_payment_gateways', array() );
+
+		return self::cap_gateways( $gateways );
+	}
+
+	/**
+	 * Trim the gateway shelf to the licensed ceiling.
+	 *
+	 * The free plugin offers bank transfer only; Pro raises the ceiling to
+	 * three. Bank transfer always survives the cut so a site never loses the
+	 * one gateway it can configure without an add-on.
+	 *
+	 * @param array<string, string> $gateways Gateway id => title.
+	 * @return array<string, string>
+	 */
+	private static function cap_gateways( $gateways ) {
+		$limit = AT8_MLUC_Upgrade::gateway_limit();
+
+		if ( $limit <= 0 || count( $gateways ) <= $limit ) {
+			return $gateways;
+		}
+
+		$kept = array();
+
+		if ( isset( $gateways['manual'] ) ) {
+			$kept['manual'] = $gateways['manual'];
+		}
+
+		foreach ( $gateways as $id => $title ) {
+			if ( count( $kept ) >= $limit ) {
+				break;
+			}
+
+			if ( 'manual' === $id ) {
+				continue;
+			}
+
+			$kept[ $id ] = $title;
+		}
+
+		return $kept;
 	}
 
 	/**
@@ -188,7 +231,10 @@ class AT8_MLUC_Payments {
 		$level   = (string) get_post_meta( $order_id, '_at8_mluc_pay_level', true );
 		$type    = (string) get_post_meta( $order_id, '_at8_mluc_pay_type', true );
 
-		// Paywall orders carry no membership level.
+		// Paywall orders carry no membership level. The claim lives inside the
+		// delivery handler: whoever delivers also flips pending → paid, so two
+		// concurrent confirmations can never both grant access and the order
+		// can never be auto-closed after it was paid.
 		if ( 'paywall' === $type ) {
 			$handled = apply_filters( 'at8_mluc_complete_paywall_order', false, $order_id, $user_id );
 
@@ -239,7 +285,7 @@ class AT8_MLUC_Payments {
 	 * @param int $order_id Order ID.
 	 * @return bool
 	 */
-	private static function claim_order( $order_id ) {
+	public static function claim_order( $order_id ) {
 		global $wpdb;
 
 		$claimed = $wpdb->query(
@@ -439,7 +485,8 @@ class AT8_MLUC_Payments {
 			return;
 		}
 
-		$notice = isset( $_GET['at8_mluc_pay_notice'] ) ? sanitize_key( wp_unslash( $_GET['at8_mluc_pay_notice'] ) ) : '';
+		// Read-only notice code echoed back after a payment attempt; no state changes.
+		$notice = isset( $_GET['at8_mluc_pay_notice'] ) ? sanitize_key( wp_unslash( $_GET['at8_mluc_pay_notice'] ) ) : ''; // phpcs:ignore WordPress.Security.NonceVerification.Recommended -- display only.
 
 		$args = array(
 			'levels'       => AT8_MLUC_Membership::get_levels(),
@@ -489,7 +536,11 @@ class AT8_MLUC_Payments {
 		);
 
 		if ( ! empty( $args['paypal_on'] ) && ! empty( $args['paypal_sdk'] ) ) {
-			wp_enqueue_script(
+			/*
+			 * Third-party SDK: the query string carries PayPal's own version,
+			 * so a plugin version here would only lie about the asset.
+			 */
+			wp_enqueue_script( // phpcs:ignore WordPress.WP.EnqueuedResourceParameters.MissingVersion -- versioned by PayPal in the URL.
 				'at8-mluc-paypal-sdk',
 				(string) $args['paypal_sdk'],
 				array(),
@@ -616,6 +667,187 @@ class AT8_MLUC_Payments {
 	}
 
 	/**
+	 * Human-readable payment status labels.
+	 *
+	 * @return array<string, string>
+	 */
+	public static function status_labels() {
+		return array(
+			'pending'   => __( 'Pending', 'at8-moonlight-user-center' ),
+			'paid'      => __( 'Paid', 'at8-moonlight-user-center' ),
+			'cancelled' => __( 'Cancelled', 'at8-moonlight-user-center' ),
+		);
+	}
+
+	/**
+	 * Order list columns.
+	 *
+	 * @param array<string, string> $columns Default columns.
+	 * @return array<string, string>
+	 */
+	public function list_columns( $columns ) {
+		$columns = is_array( $columns ) ? $columns : array();
+
+		// Rebuild around the columns that carry meaning for an order book.
+		$built = array();
+
+		foreach ( $columns as $key => $label ) {
+			if ( 'date' === $key ) {
+				continue;
+			}
+
+			$built[ $key ] = $label;
+		}
+
+		$built['at8_mluc_status']  = __( 'Status', 'at8-moonlight-user-center' );
+		$built['at8_mluc_customer'] = __( 'Member', 'at8-moonlight-user-center' );
+		$built['at8_mluc_subject']  = __( 'Item', 'at8-moonlight-user-center' );
+		$built['at8_mluc_gateway']  = __( 'Gateway', 'at8-moonlight-user-center' );
+		$built['at8_mluc_amount']   = __( 'Amount', 'at8-moonlight-user-center' );
+		$built['date']              = __( 'Date', 'at8-moonlight-user-center' );
+
+		return $built;
+	}
+
+	/**
+	 * Render a custom order list cell.
+	 *
+	 * @param string  $column Column key.
+	 * @param int     $post_id Order post ID.
+	 * @return void
+	 */
+	public function render_list_column( $column, $post_id ) {
+		switch ( $column ) {
+			case 'at8_mluc_status':
+				$status = (string) get_post_meta( $post_id, '_at8_mluc_pay_status', true );
+				$status = '' !== $status ? $status : 'pending';
+				$labels = self::status_labels();
+
+				printf(
+					'<span class="at8-mluc-order-status at8-mluc-order-status-%1$s">%2$s</span>',
+					esc_attr( sanitize_html_class( $status ) ),
+					esc_html( isset( $labels[ $status ] ) ? $labels[ $status ] : $status )
+				);
+				break;
+
+			case 'at8_mluc_customer':
+				$user_id = (int) get_post_meta( $post_id, '_at8_mluc_pay_user', true );
+				$user    = $user_id ? get_user_by( 'id', $user_id ) : false;
+
+				if ( ! $user ) {
+					echo '—';
+					break;
+				}
+
+				$link = current_user_can( 'edit_users' ) ? get_edit_user_link( $user_id ) : '';
+
+				echo $link
+					? '<a href="' . esc_url( $link ) . '">' . esc_html( $user->display_name ) . '</a>'
+					: esc_html( $user->display_name );
+				break;
+
+			case 'at8_mluc_subject':
+				if ( 'paywall' === (string) get_post_meta( $post_id, '_at8_mluc_pay_type', true ) ) {
+					$target = (int) get_post_meta( $post_id, '_at8_mluc_pay_post', true );
+
+					echo $target
+						? '<a href="' . esc_url( (string) get_edit_post_link( $target ) ) . '">' . esc_html( get_the_title( $target ) ) . '</a>'
+						: '—';
+
+					break;
+				}
+
+				$level = (string) get_post_meta( $post_id, '_at8_mluc_pay_level', true );
+
+				echo esc_html( '' !== $level ? AT8_MLUC_Membership::get_level_label( $level ) : '—' );
+				break;
+
+			case 'at8_mluc_gateway':
+				$gateway  = (string) get_post_meta( $post_id, '_at8_mluc_pay_gateway', true );
+				$gateways = self::get_gateways();
+
+				echo esc_html( isset( $gateways[ $gateway ] ) ? $gateways[ $gateway ] : ( '' !== $gateway ? $gateway : '—' ) );
+				break;
+
+			case 'at8_mluc_amount':
+				echo esc_html( self::get_currency_symbol() . number_format( (float) get_post_meta( $post_id, '_at8_mluc_pay_price', true ), 2 ) );
+				break;
+		}
+	}
+
+	/**
+	 * Add confirm / cancel actions to pending orders.
+	 *
+	 * Both handlers re-check the capability and the nonce, so exposing them
+	 * as row links adds no new attack surface.
+	 *
+	 * @param array<string, string> $actions Existing row actions.
+	 * @param WP_Post               $post    Order post.
+	 * @return array<string, string>
+	 */
+	public function list_row_actions( $actions, $post ) {
+		$actions = is_array( $actions ) ? $actions : array();
+
+		if ( self::CPT !== get_post_type( $post ) || ! current_user_can( 'manage_options' ) ) {
+			return $actions;
+		}
+
+		if ( 'pending' !== (string) get_post_meta( $post->ID, '_at8_mluc_pay_status', true ) ) {
+			return $actions;
+		}
+
+		$actions['at8_mluc_confirm'] = sprintf(
+			'<a href="%1$s" aria-label="%2$s">%3$s</a>',
+			esc_url(
+				wp_nonce_url(
+					add_query_arg(
+						array(
+							'action'   => 'at8_mluc_pay_confirm',
+							'order_id' => $post->ID,
+						),
+						admin_url( 'admin-post.php' )
+					),
+					'at8_mluc_pay_confirm'
+				)
+			),
+			esc_attr(
+				sprintf(
+					/* translators: %d: order ID. */
+					__( 'Confirm payment for order %d', 'at8-moonlight-user-center' ),
+					$post->ID
+				)
+			),
+			esc_html__( 'Confirm payment', 'at8-moonlight-user-center' )
+		);
+
+		$actions['at8_mluc_cancel'] = sprintf(
+			'<a href="%1$s" class="submitdelete" aria-label="%2$s">%3$s</a>',
+			esc_url(
+				wp_nonce_url(
+					add_query_arg(
+						array(
+							'action'   => 'at8_mluc_pay_cancel',
+							'order_id' => $post->ID,
+						),
+						admin_url( 'admin-post.php' )
+					),
+					'at8_mluc_pay_cancel'
+				)
+			),
+			esc_attr(
+				sprintf(
+					/* translators: %d: order ID. */
+					__( 'Cancel order %d', 'at8-moonlight-user-center' ),
+					$post->ID
+				)
+			),
+			esc_html__( 'Cancel', 'at8-moonlight-user-center' )
+		);
+
+		return $actions;
+	}
+
+	/**
 	 * Register the order meta box.
 	 *
 	 * @param WP_Post $post Order post.
@@ -646,11 +878,7 @@ class AT8_MLUC_Payments {
 		$gateways  = self::get_gateways();
 		$is_paywall = ( 'paywall' === $pay_type );
 
-		$status_labels = array(
-			'pending'   => __( 'Pending', 'at8-moonlight-user-center' ),
-			'paid'      => __( 'Paid', 'at8-moonlight-user-center' ),
-			'cancelled' => __( 'Cancelled', 'at8-moonlight-user-center' ),
-		);
+		$status_labels = self::status_labels();
 		?>
 		<table class="form-table" role="presentation">
 			<tr>
@@ -722,7 +950,7 @@ class AT8_MLUC_Payments {
 			wp_die( esc_html__( 'Insufficient permissions or verification failed.', 'at8-moonlight-user-center' ), '', array( 'response' => 403 ) );
 		}
 
-		$order_id = isset( $_POST['order_id'] ) ? (int) $_POST['order_id'] : 0;
+		$order_id = isset( $_REQUEST['order_id'] ) ? (int) $_REQUEST['order_id'] : 0; // phpcs:ignore WordPress.Security.NonceVerification.Recommended -- verified by check_admin_referer() above.
 		$redirect = wp_get_referer() ?: admin_url( 'post.php?post=' . $order_id . '&action=edit' );
 
 		if ( $order_id && get_post_type( $order_id ) === self::CPT
@@ -755,7 +983,7 @@ class AT8_MLUC_Payments {
 			wp_die( esc_html__( 'Insufficient permissions or verification failed.', 'at8-moonlight-user-center' ), '', array( 'response' => 403 ) );
 		}
 
-		$order_id = isset( $_POST['order_id'] ) ? (int) $_POST['order_id'] : 0;
+		$order_id = isset( $_REQUEST['order_id'] ) ? (int) $_REQUEST['order_id'] : 0; // phpcs:ignore WordPress.Security.NonceVerification.Recommended -- verified by check_admin_referer() above.
 		$redirect = wp_get_referer() ?: admin_url( 'edit.php?post_type=' . self::CPT );
 
 		if ( $order_id && get_post_type( $order_id ) === self::CPT ) {

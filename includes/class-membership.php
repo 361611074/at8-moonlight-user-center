@@ -30,30 +30,35 @@ class AT8_MLUC_Membership {
 			'label'       => 'Basic',
 			'sort_order'  => 10,
 			'expireable'  => false,
+			'color'       => '#95a5a6',
 			'description' => 'Browse basic content.',
 		),
 		'monthly'  => array(
 			'label'       => 'Monthly',
 			'sort_order'  => 20,
 			'expireable'  => true,
+			'color'       => '#2f91ff',
 			'description' => 'Unlock monthly materials and demo videos.',
 		),
 		'gold'     => array(
 			'label'       => 'Gold Member',
 			'sort_order'  => 25,
 			'expireable'  => true,
+			'color'       => '#d4a017',
 			'description' => 'Access advanced materials and worksheet downloads.',
 		),
 		'premium'  => array(
 			'label'       => 'Premium',
 			'sort_order'  => 30,
 			'expireable'  => true,
+			'color'       => '#9b59b6',
 			'description' => 'Unlock all premium materials, demo videos and worksheets.',
 		),
 		'diamond'  => array(
 			'label'       => 'Diamond Member',
 			'sort_order'  => 35,
 			'expireable'  => true,
+			'color'       => '#00a5b5',
 			'description' => 'Unlimited access to all site resources, including new content.',
 		),
 	);
@@ -166,6 +171,7 @@ class AT8_MLUC_Membership {
 					'label'       => isset( $level['label'] ) && '' !== (string) $level['label'] ? $level['label'] : $key,
 					'color'       => isset( $level['color'] ) ? $level['color'] : ( isset( self::$factory[ $key ]['color'] ) ? self::$factory[ $key ]['color'] : '#2f6fed' ),
 					'price'       => isset( $level['price'] ) ? (float) $level['price'] : 0,
+					'points'      => isset( $level['points'] ) ? max( 0, (int) $level['points'] ) : 0,
 					'validity'    => $validity,
 					'sort_order'  => isset( $level['sort_order'] ) ? (int) $level['sort_order'] : ( isset( self::$factory[ $key ]['sort_order'] ) ? (int) self::$factory[ $key ]['sort_order'] : 50 ),
 					'expireable'  => ( 'free' === $key ) ? false : ( $validity > 0 ),
@@ -186,6 +192,24 @@ class AT8_MLUC_Membership {
 			}
 		} else {
 			unset( $levels['free'] );
+		}
+
+		// Factory levels only carry the label registry; every consumer expects
+		// the full key set, so the defaults are filled in here as well.
+		foreach ( $levels as $key => $level ) {
+			$levels[ $key ] = array_merge(
+				array(
+					'label'       => $key,
+					'color'       => '#2f6fed',
+					'price'       => 0.0,
+					'points'      => 0,
+					'validity'    => 0,
+					'sort_order'  => 50,
+					'expireable'  => false,
+					'description' => '',
+				),
+				$level
+			);
 		}
 
 		/**
@@ -266,7 +290,33 @@ class AT8_MLUC_Membership {
 	}
 
 	/**
-	 * Level badge HTML, tinted with the level colour.
+	/**
+	 * The built-in level definitions, keyed by slug.
+	 *
+	 * Read-only view of the factory defaults so the settings editor can reuse
+	 * the same colours without keeping its own copy.
+	 *
+	 * @return array<string, array<string, mixed>>
+	 */
+	public static function factory_levels() {
+		return self::$factory;
+	}
+
+	/**
+	 * Fallback colour for a built-in level.
+	 *
+	 * Kept here so the level editor and the front-end badges can never drift
+	 * apart: both ask this question of the same registry.
+	 *
+	 * @param string $key Level slug.
+	 * @return string Hex colour.
+	 */
+	public static function default_color( $key ) {
+		return isset( self::$factory[ $key ]['color'] ) ? (string) self::$factory[ $key ]['color'] : '#2f6fed';
+	}
+
+	/**
+	 * Render a level badge tinted with the level's own colour.
 	 *
 	 * @param string $key Level slug.
 	 * @return string

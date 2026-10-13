@@ -1,57 +1,379 @@
 /**
- * AT8 Moonlight User Center — admin settings screen styles.
+ * AT8 Moonlight User Center — admin styles.
  *
- * Card sections with a sticky side navigation. The wrap starts hidden and is
- * revealed by the `.at8-mluc-settings-layout` class the script adds, so the
- * page never flashes the unstyled Settings API markup.
+ * Covers the card-based settings screen (sticky section navigation), the
+ * upgrade comparison panel, order management and the avatar library list.
+ *
+ * Every value comes from the token block below, so recolouring the screen is
+ * a matter of editing one place. Colours avoid `!important` throughout: on the
+ * rare occasions WordPress ships a conflicting rule, specificity is raised by
+ * nesting selectors instead.
  */
 
 .at8-mluc-settings-wrap {
+	--at8-accent: #4f46e5;
+	--at8-accent-soft: #eef0ff;
+	--at8-accent-strong: #4338ca;
+	--at8-surface: #fff;
+	--at8-surface-sunken: #f6f7f9;
+	--at8-line: #e2e6ee;
+	--at8-line-strong: #d5dae3;
+	--at8-text: #1c2430;
+	--at8-text-muted: #67707c;
+	--at8-positive: #0a8754;
+	--at8-positive-soft: #e6f6ee;
+	--at8-warning: #a35b00;
+	--at8-warning-soft: #fdf3e2;
+	--at8-danger: #c0392b;
+	--at8-radius: 12px;
+	--at8-radius-sm: 8px;
+	--at8-shadow: 0 1px 2px rgba(16, 24, 40, 0.04);
+	--at8-shadow-lift: 0 6px 20px rgba(16, 24, 40, 0.08);
+
 	visibility: hidden;
 }
 
 .at8-mluc-settings-wrap.at8-mluc-settings-layout {
 	display: grid;
-	grid-template-columns: 232px minmax(0, 1fr);
-	grid-template-rows: auto 1fr;
-	gap: 28px;
+	grid-template-columns: 236px minmax(0, 1fr);
+	grid-template-rows: auto auto auto 1fr;
+	gap: 24px;
 	align-items: start;
 	visibility: visible;
-}
-
-.at8-mluc-settings-wrap.at8-mluc-settings-layout > h1 {
-	grid-row: 1;
-	grid-column: 1 / -1;
 	margin: 0;
 }
 
-.at8-mluc-settings-wrap > p,
-.at8-mluc-settings-wrap > table {
+/* ------------------------------------------------------------------- Hero */
+
+.at8-mluc-hero {
 	grid-row: 1;
 	grid-column: 1 / -1;
+	display: flex;
+	align-items: center;
+	gap: 18px;
+	padding: 22px 26px;
+	margin: 0;
+	border: 1px solid var(--at8-line);
+	border-radius: var(--at8-radius);
+	background: linear-gradient(135deg, #fff 0%, #f7f8fd 100%);
+	box-shadow: var(--at8-shadow);
 }
 
-.at8-mluc-settings-nav {
+.at8-mluc-hero-logo {
+	font-size: 40px;
+	width: 40px;
+	height: 40px;
+	color: var(--at8-accent);
+	opacity: 0.92;
+	flex: 0 0 auto;
+}
+
+.at8-mluc-hero-text {
+	flex: 1 1 auto;
+	min-width: 0;
+}
+
+.at8-mluc-hero-text h1 {
+	margin: 0;
+	padding: 0;
+	font-size: 22px;
+	line-height: 1.25;
+	font-weight: 600;
+	color: var(--at8-text);
+}
+
+.at8-mluc-hero-tagline {
+	margin: 4px 0 0;
+	font-size: 13px;
+	color: var(--at8-text-muted);
+}
+
+.at8-mluc-hero-meta {
+	flex: 0 0 auto;
+	display: flex;
+	gap: 8px;
+	align-items: center;
+}
+
+.at8-mluc-chip {
+	display: inline-flex;
+	align-items: center;
+	height: 24px;
+	padding: 0 10px;
+	border-radius: 999px;
+	font-size: 11px;
+	font-weight: 600;
+	letter-spacing: 0.03em;
+	text-transform: uppercase;
+	border: 1px solid var(--at8-line-strong);
+	background: var(--at8-surface-sunken);
+	color: var(--at8-text-muted);
+	white-space: nowrap;
+}
+
+.at8-mluc-chip-free {
+	border-color: transparent;
+	background: var(--at8-accent-soft);
+	color: var(--at8-accent);
+}
+
+.at8-mluc-chip-pro {
+	border-color: transparent;
+	background: linear-gradient(135deg, #eabe7b 0%, #f3d9a4 100%);
+	color: #7a5a1f;
+}
+
+/* ---------------------------------------------------- Upgrade comparison */
+
+.at8-mluc-upgrade {
 	grid-row: 2;
+	grid-column: 1 / -1;
+	position: relative;
+	border: 1px solid #e6d8b8;
+	border-radius: var(--at8-radius);
+	background: linear-gradient(135deg, #fffdf7 0%, #fdf8ec 100%);
+	box-shadow: var(--at8-shadow);
+	overflow: hidden;
+}
+
+.at8-mluc-upgrade::before {
+	content: "";
+	position: absolute;
+	inset: 0 auto 0 0;
+	width: 4px;
+	background: linear-gradient(180deg, #e8b64c 0%, #d99a2b 100%);
+}
+
+.at8-mluc-upgrade-head {
+	display: flex;
+	align-items: center;
+	gap: 14px;
+	padding: 18px 24px;
+}
+
+.at8-mluc-upgrade-icon {
+	display: flex;
+	align-items: center;
+	justify-content: center;
+	width: 38px;
+	height: 38px;
+	flex: 0 0 auto;
+	border-radius: 50%;
+	background: #fff;
+	border: 1px solid #e6d8b8;
+	color: #b8860b;
+	font-size: 20px;
+}
+
+.at8-mluc-upgrade-title {
+	margin: 0;
+	padding: 0;
+	font-size: 15px;
+	font-weight: 600;
+	color: var(--at8-text);
+}
+
+.at8-mluc-upgrade-tagline {
+	margin: 3px 0 0;
+	font-size: 12.5px;
+	color: var(--at8-text-muted);
+}
+
+.at8-mluc-upgrade-dismiss {
+	position: absolute;
+	top: 14px;
+	right: 14px;
+	width: 26px;
+	height: 26px;
+	display: flex;
+	align-items: center;
+	justify-content: center;
+	padding: 0;
+	border: 1px solid var(--at8-line);
+	border-radius: 50%;
+	background: var(--at8-surface);
+	color: var(--at8-text-muted);
+	cursor: pointer;
+	transition: color 0.15s ease, border-color 0.15s ease;
+}
+
+.at8-mluc-upgrade-dismiss:hover {
+	color: var(--at8-text);
+	border-color: var(--at8-line-strong);
+}
+
+.at8-mluc-upgrade-dismiss-collapsed .dashicons::before {
+	content: "\f139";
+}
+
+.at8-mluc-upgrade-body {
+	padding: 0 24px 20px 24px;
+}
+
+.at8-mluc-upgrade.is-collapsed .at8-mluc-upgrade-body {
+	display: none;
+}
+
+.at8-mluc-upgrade-table,
+.at8-mluc-upgrade.is-collapsed .at8-mluc-upgrade-actions {
+	margin: 0 0 14px;
+	width: 100%;
+	border-collapse: collapse;
+	background: var(--at8-surface);
+	border: 1px solid var(--at8-line);
+	border-radius: var(--at8-radius-sm);
+	overflow: hidden;
+	font-size: 13px;
+}
+
+.at8-mluc-upgrade-table th,
+.at8-mluc-upgrade-table td {
+	padding: 10px 14px;
+	border-bottom: 1px solid var(--at8-line);
+	text-align: left;
+	vertical-align: middle;
+}
+
+.at8-mluc-upgrade-table thead th {
+	font-size: 11px;
+	letter-spacing: 0.04em;
+	text-transform: uppercase;
+	color: var(--at8-text-muted);
+	background: var(--at8-surface-sunken);
+	font-weight: 600;
+}
+
+.at8-mluc-upgrade-table tbody tr:last-child th,
+.at8-mluc-upgrade-table tbody tr:last-child td {
+	border-bottom: 0;
+}
+
+.at8-mluc-upgrade-table tbody th {
+	font-weight: 600;
+	width: 44%;
+}
+
+.at8-mluc-upgrade-note {
+	display: block;
+	margin-top: 2px;
+	font-size: 12px;
+	font-weight: 400;
+	color: var(--at8-text-muted);
+}
+
+.at8-mluc-upgrade-col-pro {
+	color: #7a5a1f;
+	background: rgba(234, 190, 123, 0.1);
+	font-weight: 600;
+}
+
+.at8-mluc-upgrade-actions {
+	display: flex;
+	align-items: center;
+	gap: 10px;
+	margin: 0;
+}
+
+.at8-mluc-upgrade-actions .button.link {
+	padding-left: 0;
+	padding-right: 0;
+	border: 0;
+	background: none;
+	box-shadow: none;
+	color: var(--at8-text-muted);
+	text-decoration: underline;
+}
+
+/* ------------------------------------------------------- Shortcode sheet */
+
+.at8-mluc-shortcode-ref {
+	grid-row: 3;
+	grid-column: 1 / -1;
+	border: 1px solid var(--at8-line);
+	border-radius: var(--at8-radius);
+	background: var(--at8-surface);
+	box-shadow: var(--at8-shadow);
+	padding: 0 22px;
+}
+
+.at8-mluc-shortcode-ref > summary {
+	display: flex;
+	align-items: center;
+	gap: 8px;
+	padding: 14px 0;
+	cursor: pointer;
+	font-size: 13.5px;
+	font-weight: 600;
+	color: var(--at8-text);
+	list-style: none;
+}
+
+.at8-mluc-shortcode-ref > summary::-webkit-details-marker {
+	display: none;
+}
+
+.at8-mluc-shortcode-ref > summary .dashicons {
+	color: var(--at8-accent);
+	font-size: 17px;
+	width: 17px;
+	height: 17px;
+}
+
+.at8-mluc-shortcode-grid {
+	display: grid;
+	grid-template-columns: repeat(auto-fill, minmax(260px, 1fr));
+	gap: 10px;
+	padding: 0 0 20px;
+}
+
+.at8-mluc-shortcode-item {
+	display: flex;
+	flex-direction: column;
+	gap: 3px;
+	padding: 10px 12px;
+	border: 1px solid var(--at8-line);
+	border-radius: var(--at8-radius-sm);
+	background: var(--at8-surface-sunken);
+	min-width: 0;
+}
+
+.at8-mluc-shortcode-item code {
+	font-size: 12px;
+	color: var(--at8-accent);
+	word-break: break-all;
+	background: none;
+	padding: 0;
+}
+
+.at8-mluc-shortcode-item span {
+	font-size: 12px;
+	color: var(--at8-text-muted);
+}
+
+/* ---------------------------------------------------- Section navigation */
+
+.at8-mluc-settings-nav {
+	grid-row: 4;
 	grid-column: 1;
 	position: sticky;
 	top: 32px;
 	align-self: start;
-	background: #fff;
-	border: 1px solid #e4e9f0;
-	border-radius: 10px;
+	background: var(--at8-surface);
+	border: 1px solid var(--at8-line);
+	border-radius: var(--at8-radius);
 	padding: 10px 0;
-	width: 232px;
+	width: 236px;
 	max-height: calc(100vh - 80px);
 	overflow-y: auto;
+	box-shadow: var(--at8-shadow);
 }
 
 .at8-mluc-settings-nav-title {
-	font-size: 12px;
+	font-size: 11px;
 	font-weight: 600;
-	letter-spacing: 0.04em;
+	letter-spacing: 0.05em;
 	text-transform: uppercase;
-	color: #8a9099;
+	color: var(--at8-text-muted);
 	padding: 4px 16px 8px;
 }
 
@@ -64,50 +386,58 @@
 
 .at8-mluc-settings-nav li a {
 	display: block;
-	padding: 7px 16px;
+	padding: 8px 16px;
 	margin-left: -2px;
 	border-left: 2px solid transparent;
-	color: #50575e;
+	color: var(--at8-text-muted);
 	font-size: 13px;
 	line-height: 1.4;
 	text-decoration: none;
+	transition: background-color 0.15s ease, color 0.15s ease;
 }
 
 .at8-mluc-settings-nav li a:hover,
 .at8-mluc-settings-nav li a.active {
-	color: #4f46e5;
-	border-left-color: #4f46e5;
+	color: var(--at8-accent);
+	border-left-color: var(--at8-accent);
 	font-weight: 600;
-	background: #f5f4ff;
+	background: var(--at8-accent-soft);
 }
 
 .at8-mluc-settings-layout > form {
-	grid-row: 2;
+	grid-row: 4;
 	grid-column: 2;
 	display: flex;
 	flex-direction: column;
-	gap: 22px;
+	gap: 20px;
 	min-width: 0;
 }
 
+/* ------------------------------------------------------------------ Cards */
+
 .at8-mluc-card {
-	background: #fff;
-	border: 1px solid #e4e9f0;
-	border-radius: 10px;
-	padding: 20px 24px;
-	box-shadow: 0 1px 2px rgba(16, 24, 40, 0.04);
+	background: var(--at8-surface);
+	border: 1px solid var(--at8-line);
+	border-radius: var(--at8-radius);
+	padding: 22px 26px;
+	box-shadow: var(--at8-shadow);
 	min-width: 0;
 	overflow-x: auto;
 	scroll-margin-top: 80px;
+	transition: box-shadow 0.2s ease;
+}
+
+.at8-mluc-card:hover {
+	box-shadow: var(--at8-shadow-lift);
 }
 
 .at8-mluc-card-title {
-	font-size: 16px;
+	font-size: 15px;
 	font-weight: 600;
 	margin: 0 0 16px;
 	padding-bottom: 12px;
-	border-bottom: 1px solid #f0f0f1;
-	color: #1f2937;
+	border-bottom: 1px solid var(--at8-line);
+	color: var(--at8-text);
 	scroll-margin-top: 80px;
 }
 
@@ -122,6 +452,7 @@
 .at8-mluc-card .form-table th {
 	padding: 14px 12px 14px 0;
 	vertical-align: top;
+	width: 210px;
 }
 
 .at8-mluc-card .form-table td {
@@ -137,11 +468,11 @@
 
 .at8-mluc-card .form-table tr:not(:last-child) td,
 .at8-mluc-card .form-table tr:not(:last-child) th {
-	border-bottom: 1px solid #f4f6f9;
+	border-bottom: 1px solid var(--at8-surface-sunken);
 }
 
 .at8-mluc-card .description {
-	color: #6b7280;
+	color: var(--at8-text-muted);
 	font-size: 12.5px;
 	margin-top: 4px;
 }
@@ -149,7 +480,71 @@
 .at8-mluc-card h3 {
 	margin: 18px 0 8px;
 	font-size: 13.5px;
-	color: #1f2937;
+	color: var(--at8-text);
+}
+
+/* ------------------------------------------------------------- Save bar */
+
+.at8-mluc-save-bar {
+	position: sticky;
+	bottom: 0;
+	display: flex;
+	align-items: center;
+	gap: 14px;
+	padding: 16px 20px;
+	margin: 0;
+	border: 1px solid var(--at8-line);
+	border-radius: var(--at8-radius);
+	background: rgba(255, 255, 255, 0.92);
+	box-shadow: var(--at8-shadow-lift);
+	-webkit-backdrop-filter: blur(8px);
+	backdrop-filter: blur(8px);
+}
+
+.at8-mluc-save-bar .button-primary {
+	margin: 0;
+}
+
+.at8-mluc-save-hint {
+	font-size: 12.5px;
+	color: var(--at8-text-muted);
+}
+
+/* ----------------------------------------------------------------- Badges */
+
+.at8-mluc-pro-badge {
+	display: inline-flex;
+	align-items: center;
+	height: 18px;
+	padding: 0 7px;
+	border-radius: 999px;
+	background: linear-gradient(135deg, #e8b64c 0%, #d99a2b 100%);
+	color: #fff;
+	font-size: 10px;
+	font-weight: 700;
+	letter-spacing: 0.04em;
+	text-transform: uppercase;
+	vertical-align: middle;
+}
+
+.at8-mluc-ceiling {
+	display: flex;
+	align-items: center;
+	gap: 6px;
+	margin: 12px 0 0;
+	padding: 10px 14px;
+	border: 1px dashed var(--at8-line-strong);
+	border-radius: var(--at8-radius-sm);
+	background: var(--at8-surface-sunken);
+	font-size: 12.5px;
+	color: var(--at8-text-muted);
+}
+
+.at8-mluc-ceiling .dashicons {
+	color: #b8860b;
+	font-size: 15px;
+	width: 15px;
+	height: 15px;
 }
 
 .at8-mluc-fixed-tag {
@@ -157,14 +552,16 @@
 	margin-left: 6px;
 	padding: 1px 7px;
 	border-radius: 9px;
-	background: #eef2ff;
-	color: #4f46e5;
+	background: var(--at8-accent-soft);
+	color: var(--at8-accent);
 	font-size: 11px;
 	line-height: 1.6;
 }
 
+/* ------------------------------------------------------- Level editor rows */
+
 .at8-mluc-del-level {
-	color: #d63638;
+	color: var(--at8-danger);
 	background: none;
 	border: 0;
 	padding: 0;
@@ -174,7 +571,7 @@
 }
 
 .at8-mluc-del-level:hover {
-	color: #b32d2e;
+	color: #96271b;
 }
 
 /* No-JS fallback for the delete buttons. */
@@ -182,7 +579,7 @@
 	display: none;
 	margin-left: 8px;
 	font-size: 12px;
-	color: #646970;
+	color: var(--at8-text-muted);
 }
 
 .at8-mluc-preview-img img {
@@ -210,28 +607,342 @@
 	width: 48px;
 	height: 48px;
 	border-radius: 50%;
-	border: 1px solid #e4e9f0;
+	border: 1px solid var(--at8-line);
 	object-fit: cover;
 }
+
+/* --------------------------------------------------------- Gateway shelf */
+
+.at8-mluc-gateways {
+	display: grid;
+	grid-template-columns: repeat(auto-fit, minmax(230px, 1fr));
+	gap: 10px;
+	margin: 14px 0 4px;
+}
+
+.at8-mluc-gateway {
+	display: flex;
+	align-items: center;
+	gap: 12px;
+	padding: 12px 14px;
+	border: 1px solid var(--at8-line);
+	border-radius: var(--at8-radius-sm);
+	background: var(--at8-surface-sunken);
+}
+
+.at8-mluc-gateway-free {
+	border-color: rgba(10, 135, 84, 0.32);
+	background: var(--at8-positive-soft);
+}
+
+.at8-mluc-gateway-pro {
+	border-style: dashed;
+}
+
+.at8-mluc-gateway .dashicons {
+	flex: 0 0 auto;
+	font-size: 22px;
+	width: 22px;
+	height: 22px;
+	color: var(--at8-text-muted);
+}
+
+.at8-mluc-gateway-free .dashicons {
+	color: var(--at8-positive);
+}
+
+.at8-mluc-gateway-body {
+	display: flex;
+	flex-direction: column;
+	gap: 2px;
+	min-width: 0;
+	font-size: 13px;
+}
+
+.at8-mluc-gateway-body span {
+	font-size: 12px;
+	color: var(--at8-text-muted);
+}
+
+.at8-mluc-gateway .at8-mluc-pro-badge {
+	margin-left: auto;
+	flex: 0 0 auto;
+}
+
+/* ----------------------------------------------------------- Order list */
+
+.post-type-at8_mluc_order .column-at8_mluc_amount {
+	width: 110px;
+}
+
+.at8-mluc-order-status {
+	display: inline-flex;
+	align-items: center;
+	height: 22px;
+	padding: 0 9px;
+	border-radius: 999px;
+	font-size: 11px;
+	font-weight: 600;
+	letter-spacing: 0.02em;
+	text-transform: capitalize;
+	border: 1px solid transparent;
+}
+
+.at8-mluc-order-status-pending {
+	background: var(--at8-warning-soft);
+	color: var(--at8-warning);
+	border-color: rgba(163, 91, 0, 0.2);
+}
+
+.at8-mluc-order-status-paid {
+	background: var(--at8-positive-soft);
+	color: var(--at8-positive);
+	border-color: rgba(10, 135, 84, 0.2);
+}
+
+.at8-mluc-order-status-closed,
+.at8-mluc-order-status-cancelled {
+	background: var(--at8-surface-sunken);
+	color: var(--at8-text-muted);
+	border-color: var(--at8-line-strong);
+}
+
+/* ------------------------------------------------------------- Responsive */
 
 @media (max-width: 782px) {
 	.at8-mluc-settings-wrap.at8-mluc-settings-layout {
 		grid-template-columns: 1fr;
-		grid-template-rows: auto auto 1fr;
+		grid-template-rows: auto auto auto auto 1fr;
 	}
 
-	.at8-mluc-settings-wrap.at8-mluc-settings-layout > h1,
-	.at8-mluc-settings-wrap > p,
-	.at8-mluc-settings-wrap > table {
-		grid-row: 1;
+	.at8-mluc-hero,
+	.at8-mluc-upgrade,
+	.at8-mluc-shortcode-ref {
+		grid-column: 1;
+	}
+
+	.at8-mluc-hero {
+		flex-wrap: wrap;
+		padding: 18px 20px;
 	}
 
 	.at8-mluc-settings-nav {
-		grid-row: 2;
+		grid-row: 4;
 		grid-column: 1;
 		position: static;
 		margin-bottom: 0;
 		max-height: none;
 		width: auto;
+	}
+
+	.at8-mluc-settings-layout > form {
+		grid-row: 5;
+		grid-column: 1;
+	}
+
+	.at8-mluc-card {
+		padding: 18px 16px;
+	}
+
+	.at8-mluc-card .form-table th {
+		width: auto;
+	}
+
+	.at8-mluc-save-bar {
+		flex-wrap: wrap;
+		gap: 8px;
+	}
+}
+
+/* Darkened surfaces for users whose OS asks for them. */
+@media (prefers-color-scheme: dark) {
+	.at8-mluc-settings-wrap {
+		--at8-surface: #1f2227;
+		--at8-surface-sunken: #26292f;
+		--at8-line: #383c44;
+		--at8-line-strong: #4a4f58;
+		--at8-text: #e9ebef;
+		--at8-text-muted: #a0a7b3;
+		--at8-accent: #8b93ff;
+		--at8-accent-soft: #2a2c47;
+		--at8-positive-soft: #1b3327;
+		--at8-warning-soft: #382c17;
+		--at8-shadow: 0 1px 2px rgba(0, 0, 0, 0.4);
+		--at8-shadow-lift: 0 6px 20px rgba(0, 0, 0, 0.45);
+	}
+
+	.at8-mluc-hero {
+		background: linear-gradient(135deg, #1f2227 0%, #242733 100%);
+	}
+
+	.at8-mluc-upgrade {
+		background: linear-gradient(135deg, #262318 0%, #2a251a 100%);
+		border-color: #4a422c;
+	}
+
+	.at8-mluc-upgrade-icon {
+		background: var(--at8-surface);
+		border-color: #4a422c;
+		color: #e0bc6a;
+	}
+
+	.at8-mluc-upgrade-title,
+	.at8-mluc-upgrade-col-pro {
+		color: #f0d9a0;
+	}
+
+	.at8-mluc-upgrade-col-pro {
+		background: rgba(224, 188, 106, 0.12);
+	}
+
+	.at8-mluc-upgrade-dismiss {
+		background: var(--at8-surface-sunken);
+	}
+
+	.at8-mluc-save-bar {
+		background: rgba(31, 34, 39, 0.92);
+	}
+
+	.at8-mluc-chip:hover {
+		color: var(--at8-text);
+	}
+
+	.at8-mluc-shortcode-item code {
+		color: var(--at8-accent);
+	}
+
+	.at8-mluc-fields-editor {
+		background: var(--at8-surface);
+		border-color: #3a4150;
+	}
+
+	.at8-mluc-field-row {
+		background: #22262e;
+		border-color: #3a4150;
+	}
+
+	.at8-mluc-field-row-cell > span {
+		color: #9aa5b5;
+	}
+}
+
+/* ------------------------------------------------- Custom field editor */
+
+.at8-mluc-fields-editor {
+	grid-column: 1 / -1;
+	padding: 20px 24px;
+	border: 1px solid var(--at8-line);
+	border-radius: var(--at8-radius);
+	background: var(--at8-surface);
+	box-shadow: var(--at8-shadow);
+}
+
+.at8-mluc-fields-editor > h3 {
+	display: flex;
+	align-items: center;
+	gap: 8px;
+	margin: 0 0 6px;
+	font-size: 15px;
+}
+
+.at8-mluc-fields-editor > h3 .dashicons {
+	color: var(--at8-accent);
+}
+
+.at8-mluc-fields-editor > .description {
+	margin: 0 0 14px;
+}
+
+.at8-mluc-fields-rows {
+	display: flex;
+	flex-direction: column;
+	gap: 10px;
+}
+
+.at8-mluc-field-row {
+	display: grid;
+	grid-template-columns: 24px minmax(140px, 1fr) minmax(120px, 1fr) 150px minmax(0, 1.4fr) auto auto;
+	gap: 12px;
+	align-items: end;
+	padding: 12px 14px;
+	border: 1px solid var(--at8-line);
+	border-radius: var(--at8-radius-sm);
+	background: var(--at8-surface-sunken);
+}
+
+.at8-mluc-field-row-handle {
+	color: var(--at8-text-muted);
+	cursor: grab;
+	align-self: center;
+}
+
+.at8-mluc-field-row-cell {
+	display: flex;
+	flex-direction: column;
+	gap: 4px;
+	min-width: 0;
+}
+
+.at8-mluc-field-row-cell > span {
+	font-size: 11px;
+	font-weight: 600;
+	text-transform: uppercase;
+	letter-spacing: 0.04em;
+	color: var(--at8-text-muted);
+}
+
+.at8-mluc-field-row-cell input,
+.at8-mluc-field-row-cell select,
+.at8-mluc-field-row-cell textarea {
+	width: 100%;
+}
+
+.at8-mluc-field-row-flags {
+	display: flex;
+	flex-wrap: wrap;
+	gap: 10px;
+	align-items: center;
+	font-size: 12px;
+}
+
+.at8-mluc-field-row-flags label {
+	display: inline-flex;
+	align-items: center;
+	gap: 4px;
+	white-space: nowrap;
+}
+
+.at8-mluc-field-row-remove {
+	padding: 0 4px;
+	align-self: center;
+	color: var(--at8-danger);
+	text-decoration: none;
+}
+
+.at8-mluc-field-row-remove:hover {
+	color: #96271b;
+}
+
+.at8-mluc-fields-actions {
+	display: flex;
+	align-items: center;
+	gap: 10px;
+	margin: 14px 0 0;
+}
+
+.at8-mluc-fields-status {
+	font-size: 12px;
+	color: var(--at8-text-muted);
+}
+
+@media screen and (max-width: 1200px) {
+	.at8-mluc-field-row {
+		grid-template-columns: 24px minmax(0, 1fr) minmax(0, 1fr);
+	}
+
+	.at8-mluc-field-row-cell--type,
+	.at8-mluc-field-row-cell--options,
+	.at8-mluc-field-row-flags {
+		grid-column: span 2;
 	}
 }

@@ -3,12 +3,12 @@ Contributors: 361611074
 Tags: user profile, login, registration, avatar, user center
 Requires at least: 5.8
 Tested up to: 7.1
-Stable tag: 2.2.0
+Stable tag: 2.4.0
 Requires PHP: 7.4
 License: GPL-2.0-or-later
 License URI: https://www.gnu.org/licenses/gpl-2.0.html
 
-Front-end user center: login, registration, password recovery, account dashboard, avatars, social login, hidden content, membership levels and offline payments.
+Front-end user center: login, registration, account dashboard, avatars, social login, hidden content, membership levels and offline payments.
 
 == Description ==
 
@@ -104,6 +104,29 @@ Yes. Styles are namespaced and inherit the theme wherever possible, and any temp
 4. The front-end login form.
 
 == Changelog ==
+
+= 2.4.0 =
+* New: custom registration and profile fields. Define any number of extra fields in User Center → Settings → Registration & Profile Fields, choose where each one appears (registration form, profile form, or both), and administrators edit the values on the user profile screen. Text, multi-line, number, date, website, email, dropdown, radio group and single checkbox are supported.
+* New: points. A ledger per user (balance, running history, never below zero), a configurable unit name, points earned per currency unit spent and an optional welcome bonus. Administrators grant or deduct points from the user profile screen.
+* New: points are the free version's upgrade path. Give a membership level a point cost and members redeem it from the Membership tab; the level, its validity and the ledger entry are written in one request.
+* New: paywall for single posts and pages in the free version. Set a price and the one membership level that reads it for free; everyone else buys it through the same order engine, and members who already hold the level never see the gate.
+* New: optional terms-of-service checkbox on the registration form (label and terms page are configurable) and a password strength meter on the password field.
+* Improved: the account dashboard overview now shows the current membership with its expiry, the point balance and paid-order totals.
+* Improved: the Pro comparison table states what each side actually does, including the free version's upgrade path.
+* Fixed: paywall orders were never marked paid. The paywall branch of `complete_order()` skipped the atomic claim that flips pending to paid, so a paid order still read as pending, could be confirmed twice and could be closed by the abandoned-order sweeper. It now claims first and delivers second.
+
+= 2.3.0 =
+* New: a redesigned settings screen — a branded header with the current plan, a collapsible Pro comparison table (dismissible, shown only on this screen), a shortcode cheat sheet and a sticky save bar.
+* New: an accent colour setting. One colour tints buttons, active states and membership cards, and is exposed as `--at8-mluc-accent` for custom CSS.
+* New: a payment gateway shelf on the Offline Payments section, which states plainly what bank transfer does today and what PayPal / Stripe add.
+* New: the order list now shows status, member, item, gateway and amount columns, with confirm / cancel actions on pending orders.
+* Improved: front-end styles rebuilt on neutral translucent surfaces, so login, the account dashboard, membership cards and content gates look considered on light and dark themes alike. Membership badges now use each level's own colour.
+* Improved: the avatar library is capped at twelve published avatars in the free version (unlimited in Pro). New avatars beyond the cap stay as drafts with an explanation, and editing existing avatars is never blocked.
+* Fixed: built-in membership levels carried no colour of their own, so every badge fell back to the same blue. The factory defaults now define one, and the level editor reuses the same source of truth.
+* Changed: membership level colours, order status labels and the level badge markup each had two definitions; they now have one.
+
+= 2.2.1 =
+* Fixed: the User Center menu is now built before other plugins add entries to it (`admin_menu` priority 5 plus a new `at8_mluc_admin_menu` action). Previously a child page registered on the default priority got a different page hook at registration time than WordPress computed when the page was opened, and every Pro submenu page (License, the old Pro settings screen) was rejected with "Sorry, you are not allowed to access this page" (HTTP 403).
 
 = 2.2.0 =
 * New: top-level "User Center" menu in wp-admin (settings, orders, avatar library and the Pro license page all live under it) with a card-based settings screen and sticky section navigation.

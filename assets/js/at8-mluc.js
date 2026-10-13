@@ -184,13 +184,203 @@
 		} );
 	}
 
+	/**
+	 * Password strength meter.
+	 *
+	 * A small heuristic over length, character variety and repeated patterns.
+	 * It never blocks a submission on its own — the form's own minlength and
+	 * the server-side check stay authoritative.
+	 */
+	function bindStrength() {
+		var meters = document.querySelectorAll( '[data-at8-mluc-strength]' );
+
+		Array.prototype.forEach.call( meters, function ( meter ) {
+			var input = document.getElementById( meter.getAttribute( 'data-at8-mluc-strength' ) );
+			if ( ! input ) {
+				return;
+			}
+
+			var labels = meter.getAttribute( 'data-labels' );
+			labels = labels ? labels.split( '|' ) : [];
+			var fill = meter.querySelector( '.at8-mluc-strength-fill' );
+			var text = meter.querySelector( '.at8-mluc-strength-label' );
+
+			input.addEventListener( 'input', function () {
+				var score = scorePassword( input.value );
+				meter.setAttribute( 'data-score', score );
+
+				if ( text ) {
+					text.textContent = labels[ score ] || '';
+				}
+
+				if ( 0 === score && fill ) {
+					fill.style.width = '0';
+				}
+			} );
+		} );
+	}
+
+	function scorePassword( value ) {
+		if ( ! value ) {
+			return 0;
+		}
+
+		var score = 0;
+		var variety = 0;
+
+		if ( value.length >= 8 ) {
+			score += 1;
+		}
+
+		if ( value.length >= 12 ) {
+			score += 1;
+		}
+
+		if ( /[a-z]/.test( value ) && /[A-Z]/.test( value ) ) {
+			variety += 1;
+		}
+
+		if ( /\d/.test( value ) ) {
+			variety += 1;
+		}
+
+		if ( /[^a-zA-Z0-9]/.test( value ) ) {
+			variety += 1;
+		}
+
+		if ( variety >= 2 ) {
+			score += 1;
+		}
+
+		if ( variety >= 3 ) {
+			score += 1;
+		}
+
+		// Obvious sequences and repeats count against the result.
+		if ( /^(.)\1+$/.test( value ) || /^(0123|1234|2345|3456|4567|5678|6789|abcd|qwer)/i.test( value ) ) {
+			score = Math.min( score, 1 );
+		}
+
+		return Math.max( 0, Math.min( 4, score ) );
+	}
+
+	/**
+	 * Membership redemption with points.
+	 *
+	 * The button carries its own nonce because it is rendered per level; the
+	 * account reloads on success so the new level shows immediately.
+	 */
+	function bindRedeem() {
+		var buttons = document.querySelectorAll( '[data-at8-mluc-redeem]' );
+
+		Array.prototype.forEach.call( buttons, function ( button ) {
+			button.addEventListener( 'click', function () {
+				var card = button.closest( '.at8-mluc-upgrade-paths' );
+				var notice = card ? card.querySelector( '.at8-mluc-redeem-notice' ) : null;
+				var body = new FormData();
+
+				body.append( 'action', 'at8_mluc_redeem_level' );
+				body.append( 'nonce', button.getAttribute( 'data-nonce' ) );
+				body.append( 'level', button.getAttribute( 'data-at8-mluc-redeem' ) );
+
+				button.disabled = true;
+
+				fetch( data.ajaxUrl, { method: 'POST', body: body, credentials: 'same-origin' } )
+					.then( function ( response ) { return response.json(); } )
+					.then( function ( result ) {
+						if ( result && result.success ) {
+							if ( notice ) {
+								setNotice( notice, result.data.message, 'success' );
+							}
+
+							setTimeout( function () {
+								window.location.reload();
+							}, 700 );
+
+							return;
+						}
+
+						button.disabled = false;
+
+						if ( notice ) {
+							setNotice( notice, ( result && result.data && result.data.message ) || data.i18n.genericError, 'error' );
+						}
+					} )
+					.catch( function () {
+						button.disabled = false;
+
+						if ( notice ) {
+							setNotice( notice, data.i18n.genericError, 'error' );
+						}
+					} );
+			} );
+		} );
+	}
+
+	/**
+	 * Paywall unlock buttons.
+	 *
+	 * Creates a pending order through the same engine as membership purchases,
+	 * so the admin confirms it from the order list exactly like any other
+	 * payment.
+	 */
+	function bindPaywall() {
+		var buttons = document.querySelectorAll( '[data-at8-mluc-paywall-buy]' );
+
+		Array.prototype.forEach.call( buttons, function ( button ) {
+			button.addEventListener( 'click', function () {
+				var card = button.closest( '.at8-mluc-paywall' );
+				var notice = card ? card.querySelector( '.at8-mluc-paywall-notice' ) : null;
+				var body = new FormData();
+
+				body.append( 'action', 'at8_mluc_paywall_buy' );
+				body.append( 'nonce', button.getAttribute( 'data-nonce' ) );
+				body.append( 'post_id', button.getAttribute( 'data-post' ) );
+				body.append( 'gateway', button.getAttribute( 'data-at8-mluc-paywall-buy' ) );
+
+				button.disabled = true;
+
+				fetch( data.ajaxUrl, { method: 'POST', body: body, credentials: 'same-origin' } )
+					.then( function ( response ) { return response.json(); } )
+					.then( function ( result ) {
+						if ( result && result.success ) {
+							if ( notice ) {
+								setNotice( notice, result.data.message, 'success' );
+							}
+
+							return;
+						}
+
+						button.disabled = false;
+
+						if ( notice ) {
+							setNotice( notice, ( result && result.data && result.data.message ) || data.i18n.genericError, 'error' );
+						}
+					} )
+					.catch( function () {
+						button.disabled = false;
+
+						if ( notice ) {
+							setNotice( notice, data.i18n.genericError, 'error' );
+						}
+					} );
+			} );
+		} );
+	}
+
 	if ( 'loading' === document.readyState ) {
 		document.addEventListener( 'DOMContentLoaded', function () {
 			bindForms();
 			bindAvatarPicker();
+			bindStrength();
+			bindRedeem();
+			bindPaywall();
 		} );
 	} else {
 		bindForms();
 		bindAvatarPicker();
+		bindStrength();
+		bindRedeem();
+		bindPaywall();
 	}
 } )();

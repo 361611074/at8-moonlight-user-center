@@ -63,6 +63,15 @@ endif;
 
 		<?php
 		/*
+		 * Extra fields defined in User Center → Settings → Registration &amp;
+		 * Profile Fields. Rendered as a fieldset so assistive technology
+		 * announces the group.
+		 */
+		do_action( 'at8_mluc_register_form_fields' );
+		?>
+
+		<?php
+		/*
 		 * Anti-spam measures. The honeypot is hidden from people; the token
 		 * proves the form was rendered by this site and submitted once.
 		 */

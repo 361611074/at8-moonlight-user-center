@@ -4,7 +4,7 @@ A lightweight, theme-agnostic front-end user center for WordPress. It gives a si
 front-end login, registration, password recovery and a personal account area without
 touching the WordPress admin.
 
-**Version 2.2.0** · GPL-2.0-or-later · PHP 7.4+ · WordPress 5.8+
+**Version 2.4.0** · GPL-2.0-or-later · PHP 7.4+ · WordPress 5.8+
 
 ---
 
@@ -81,7 +81,7 @@ installed — License (Pro).
 
 ## Installation
 
-1. Download `at8-moonlight-user-center-2.2.0.zip` from the releases, or clone this
+1. Download `at8-moonlight-user-center-2.4.0.zip` from the releases, or clone this
    repository into `wp-content/plugins/at8-moonlight-user-center/`.
 2. Activate the plugin under **Plugins**.
 3. Create pages containing the shortcodes listed above.
@@ -222,6 +222,77 @@ Paid features continue in the separate repository
 [at8-moonlight-user-center-pro](https://github.com/361611074/at8-moonlight-user-center-pro),
 which this plugin does not depend on. All extension points are plain WordPress hooks
 (`at8_mluc_loaded`, `at8_mluc_account_tabs`, `at8_mluc_template_args`, `at8_mluc_after_register`, …).
+
+### 2.4.0 — the free version gets the user centre it was missing
+
+Version 2.4.0 rebalances the split again, this time along the axis that matters
+to a site owner: **the free version has every feature, and Pro widens the paths
+and the ceilings.**
+
+| What | Free 2.4.0 | Pro |
+| --- | --- | --- |
+| Custom registration / profile fields | unlimited | unlimited |
+| Points ledger, welcome bonus, earn rate | yes | yes |
+| Ways to upgrade a member | redeem points | points, direct payment, tier ladders |
+| Paywall for single posts | one level per post | any levels, videos, downloads |
+| Membership levels | 3 | 8 |
+| Published avatars | 12 | unlimited |
+| Payment gateways | bank transfer | bank transfer, PayPal, Stripe |
+| Content gates | login, comment | login, comment, level, purchase |
+
+New modules: `class-fields.php` (configurable fields, nine control types),
+`class-points.php` (ledger with a hard floor of zero), `class-upgrade-paths.php`
+(the registry the add-on extends) and `class-paywall.php` (the single-post
+core, which stands down entirely when the add-on is active so two content
+filters never run on the same post).
+
+Two long-standing defects surfaced while testing this and are fixed here:
+
+* **Factory levels carried no `price`, `validity` or `points`.** A site that
+  never saved the level editor got arrays without those keys, so validity and
+  price silently read as zero. Every consumer now gets the full key set.
+* **Paywall orders were never marked paid.** `complete_order()` called
+  `mark_paid()` on the paywall branch but never the atomic claim that flips
+  pending to paid, so a paid order still read as pending, could be confirmed
+  twice, and could be closed by the abandoned-order sweeper. The claim now
+  lives inside the delivery handler — whoever delivers also claims, so the
+  free core and the add-on can never double-claim each other.
+
+### 2.3.0 — one boundary API, a rebuilt admin and a rebuilt front end
+
+Version 2.3.0 introduces `AT8_MLUC_Upgrade`, the single source of truth for the
+Free/Pro boundary. Every limit is a *quantity*, filterable by Pro:
+
+| Resource | Free | Pro |
+| --- | --- | --- |
+| Membership levels | 3 | 8 |
+| Published avatars | 12 | unlimited |
+| Payment gateways | bank transfer | bank transfer, PayPal, Stripe |
+
+The ceiling is now **enforced**, not just advertised: `AT8_MLUC_Payments::get_gateways()`
+trims the shelf to the licensed count and always keeps bank transfer, and avatars past
+the cap stay drafts with an explanation instead of silently failing.
+
+Also in 2.3.0: a redesigned settings screen (branded header, dismissible Pro
+comparison table, shortcode cheat sheet, sticky save bar), an accent colour setting
+exposed as `--at8-mluc-accent`, order list columns with inline confirm/cancel, front
+end styles rebuilt on neutral translucent surfaces, and a fix for every membership
+badge sharing one colour because the factory defaults carried none.
+
+### 2.2.1 — admin menu registration order
+
+Version 2.2.1 fixes an admin-menu bug. `add_menu_page()` populates WordPress's
+`$admin_page_hooks`, and only afterwards does `add_submenu_page()` derive the same
+page hook that core computes when the page is opened. Because Pro bootstraps on
+`plugins_loaded` priority 6 and the free plugin on the default 10, Pro used to add
+its submenus *first* — it got `admin_page_at8-mlucp-license` where core later looked
+for `user-center_page_at8-mlucp-license`, so every Pro submenu page was rejected with
+"Sorry, you are not allowed to access this page" (HTTP 403) even though the menu link
+rendered fine.
+
+The User Center menu is now built on `admin_menu` priority 5 and fires a dedicated
+`at8_mluc_admin_menu` action afterwards; extensions should hook that instead of
+`admin_menu`.
 
 ### 2.2.0 — membership, offline payments and the User Center menu
 

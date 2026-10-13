@@ -98,11 +98,7 @@ $at8_mluc_paypal_sdk   = ! empty( $args['paypal_sdk'] ) ? (string) $args['paypal
 				</thead>
 				<tbody>
 					<?php
-					$at8_mluc_status_labels = array(
-						'pending'   => __( 'Pending', 'at8-moonlight-user-center' ),
-						'paid'      => __( 'Paid', 'at8-moonlight-user-center' ),
-						'cancelled' => __( 'Cancelled', 'at8-moonlight-user-center' ),
-					);
+					$at8_mluc_status_labels = AT8_MLUC_Payments::status_labels();
 
 					foreach ( $at8_mluc_orders as $at8_mluc_o ) :
 						$at8_mluc_st = isset( $at8_mluc_status_labels[ $at8_mluc_o['status'] ] ) ? $at8_mluc_status_labels[ $at8_mluc_o['status'] ] : $at8_mluc_o['status'];

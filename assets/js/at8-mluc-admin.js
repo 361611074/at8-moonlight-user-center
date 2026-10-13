@@ -6,6 +6,7 @@
  *   Settings API markup stays intact without JS).
  * - Membership level editor: add / remove rows without a page reload.
  * - Sidebar icon editor: Dashicon class or media-library image per tab.
+ * - Upgrade comparison panel: collapse / dismiss without a reload.
  */
 (function ($) {
     'use strict';
@@ -61,6 +62,40 @@
     }
 
     $(function () {
+        /* ===== Upgrade comparison panel: collapse / dismiss ===== */
+        var $upgrade = $('#at8-mluc-upgrade');
+
+        if ($upgrade.length) {
+            $upgrade.on('click', '.at8-mluc-upgrade-dismiss', function () {
+                var $panel = $upgrade;
+                if ($panel.hasClass('is-collapsed')) {
+                    // Already open: this click hides the panel for good.
+                    hideUpgrade();
+                    return;
+                }
+                $panel.addClass('is-collapsed');
+                $(this).addClass('at8-mluc-upgrade-dismiss-collapsed').attr('aria-expanded', 'false');
+            });
+
+            $upgrade.on('click', '[data-at8-mluc-upgrade-hide]', function () {
+                hideUpgrade();
+            });
+
+            function hideUpgrade() {
+                var data = (window.at8MlucAdmin && window.at8MlucAdmin.ajax) || {};
+                $upgrade.slideUp(160, function () {
+                    $upgrade.remove();
+                });
+                if (!data.url || !data.nonce) {
+                    return;
+                }
+                $.post(data.url, {
+                    action: 'at8_mluc_dismiss_upgrade',
+                    nonce: data.nonce
+                });
+            }
+        }
+
         /* ===== Sidebar icon editor ===== */
         $(document).on('change', '.at8-mluc-icon-type input[type="radio"]', function () {
             setType($(this).closest('tr'), $(this).val());
@@ -124,6 +159,88 @@
             });
         }
 
+        /* ===== Custom field editor ===== */
+        var $editor = $('#at8-mluc-fields-editor');
+
+        if ($editor.length) {
+            var $rows = $editor.find('.at8-mluc-fields-rows');
+            var $tplRow = $editor.find('[data-at8-mluc-fields-template]')[0];
+            var rowSeq = $rows.children().length;
+            var $status = $editor.find('.at8-mluc-fields-status');
+
+            $editor.on('click', '[data-at8-mluc-fields-add]', function (e) {
+                e.preventDefault();
+                if (!$tplRow || !$tplRow.content) {
+                    return;
+                }
+                rowSeq++;
+                var row = $tplRow.content.querySelector('[data-at8-mluc-field-row]').cloneNode(true);
+                row.setAttribute('data-at8-mluc-field-row', 'new-' + rowSeq);
+                $rows.append(row);
+            });
+
+            $editor.on('click', '[data-at8-mluc-fields-remove]', function (e) {
+                e.preventDefault();
+                $(this).closest('[data-at8-mluc-field-row]').remove();
+            });
+
+            $editor.on('click', '[data-at8-mluc-fields-save]', function (e) {
+                e.preventDefault();
+
+                var data = (window.at8MlucAdmin && window.at8MlucAdmin.ajax) || {};
+                if (!data.url || !data.nonce) {
+                    return;
+                }
+
+                var fields = [];
+                $rows.children('[data-at8-mluc-field-row]').each(function () {
+                    var $row = $(this);
+                    var entry = {};
+
+                    $row.find('[data-field]').each(function () {
+                        var $input = $(this);
+                        var key = $input.data('field');
+                        entry[key] = $input.is(':checkbox') ? ($input.is(':checked') ? '1' : '') : $input.val();
+                    });
+
+                    if (!$.trim(entry.label || '')) {
+                        return;
+                    }
+
+                    if (!$.trim(entry.id || '')) {
+                        entry.id = slugify(entry.label);
+                    }
+
+                    fields.push(entry);
+                });
+
+                var $btn = $(this);
+                $btn.prop('disabled', true);
+                $status.text((window.at8MlucAdmin && window.at8MlucAdmin.saving) || 'Saving…');
+
+                $.post(data.url, {
+                    action: 'at8_mluc_save_fields',
+                    nonce: data.nonce,
+                    fields: fields
+                }, function (res) {
+                    $btn.prop('disabled', false);
+                    $status.text(res && res.success
+                        ? ((window.at8MlucAdmin && window.at8MlucAdmin.saved) || 'Saved.')
+                        : (res && res.data && res.data.message) || 'Error.');
+                }).fail(function () {
+                    $btn.prop('disabled', false);
+                    $status.text('Error.');
+                });
+            });
+
+            function slugify(text) {
+                return String(text).toLowerCase()
+                    .replace(/[^a-z0-9]+/g, '_')
+                    .replace(/^_+|_+$/g, '')
+                    .substring(0, 40) || 'field';
+            }
+        }
+
         /* ===== Settings screen beautify: cards + sticky nav ===== */
         var $wrap = $('.at8-mluc-settings-wrap');
         if (!$wrap.length || $wrap.data('at8-beautified')) {
@@ -155,7 +272,7 @@
         });
 
         $wrap.addClass('at8-mluc-settings-layout');
-        $wrap.prepend($nav);
+        $form.before($nav);
 
         var $links = $list.find('a');
 

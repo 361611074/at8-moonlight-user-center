@@ -1,21 +1,41 @@
 /**
- * AT8 Moonlight User Center - front-end styles.
+ * AT8 Moonlight User Center — front-end styles.
  *
- * Deliberately minimal and theme-agnostic: colours and typography are inherited
- * from the active theme wherever possible, and every selector is namespaced
- * with `.at8-mluc-`.
+ * Theme-agnostic by design: every surface is a neutral translucent overlay
+ * (`rgba(127,127,127, …)`) which reads as a light tint on light themes and a
+ * dark tint on dark ones, so nothing has to be re-authored per theme. The one
+ * authored colour is the accent, shipped as `--at8-mluc-accent` so a site owner
+ * can retint everything from User Center → Settings → Accent colour.
+ *
+ * All selectors stay namespaced with `.at8-mluc-`. No `!important`: where a
+ * theme ships a conflicting rule, specificity is raised by nesting instead.
  */
 
 .at8-mluc-auth,
-.at8-mluc-account {
-	--at8-mluc-border: rgba(0, 0, 0, 0.12);
-	--at8-mluc-muted: rgba(0, 0, 0, 0.62);
-	--at8-mluc-radius: 6px;
+.at8-mluc-account,
+.at8-mluc-buy,
+.at8-mluc-membership,
+.at8-mluc-hidecontent,
+.at8-mluc-oauth {
+	--at8-mluc-accent: #4f46e5;
+	--at8-mluc-accent-soft: rgba(79, 70, 229, 0.1);
+	--at8-mluc-tint: rgba(127, 127, 127, 0.05);
+	--at8-mluc-tint-strong: rgba(127, 127, 127, 0.1);
+	--at8-mluc-border: rgba(127, 127, 127, 0.22);
+	--at8-mluc-border-strong: rgba(127, 127, 127, 0.36);
+	--at8-mluc-radius: 14px;
+	--at8-mluc-radius-sm: 10px;
+	--at8-mluc-shadow: 0 1px 2px rgba(20, 30, 50, 0.04), 0 12px 28px -16px rgba(20, 30, 50, 0.2);
+
 	box-sizing: border-box;
 }
 
 .at8-mluc-auth *,
 .at8-mluc-account *,
+.at8-mluc-buy *,
+.at8-mluc-membership *,
+.at8-mluc-hidecontent *,
+.at8-mluc-oauth *,
 .at8-mluc-auth *::before,
 .at8-mluc-auth *::after,
 .at8-mluc-account *::before,
@@ -34,7 +54,7 @@
 
 .at8-mluc-description {
 	margin: 0 0 1em;
-	color: var(--at8-mluc-muted);
+	color: rgba(127, 127, 127, 1);
 }
 
 .at8-mluc-form {
@@ -65,18 +85,16 @@
 
 .at8-mluc-field-hint {
 	font-size: 0.85em;
-	color: var(--at8-mluc-muted);
+	color: rgba(127, 127, 127, 1);
 }
 
 .at8-mluc-field--checkbox {
 	flex-direction: row;
 	align-items: center;
+	gap: 0.5em;
 }
 
 .at8-mluc-field--checkbox label {
-	display: flex;
-	align-items: center;
-	gap: 0.5em;
 	font-weight: 400;
 }
 
@@ -88,12 +106,13 @@
 .at8-mluc-field textarea {
 	width: 100%;
 	max-width: 32em;
-	padding: 0.55em 0.7em;
+	padding: 0.7em 0.85em;
 	border: 1px solid var(--at8-mluc-border);
-	border-radius: var(--at8-mluc-radius);
+	border-radius: var(--at8-mluc-radius-sm);
 	font: inherit;
 	color: inherit;
-	background: transparent;
+	background: var(--at8-mluc-tint);
+	transition: border-color 0.15s ease, box-shadow 0.15s ease;
 }
 
 .at8-mluc-field textarea {
@@ -102,8 +121,9 @@
 
 .at8-mluc-field input:focus-visible,
 .at8-mluc-field textarea:focus-visible {
-	outline: 2px solid currentColor;
-	outline-offset: 1px;
+	outline: none;
+	border-color: var(--at8-mluc-accent);
+	box-shadow: 0 0 0 3px var(--at8-mluc-accent-soft);
 }
 
 /* Honeypot: removed from view but never display:none, so bots still fill it. */
@@ -123,32 +143,54 @@
 /* ----------------------------------------------------------------- Buttons */
 
 .at8-mluc-button {
-	display: inline-block;
-	padding: 0.6em 1.2em;
-	border: 1px solid currentColor;
-	border-radius: var(--at8-mluc-radius);
-	background: transparent;
+	display: inline-flex;
+	align-items: center;
+	justify-content: center;
+	gap: 0.4em;
+	padding: 0.7em 1.3em;
+	border: 1px solid var(--at8-mluc-border-strong);
+	border-radius: var(--at8-mluc-radius-sm);
+	background: var(--at8-mluc-tint);
 	color: inherit;
 	font: inherit;
 	line-height: 1.4;
 	text-decoration: none;
 	cursor: pointer;
+	transition: transform 0.15s ease, box-shadow 0.15s ease, border-color 0.15s ease;
 }
 
 .at8-mluc-button:hover,
 .at8-mluc-button:focus {
-	opacity: 0.85;
+	border-color: var(--at8-mluc-accent);
+	transform: translateY(-1px);
 }
 
 .at8-mluc-button--primary {
-	background: currentColor;
+	background: var(--at8-mluc-accent);
+	border-color: var(--at8-mluc-accent);
+	color: #fff;
+	box-shadow: 0 2px 8px var(--at8-mluc-accent-soft);
+}
+
+.at8-mluc-button--primary:hover,
+.at8-mluc-button--primary:focus {
+	color: #fff;
+	filter: brightness(1.06);
+	box-shadow: 0 6px 18px var(--at8-mluc-accent-soft);
 }
 
 .at8-mluc-button--link {
 	border-color: transparent;
 	padding-left: 0.4em;
 	padding-right: 0.4em;
+	background: none;
 	text-decoration: underline;
+}
+
+.at8-mluc-button--link:hover,
+.at8-mluc-button--link:focus {
+	border-color: transparent;
+	transform: none;
 }
 
 .at8-mluc-actions {
@@ -163,10 +205,10 @@
 
 .at8-mluc-message {
 	margin: 0 0 1em;
-	padding: 0.7em 0.9em;
+	padding: 0.8em 1em;
 	border-left: 4px solid var(--at8-mluc-border);
-	border-radius: 0 var(--at8-mluc-radius) var(--at8-mluc-radius) 0;
-	background: rgba(0, 0, 0, 0.03);
+	border-radius: 0 var(--at8-mluc-radius-sm) var(--at8-mluc-radius-sm) 0;
+	background: var(--at8-mluc-tint);
 }
 
 .at8-mluc-message--success {
@@ -178,7 +220,7 @@
 }
 
 .at8-mluc-message--pending {
-	border-left-color: #996800;
+	border-left-color: #b8860b;
 }
 
 .at8-mluc-form-notice:empty {
@@ -192,7 +234,23 @@
 /* ------------------------------------------------------------ Auth screens */
 
 .at8-mluc-auth {
-	max-width: 32em;
+	max-width: 30em;
+	margin: 0 auto;
+	padding: 2em;
+	border: 1px solid var(--at8-mluc-border);
+	border-radius: var(--at8-mluc-radius);
+	background: var(--at8-mluc-tint);
+	box-shadow: var(--at8-mluc-shadow);
+}
+
+.at8-mluc-auth::before {
+	content: "";
+	display: block;
+	width: 2.5em;
+	height: 3px;
+	margin-bottom: 1.25em;
+	border-radius: 999px;
+	background: var(--at8-mluc-accent);
 }
 
 .at8-mluc-auth-links {
@@ -215,33 +273,43 @@
 }
 
 .at8-mluc-account-nav {
-	flex: 0 0 13em;
+	flex: 0 0 14em;
+	padding: 0.5em;
+	border: 1px solid var(--at8-mluc-border);
+	border-radius: var(--at8-mluc-radius);
+	background: var(--at8-mluc-tint);
 }
 
 .at8-mluc-account-nav ul {
 	margin: 0;
 	padding: 0;
 	list-style: none;
+	display: flex;
+	flex-direction: column;
+	gap: 2px;
 }
 
 .at8-mluc-account-nav a {
 	display: flex;
 	align-items: center;
 	gap: 0.5em;
-	padding: 0.5em 0.6em;
-	border-radius: var(--at8-mluc-radius);
+	padding: 0.7em 0.85em;
+	border-radius: var(--at8-mluc-radius-sm);
 	text-decoration: none;
 	color: inherit;
+	transition: background-color 0.15s ease, color 0.15s ease;
 }
 
 .at8-mluc-account-nav a:hover,
 .at8-mluc-account-nav a:focus {
-	background: rgba(0, 0, 0, 0.05);
+	background: var(--at8-mluc-tint-strong);
 }
 
 .at8-mluc-account-nav .is-active > a {
 	font-weight: 600;
-	background: rgba(0, 0, 0, 0.07);
+	background: var(--at8-mluc-accent-soft);
+	color: var(--at8-mluc-accent);
+	box-shadow: inset 3px 0 0 var(--at8-mluc-accent);
 }
 
 .at8-mluc-account-content {
@@ -250,9 +318,11 @@
 }
 
 .at8-mluc-card {
-	padding: 1.25em;
+	padding: 1.5em;
 	border: 1px solid var(--at8-mluc-border);
 	border-radius: var(--at8-mluc-radius);
+	background: var(--at8-mluc-tint);
+	box-shadow: var(--at8-mluc-shadow);
 }
 
 /* --------------------------------------------------------------- Overview */
@@ -260,16 +330,17 @@
 .at8-mluc-overview-header {
 	display: flex;
 	align-items: center;
-	gap: 1em;
-	margin-bottom: 1em;
+	gap: 1.25em;
+	margin-bottom: 1.25em;
 }
 
 .at8-mluc-overview-avatar {
-	width: 96px;
-	height: 96px;
+	width: 88px;
+	height: 88px;
 	border-radius: 50%;
 	object-fit: cover;
 	flex: 0 0 auto;
+	box-shadow: 0 0 0 3px var(--at8-mluc-accent-soft);
 }
 
 .at8-mluc-overview-identity {
@@ -282,31 +353,36 @@
 
 .at8-mluc-overview-email {
 	margin: 0;
-	color: var(--at8-mluc-muted);
+	color: rgba(127, 127, 127, 1);
 	overflow-wrap: anywhere;
 }
 
 .at8-mluc-overview-stats {
 	margin: 0 0 1.25em;
-	padding: 0;
+	padding: 1em 0 0;
 	list-style: none;
 	display: flex;
 	flex-wrap: wrap;
 	gap: 1.5em;
+	border-top: 1px solid var(--at8-mluc-border);
 }
 
 .at8-mluc-overview-stats li {
 	display: flex;
 	flex-direction: column;
+	gap: 2px;
 }
 
 .at8-mluc-stat-label {
-	font-size: 0.85em;
-	color: var(--at8-mluc-muted);
+	font-size: 0.8em;
+	letter-spacing: 0.03em;
+	text-transform: uppercase;
+	color: rgba(127, 127, 127, 1);
 }
 
 .at8-mluc-stat-value {
 	font-weight: 600;
+	font-size: 1.05em;
 }
 
 /* ----------------------------------------------------------------- Avatar */
@@ -320,12 +396,13 @@
 	height: 96px;
 	border-radius: 50%;
 	object-fit: cover;
+	box-shadow: 0 0 0 3px var(--at8-mluc-accent-soft);
 }
 
 .at8-mluc-avatar-grid {
 	display: grid;
-	grid-template-columns: repeat(auto-fill, minmax(72px, 1fr));
-	gap: 0.6em;
+	grid-template-columns: repeat(auto-fill, minmax(76px, 1fr));
+	gap: 0.75em;
 	margin-bottom: 1em;
 	padding: 0;
 	border: 0;
@@ -338,6 +415,7 @@
 	background: transparent;
 	cursor: pointer;
 	line-height: 0;
+	transition: transform 0.15s ease, border-color 0.15s ease;
 }
 
 .at8-mluc-avatar-option img {
@@ -350,14 +428,502 @@
 
 .at8-mluc-avatar-option:hover,
 .at8-mluc-avatar-option:focus-visible {
-	border-color: var(--at8-mluc-border);
+	border-color: var(--at8-mluc-border-strong);
+	transform: translateY(-2px);
 }
 
 .at8-mluc-avatar-option.is-active {
-	border-color: currentColor;
+	border-color: var(--at8-mluc-accent);
+	box-shadow: 0 0 0 3px var(--at8-mluc-accent-soft);
 }
 
-/* --------------------------------------------------------------- Responsive */
+/* ----------------------------------------------------- Membership overview */
+
+.at8-mluc-membership {
+	display: flex;
+	flex-direction: column;
+	gap: 1.5em;
+}
+
+.at8-mluc-membership-current {
+	padding: 1.5em;
+	border: 1px solid var(--at8-mluc-border);
+	border-radius: var(--at8-mluc-radius);
+	background: var(--at8-mluc-tint);
+	box-shadow: var(--at8-mluc-shadow);
+}
+
+.at8-mluc-membership-current h3,
+.at8-mluc-membership-table h3 {
+	font-size: 1.1em;
+	font-weight: 600;
+	margin: 0 0 0.75em;
+}
+
+.at8-mluc-membership-level {
+	margin: 0.5em 0 0.75em;
+	font-size: 1.15em;
+}
+
+.at8-mluc-membership-tip {
+	margin: 0;
+	color: rgba(127, 127, 127, 1);
+	font-size: 0.9em;
+}
+
+/* Level chip. The gold variant makes a premium tier read as something worth
+   owning, mirroring how mature membership themes present their top tier. */
+.at8-mluc-level-badge {
+	display: inline-block;
+	padding: 0.3em 0.9em;
+	border-radius: 999px;
+	font-size: 0.82em;
+	font-weight: 700;
+	line-height: 1.5;
+	letter-spacing: 0.03em;
+	background: var(--at8-mluc-tint-strong);
+	color: inherit;
+}
+
+.at8-mluc-level-graded {
+	background: linear-gradient(135deg, #e8b64c 0%, #f3d9a4 100%);
+	color: #6b4c15;
+	box-shadow: 0 2px 8px rgba(232, 182, 76, 0.35);
+}
+
+.at8-mluc-membership-summary {
+	margin: 1em 0;
+	padding: 0.85em 1.1em;
+	border: 1px solid var(--at8-mluc-border);
+	border-radius: var(--at8-mluc-radius-sm);
+	background: var(--at8-mluc-tint);
+	font-size: 0.9em;
+	display: flex;
+	align-items: center;
+	gap: 0.7em;
+	flex-wrap: wrap;
+}
+
+.at8-mluc-membership-expire {
+	color: rgba(127, 127, 127, 1);
+	font-size: 0.85em;
+}
+
+.at8-mluc-membership-table table {
+	width: 100%;
+	border-collapse: collapse;
+	margin-top: 0.75em;
+}
+
+.at8-mluc-membership-table th,
+.at8-mluc-membership-table td {
+	text-align: left;
+	padding: 0.75em 0.85em;
+	border-bottom: 1px solid var(--at8-mluc-border);
+	font-size: 0.9em;
+}
+
+.at8-mluc-membership-table th {
+	background: var(--at8-mluc-tint);
+	font-weight: 600;
+}
+
+.at8-mluc-membership-table tr.is-current {
+	background: var(--at8-mluc-accent-soft);
+}
+
+.at8-mluc-level-current {
+	color: var(--at8-mluc-accent);
+	font-weight: 600;
+	font-size: 0.85em;
+}
+
+.at8-mluc-level-included {
+	color: #0a8754;
+	font-size: 0.85em;
+}
+
+.at8-mluc-level-locked {
+	color: rgba(127, 127, 127, 1);
+	font-size: 0.85em;
+}
+
+/* ---------------------------------------------------------------- Tables */
+
+.at8-mluc-table {
+	width: 100%;
+	border-collapse: collapse;
+}
+
+.at8-mluc-table th,
+.at8-mluc-table td {
+	text-align: left;
+	padding: 0.75em 0.85em;
+	border-bottom: 1px solid var(--at8-mluc-border);
+	font-size: 0.9em;
+}
+
+.at8-mluc-table th {
+	background: var(--at8-mluc-tint);
+	font-weight: 600;
+}
+
+.at8-mluc-order-list {
+	margin-top: 1.25em;
+}
+
+.at8-mluc-order-list .at8-mluc-table {
+	margin-top: 0.5em;
+}
+
+/* Status pills read on both light and dark surfaces: translucent fill plus a
+   saturated text colour, never a solid pastel rectangle. */
+.at8-mluc-pill {
+	display: inline-block;
+	padding: 0.15em 0.75em;
+	border-radius: 999px;
+	font-size: 0.78em;
+	font-weight: 600;
+	line-height: 1.7;
+	border: 1px solid transparent;
+}
+
+.at8-mluc-pill-pending {
+	background: rgba(184, 134, 11, 0.12);
+	color: #8a6200;
+	border-color: rgba(184, 134, 11, 0.24);
+}
+
+.at8-mluc-pill-paid {
+	background: rgba(10, 135, 84, 0.12);
+	color: #0a8754;
+	border-color: rgba(10, 135, 84, 0.24);
+}
+
+.at8-mluc-pill-cancelled {
+	background: rgba(192, 57, 43, 0.12);
+	color: #c0392b;
+	border-color: rgba(192, 57, 43, 0.24);
+}
+
+/* ----------------------------------------------------------- Purchase card */
+
+.at8-mluc-buy-grid {
+	display: grid;
+	grid-template-columns: repeat(auto-fill, minmax(210px, 1fr));
+	gap: 1em;
+}
+
+.at8-mluc-buy-card {
+	display: flex;
+	flex-direction: column;
+	gap: 8px;
+	background: var(--at8-mluc-tint);
+	border: 1px solid var(--at8-mluc-border);
+	border-top: 3px solid var(--at8-mluc-accent);
+	border-radius: var(--at8-mluc-radius);
+	padding: 1.15em 1.25em;
+	transition: transform 0.18s ease, box-shadow 0.18s ease;
+}
+
+.at8-mluc-buy-card:hover {
+	transform: translateY(-3px);
+	box-shadow: var(--at8-mluc-shadow);
+}
+
+.at8-mluc-buy-name {
+	font-size: 1.05em;
+	font-weight: 700;
+}
+
+.at8-mluc-buy-price {
+	font-size: 1.5em;
+	font-weight: 800;
+	line-height: 1.2;
+	letter-spacing: -0.01em;
+}
+
+.at8-mluc-buy-validity {
+	color: rgba(127, 127, 127, 1);
+	font-size: 0.82em;
+}
+
+.at8-mluc-buy-actions {
+	display: flex;
+	flex-direction: column;
+	gap: 4px;
+}
+
+.at8-mluc-buy-gateway {
+	display: flex;
+	align-items: center;
+	gap: 6px;
+	font-size: 0.82em;
+}
+
+.at8-mluc-btn-buy {
+	align-self: flex-start;
+	display: inline-flex;
+	align-items: center;
+	justify-content: center;
+	border: 0;
+	border-radius: var(--at8-mluc-radius-sm);
+	background: var(--at8-mluc-accent);
+	color: #fff;
+	padding: 0.65em 1.4em;
+	cursor: pointer;
+	font-size: 0.88em;
+	font-weight: 600;
+	line-height: 1;
+	transition: transform 0.15s ease, box-shadow 0.15s ease, filter 0.15s ease;
+}
+
+.at8-mluc-btn-buy:hover {
+	color: #fff;
+	filter: brightness(1.06);
+	transform: translateY(-1px);
+	box-shadow: 0 6px 18px var(--at8-mluc-accent-soft);
+}
+
+.at8-mluc-btn-buy[disabled] {
+	opacity: 0.6;
+	cursor: wait;
+	transform: none;
+	box-shadow: none;
+}
+
+.at8-mluc-buy-msg {
+	min-height: 1.4em;
+	margin: 12px 0 0;
+	color: #0a8754;
+}
+
+.at8-mluc-buy-instructions {
+	background: var(--at8-mluc-tint);
+	border: 1px solid var(--at8-mluc-border);
+	border-radius: var(--at8-mluc-radius-sm);
+	padding: 0.85em 1.1em;
+	margin: 12px 0 0;
+	font-size: 0.88em;
+}
+
+.at8-mluc-buy-instructions p {
+	margin: 6px 0 0;
+	white-space: pre-line;
+}
+
+.at8-mluc-buy-notice {
+	margin: 0 0 14px;
+	padding: 0.7em 1em;
+	border-radius: var(--at8-mluc-radius-sm);
+	background: var(--at8-mluc-tint);
+	border: 1px solid var(--at8-mluc-border);
+	font-size: 0.88em;
+}
+
+.at8-mluc-buy-notice-ok {
+	background: rgba(10, 135, 84, 0.1);
+	border-color: rgba(10, 135, 84, 0.24);
+	color: #0a8754;
+}
+
+.at8-mluc-buy-notice-err {
+	background: rgba(192, 57, 43, 0.1);
+	border-color: rgba(192, 57, 43, 0.24);
+	color: #c0392b;
+}
+
+/* Online payment mounting point. */
+.at8-mluc-pp-mount {
+	margin-top: 14px;
+	max-width: 340px;
+}
+
+/* ---------------------------------------------------------- Hidden content */
+
+.at8-mluc-hidecontent {
+	margin: 1.75em 0;
+	padding: 1.5em 1.75em;
+	border: 1px solid var(--at8-mluc-border);
+	border-left: 4px solid var(--at8-mluc-accent);
+	border-radius: var(--at8-mluc-radius);
+	background: var(--at8-mluc-tint);
+	box-shadow: var(--at8-mluc-shadow);
+	color: inherit;
+}
+
+.at8-mluc-hidecontent .at8-mluc-hc-inner {
+	display: flex;
+	align-items: center;
+	gap: 1.25em;
+	flex-wrap: wrap;
+}
+
+.at8-mluc-hidecontent .at8-mluc-hc-icon {
+	flex: 0 0 auto;
+	width: 52px;
+	height: 52px;
+	border-radius: 14px;
+	background: var(--at8-mluc-accent-soft);
+	color: var(--at8-mluc-accent);
+	font-size: 26px;
+	line-height: 52px;
+	text-align: center;
+	display: inline-block;
+	font-style: normal;
+}
+
+.at8-mluc-hidecontent .at8-mluc-hc-text {
+	flex: 1 1 240px;
+	min-width: 0;
+}
+
+.at8-mluc-hidecontent .at8-mluc-hc-title {
+	font-weight: 600;
+	font-size: 1.05em;
+	margin: 0 0 6px;
+	line-height: 1.4;
+}
+
+.at8-mluc-hidecontent .at8-mluc-hc-tip {
+	font-size: 0.9em;
+	color: rgba(127, 127, 127, 1);
+	margin: 0;
+	line-height: 1.65;
+}
+
+.at8-mluc-hidecontent .at8-mluc-hc-action {
+	flex: 0 0 auto;
+	margin-left: auto;
+}
+
+.at8-mluc-hidecontent .at8-mluc-hc-btn {
+	display: inline-flex;
+	align-items: center;
+	justify-content: center;
+	gap: 6px;
+	padding: 0 1.4em;
+	height: 40px;
+	border-radius: var(--at8-mluc-radius-sm);
+	background: var(--at8-mluc-accent);
+	color: #fff;
+	text-decoration: none;
+	font-size: 0.9em;
+	font-weight: 600;
+	line-height: 1;
+	letter-spacing: 0.02em;
+	box-shadow: 0 2px 8px var(--at8-mluc-accent-soft);
+	transition: transform 0.15s ease, box-shadow 0.15s ease, filter 0.15s ease;
+}
+
+.at8-mluc-hidecontent .at8-mluc-hc-btn::after {
+	content: "\2192";
+	font-weight: 400;
+	margin-left: 2px;
+	transition: transform 0.15s ease;
+}
+
+.at8-mluc-hidecontent .at8-mluc-hc-btn:hover,
+.at8-mluc-hidecontent .at8-mluc-hc-btn:focus {
+	color: #fff;
+	filter: brightness(1.06);
+	transform: translateY(-1px);
+	box-shadow: 0 6px 16px var(--at8-mluc-accent-soft);
+	outline: none;
+}
+
+.at8-mluc-hidecontent .at8-mluc-hc-btn:hover::after,
+.at8-mluc-hidecontent .at8-mluc-hc-btn:focus::after {
+	transform: translateX(2px);
+}
+
+/* Gate tones: reply is neutral, login carries the WordPress blue, membership is
+   gold so upgrading reads as desirable, and purchase is violet. */
+.at8-mluc-hc-reply {
+	--at8-mluc-accent: #4a5568;
+	--at8-mluc-accent-soft: rgba(74, 85, 104, 0.12);
+}
+
+.at8-mluc-hc-logged {
+	--at8-mluc-accent: #2271b1;
+	--at8-mluc-accent-soft: rgba(34, 113, 177, 0.12);
+}
+
+.at8-mluc-hc-vip1 {
+	--at8-mluc-accent: #b88700;
+	--at8-mluc-accent-soft: rgba(184, 135, 0, 0.14);
+}
+
+.at8-mluc-hc-payshow {
+	--at8-mluc-accent: #5b3ed6;
+	--at8-mluc-accent-soft: rgba(91, 62, 214, 0.13);
+}
+
+/* ------------------------------------------------------------ Social login */
+
+.at8-mluc-oauth {
+	margin: 1.25em 0 0.4em;
+}
+
+.at8-mluc-oauth-divider {
+	display: flex;
+	align-items: center;
+	text-align: center;
+	color: rgba(127, 127, 127, 1);
+	font-size: 0.85em;
+	margin: 0.5em 0 1em;
+}
+
+.at8-mluc-oauth-divider::before,
+.at8-mluc-oauth-divider::after {
+	content: "";
+	flex: 1;
+	height: 1px;
+	background: var(--at8-mluc-border);
+}
+
+.at8-mluc-oauth-divider span {
+	padding: 0 0.85em;
+}
+
+.at8-mluc-oauth-buttons {
+	display: flex;
+	flex-wrap: wrap;
+	gap: 10px;
+}
+
+.at8-mluc-oauth-btn {
+	flex: 1 1 140px;
+	min-width: 140px;
+	display: inline-flex;
+	align-items: center;
+	justify-content: center;
+	gap: 8px;
+	text-align: center;
+	padding: 0.75em 1em;
+	border-radius: var(--at8-mluc-radius-sm);
+	color: #fff;
+	font-size: 0.88em;
+	font-weight: 600;
+	text-decoration: none;
+	transition: transform 0.15s ease, filter 0.15s ease;
+}
+
+.at8-mluc-oauth-btn svg {
+	display: block;
+	width: 18px;
+	height: 18px;
+	flex: 0 0 auto;
+}
+
+.at8-mluc-oauth-btn:hover,
+.at8-mluc-oauth-btn:focus {
+	color: #fff;
+	filter: brightness(1.08);
+	transform: translateY(-1px);
+}
+
+/* -------------------------------------------------------------- Responsive */
 
 @media (max-width: 640px) {
 	.at8-mluc-account {
@@ -369,505 +935,296 @@
 		width: 100%;
 	}
 
+	.at8-mluc-account-nav ul {
+		flex-direction: row;
+		overflow-x: auto;
+		gap: 4px;
+	}
+
 	.at8-mluc-account-nav a {
-		padding-left: 0;
+		white-space: nowrap;
+		padding-left: 0.85em;
+	}
+
+	.at8-mluc-auth,
+	.at8-mluc-card,
+	.at8-mluc-membership-current {
+		padding: 1.25em;
 	}
 }
 
-/* 第三方登录按钮 */
-/* 第三方登录按钮 */
-.at8-mluc-oauth {
-    margin: 18px 0 6px;
-}
-
-.at8-mluc-oauth-divider {
-    display: flex;
-    align-items: center;
-    text-align: center;
-    color: #999;
-    font-size: 13px;
-    margin: 8px 0 14px;
-}
-
-.at8-mluc-oauth-divider::before,
-.at8-mluc-oauth-divider::after {
-    content: '';
-    flex: 1;
-    height: 1px;
-    background: #e4e4e4;
-}
-
-.at8-mluc-oauth-divider span {
-    padding: 0 12px;
-}
-
-.at8-mluc-oauth-buttons {
-    display: flex;
-    flex-wrap: wrap;
-    gap: 10px;
-}
-
-.at8-mluc-oauth-btn {
-    flex: 1 1 140px;
-    min-width: 140px;
-    display: inline-flex;
-    align-items: center;
-    justify-content: center;
-    gap: 8px;
-    text-align: center;
-    padding: 11px 14px;
-    border-radius: 8px;
-    color: #fff;
-    font-size: 14px;
-    font-weight: 600;
-    text-decoration: none;
-    transition: opacity 0.2s ease;
-}
-
-.at8-mluc-oauth-btn svg {
-    display: block;
-    width: 18px;
-    height: 18px;
-    flex: 0 0 auto;
-}
-
-.at8-mluc-oauth-btn:hover {
-    opacity: 0.88;
-    color: #fff;
-}
-/* ===== [hidecontent] 锁定卡（基础 2 型，Pro 扩展 vip/payshow） ===== */
-.at8-mluc-hidecontent {
-    --at8-mluc-hc-accent: #2271b1;
-    --at8-mluc-hc-tint:   #eaf2fb;
-    --at8-mluc-hc-border: #d6e2ef;
-    --at8-mluc-hc-text:   #1d2327;
-    --at8-mluc-hc-tip:    #50575e;
-    margin: 1.75em 0;
-    padding: 22px 26px;
-    border: 1px solid var(--at8-mluc-hc-border);
-    border-left: 4px solid var(--at8-mluc-hc-accent);
-    border-radius: 12px;
-    background: #fff;
-    box-shadow: 0 1px 2px rgba(20, 30, 50, 0.04), 0 10px 28px -14px rgba(20, 30, 50, 0.18);
-    color: var(--at8-mluc-hc-text);
-    box-sizing: border-box;
-    font-family: inherit;
-}
-
-.at8-mluc-hidecontent .at8-mluc-hc-inner {
-    display: flex;
-    align-items: center;
-    gap: 20px;
-    flex-wrap: wrap;
-}
-
-.at8-mluc-hidecontent .at8-mluc-hc-icon {
-    flex: 0 0 auto;
-    width: 52px;
-    height: 52px;
-    border-radius: 14px;
-    background: var(--at8-mluc-hc-tint);
-    color: var(--at8-mluc-hc-accent);
-    font-size: 26px;
-    line-height: 52px;
-    text-align: center;
-    display: inline-block;
-    font-style: normal;
-}
-
-.at8-mluc-hidecontent .at8-mluc-hc-text {
-    flex: 1 1 240px;
-    min-width: 0;
-}
-
-.at8-mluc-hidecontent .at8-mluc-hc-title {
-    font-weight: 600;
-    font-size: 16px;
-    color: var(--at8-mluc-hc-text);
-    margin: 0 0 6px;
-    line-height: 1.4;
-}
-
-.at8-mluc-hidecontent .at8-mluc-hc-tip {
-    font-size: 14px;
-    color: var(--at8-mluc-hc-tip);
-    margin: 0;
-    line-height: 1.65;
-}
-
-.at8-mluc-hidecontent .at8-mluc-hc-action {
-    flex: 0 0 auto;
-    margin-left: auto;
-}
-
-.at8-mluc-hidecontent .at8-mluc-hc-btn {
-    display: inline-flex;
-    align-items: center;
-    justify-content: center;
-    gap: 6px;
-    padding: 0 22px;
-    height: 40px;
-    border-radius: 10px;
-    background: var(--at8-mluc-hc-accent);
-    color: #fff;
-    text-decoration: none;
-    font-size: 14px;
-    font-weight: 600;
-    line-height: 1;
-    letter-spacing: 0.02em;
-    box-shadow: 0 2px 6px rgba(0, 0, 0, 0.08);
-    transition: transform 0.15s ease, box-shadow 0.15s ease, filter 0.15s ease;
-}
-
-.at8-mluc-hidecontent .at8-mluc-hc-btn::after {
-    content: "\2192";
-    font-weight: 400;
-    margin-left: 2px;
-    transition: transform 0.15s ease;
-}
-
-.at8-mluc-hidecontent .at8-mluc-hc-btn:hover,
-.at8-mluc-hidecontent .at8-mluc-hc-btn:focus {
-    color: #fff;
-    filter: brightness(1.06);
-    transform: translateY(-1px);
-    box-shadow: 0 6px 16px rgba(0, 0, 0, 0.14);
-    outline: none;
-}
-
-.at8-mluc-hidecontent .at8-mluc-hc-btn:hover::after,
-.at8-mluc-hidecontent .at8-mluc-hc-btn:focus::after {
-    transform: translateX(2px);
-}
-
-/* 评论后可查看 — 蓝灰（社交语气） */
-.at8-mluc-hc-reply {
-    --at8-mluc-hc-accent: #4a5568;
-    --at8-mluc-hc-tint:   #eef1f5;
-    --at8-mluc-hc-border: #dde2e8;
-}
-
-/* 登录后可查看 — WP 蓝（系统提示语气） */
-.at8-mluc-hc-logged {
-    --at8-mluc-hc-accent: #2271b1;
-    --at8-mluc-hc-tint:   #e7f0f9;
-    --at8-mluc-hc-border: #cfdcec;
-}
-
-/* 会员可查看 — 金色（升级引导语气） */
-.at8-mluc-hc-vip1 {
-    --at8-mluc-hc-accent: #b88700;
-    --at8-mluc-hc-tint:   #fbf2d9;
-    --at8-mluc-hc-border: #ecdda4;
-}
-
-/* 付费后可查看 — 紫蓝（购买语气） */
-.at8-mluc-hc-payshow {
-    --at8-mluc-hc-accent: #5b3ed6;
-    --at8-mluc-hc-tint:   #ece4fb;
-    --at8-mluc-hc-border: #d5c8f3;
-}
-
-/* 移动端：CTA 单独一行 */
 @media (max-width: 540px) {
-    .at8-mluc-hidecontent {
-        padding: 18px;
-    }
-    .at8-mluc-hidecontent .at8-mluc-hc-inner {
-        gap: 14px;
-    }
-    .at8-mluc-hidecontent .at8-mluc-hc-action {
-        margin-left: 0;
-        flex-basis: 100%;
-    }
-    .at8-mluc-hidecontent .at8-mluc-hc-btn {
-        width: 100%;
-    }
+	.at8-mluc-buy-grid {
+		grid-template-columns: 1fr;
+	}
+
+	.at8-mluc-hidecontent {
+		padding: 1.25em;
+	}
+
+	.at8-mluc-hidecontent .at8-mluc-hc-inner {
+		gap: 14px;
+	}
+
+	.at8-mluc-hidecontent .at8-mluc-hc-action {
+		margin-left: 0;
+		flex-basis: 100%;
+	}
+
+	.at8-mluc-hidecontent .at8-mluc-hc-btn {
+		width: 100%;
+	}
 }
 
-/* ===== 会员等级 Tab ===== */
-.at8-mluc-membership {
-    display: flex;
-    flex-direction: column;
-    gap: 24px;
+@media (prefers-reduced-motion: reduce) {
+	.at8-mluc-button,
+	.at8-mluc-btn-buy,
+	.at8-mluc-buy-card,
+	.at8-mluc-avatar-option,
+	.at8-mluc-oauth-btn,
+	.at8-mluc-hidecontent .at8-mluc-hc-btn {
+		transition: none;
+		transform: none;
+	}
 }
 
-.at8-mluc-membership-current {
-    background: #f6f8fb;
-    border: 1px solid #e4e9f0;
-    border-radius: 10px;
-    padding: 20px 24px;
+/* -------------------------------------------- Configurable extra fields */
+
+.at8-mluc-fields {
+	margin: 0 0 0.5em;
+	padding: 0;
+	border: 0;
 }
 
-.at8-mluc-membership-current h3,
-.at8-mluc-membership-table h3 {
-    font-size: 16px;
-    font-weight: 600;
-    margin: 0 0 12px;
-    color: #2d2d2d;
+.at8-mluc-fields .at8-mluc-field:last-child {
+	margin-bottom: 0;
 }
 
-.at8-mluc-membership-level {
-    margin: 8px 0 12px;
-    font-size: 18px;
+.at8-mluc-req {
+	color: #c0392b;
+	margin-left: 0.15em;
 }
 
-.at8-mluc-membership-tip {
-    margin: 0;
-    color: #6b7280;
-    font-size: 14px;
+.at8-mluc-choice {
+	display: inline-flex;
+	align-items: center;
+	gap: 0.4em;
+	margin: 0 1em 0.35em 0;
 }
 
-.at8-mluc-level-badge {
-    display: inline-block;
-    padding: 4px 12px;
-    border-radius: 12px;
-    font-size: 13px;
-    font-weight: 600;
-    line-height: 1.5;
-    letter-spacing: 0.5px;
-    background: #e5e7eb;
-    color: #374151;
+.at8-mluc-choice input {
+	margin: 0;
+	width: auto;
 }
 
-.at8-mluc-level-free {
-    background: #e5e7eb;
-    color: #374151;
+.at8-mluc-choice label {
+	font-weight: 400;
 }
 
-.at8-mluc-level-monthly {
-    background: #dbeafe;
-    color: #1d4ed8;
+.at8-mluc-field--tos {
+	flex-direction: row;
+	align-items: flex-start;
+	gap: 0.55em;
 }
 
-.at8-mluc-level-premium {
-    background: linear-gradient(135deg, #fbbf24 0%, #f59e0b 100%);
-    color: #78350f;
+.at8-mluc-field--tos input {
+	margin: 0.2em 0 0;
+	width: auto;
 }
 
-.at8-mluc-membership-summary {
-    margin: 14px 0;
-    padding: 12px 16px;
-    background: #f9fafb;
-    border-radius: 8px;
-    font-size: 14px;
-    display: flex;
-    align-items: center;
-    gap: 10px;
-    flex-wrap: wrap;
+.at8-mluc-field--tos label {
+	font-weight: 400;
 }
 
-.at8-mluc-membership-expire {
-    color: #6b7280;
-    font-size: 13px;
+/* Password strength meter (0-4) */
+
+.at8-mluc-strength {
+	display: flex;
+	align-items: center;
+	gap: 0.5em;
+	margin-top: 0.35em;
+	font-size: 0.85em;
 }
 
-.at8-mluc-membership-table table {
-    width: 100%;
-    border-collapse: collapse;
-    margin-top: 10px;
+.at8-mluc-strength-track {
+	flex: 0 0 7em;
+	height: 5px;
+	border-radius: 3px;
+	background: rgba(127, 127, 127, 0.25);
+	overflow: hidden;
 }
 
-.at8-mluc-membership-table th,
-.at8-mluc-membership-table td {
-    text-align: left;
-    padding: 10px 12px;
-    border-bottom: 1px solid #e4e9f0;
-    font-size: 14px;
+.at8-mluc-strength-fill {
+	display: block;
+	height: 100%;
+	width: 0;
+	border-radius: 3px;
+	background: #c0392b;
+	transition: width 0.18s ease, background-color 0.18s ease;
 }
 
-.at8-mluc-membership-table tr.is-current {
-    background: #f0f7ff;
+.at8-mluc-strength[data-score="1"] .at8-mluc-strength-fill {
+	width: 25%;
+	background: #c0392b;
 }
 
-.at8-mluc-level-current {
-    color: #1d4ed8;
-    font-weight: 600;
-    font-size: 13px;
+.at8-mluc-strength[data-score="2"] .at8-mluc-strength-fill {
+	width: 50%;
+	background: #a35b00;
 }
 
-.at8-mluc-level-included {
-    color: #059669;
-    font-size: 13px;
+.at8-mluc-strength[data-score="3"] .at8-mluc-strength-fill {
+	width: 75%;
+	background: #0a8754;
 }
 
-.at8-mluc-level-locked {
-    color: #9ca3af;
-    font-size: 13px;
+.at8-mluc-strength[data-score="4"] .at8-mluc-strength-fill {
+	width: 100%;
+	background: #067a48;
 }
 
-/* ===== 通用表格 ===== */
-.at8-mluc-table {
-    width: 100%;
-    border-collapse: collapse;
+.at8-mluc-strength-label {
+	color: rgba(127, 127, 127, 1);
 }
 
-.at8-mluc-table th,
-.at8-mluc-table td {
-    text-align: left;
-    padding: 10px 12px;
-    border-bottom: 1px solid #e4e9f0;
-    font-size: 14px;
+/* --------------------------------------------- Overview stat extensions */
+
+.at8-mluc-overview-stats--wide {
+	display: grid;
+	grid-template-columns: repeat(auto-fit, minmax(11em, 1fr));
+	gap: 1px;
+	margin: 0 0 1.2em;
+	padding: 1px 0 0;
+	border-top: 1px solid rgba(127, 127, 127, 0.25);
 }
 
-.at8-mluc-table th {
-    background: #f9fafb;
-
-/* ===== 会员购买卡片 ===== */
-.at8-mluc-buy-grid {
-    display: grid;
-    grid-template-columns: repeat(auto-fill, minmax(210px, 1fr));
-    gap: 16px;
+.at8-mluc-overview-stats--wide li {
+	display: flex;
+	flex-direction: column;
+	gap: 0.2em;
+	padding: 0.9em 1em;
 }
 
-.at8-mluc-buy-card {
-    display: flex;
-    flex-direction: column;
-    gap: 8px;
-    background: #fff;
-    border: 1px solid #e4e9f0;
-    border-top: 3px solid #2f6fed;
-    border-radius: 10px;
-    padding: 16px 18px;
+.at8-mluc-overview-stats--wide li + li {
+	border-left: 1px solid rgba(127, 127, 127, 0.18);
 }
 
-.at8-mluc-buy-name {
-    font-size: 17px;
-    font-weight: 700;
+.at8-mluc-stat-note {
+	font-size: 0.8em;
+	color: rgba(127, 127, 127, 1);
 }
 
-.at8-mluc-buy-price {
-    font-size: 22px;
-    font-weight: 800;
-    line-height: 1.2;
+@media screen and (max-width: 480px) {
+	.at8-mluc-overview-stats--wide li + li {
+		border-left: 0;
+		border-top: 1px solid rgba(127, 127, 127, 0.18);
+	}
 }
 
-.at8-mluc-buy-validity {
-    color: #667085;
-    font-size: 13px;
+/* ------------------------------------------------- Upgrade path cards */
+
+.at8-mluc-upgrade-paths {
+	margin-top: 1.4em;
 }
 
-.at8-mluc-buy-actions {
-    display: flex;
-    flex-direction: column;
-    gap: 4px;
+.at8-mluc-redeem-balance {
+	margin: 0 0 0.9em;
 }
 
-.at8-mluc-buy-gateway {
-    display: flex;
-    align-items: center;
-    gap: 6px;
-    font-size: 13px;
+.at8-mluc-redeem-list {
+	list-style: none;
+	margin: 0;
+	padding: 0;
+	display: flex;
+	flex-direction: column;
+	gap: 0.6em;
 }
 
-.at8-mluc-btn-buy {
-    align-self: flex-start;
-    display: inline-flex;
-    align-items: center;
-    justify-content: center;
-    border: 0;
-    border-radius: 8px;
-    background: #2f6fed;
-    color: #fff;
-    padding: 9px 20px;
-    cursor: pointer;
-    font-size: 14px;
-    font-weight: 600;
-    line-height: 1;
-    transition: background 0.15s ease, opacity 0.15s ease;
+.at8-mluc-redeem-item {
+	display: flex;
+	flex-wrap: wrap;
+	align-items: center;
+	gap: 0.75em;
+	padding: 0.85em 1em;
+	border: 1px solid rgba(127, 127, 127, 0.25);
+	border-radius: 10px;
 }
 
-.at8-mluc-btn-buy:hover {
-    background: #245fd2;
+.at8-mluc-redeem-level {
+	display: flex;
+	flex-direction: column;
+	gap: 0.25em;
+	flex: 1 1 12em;
 }
 
-.at8-mluc-btn-buy[disabled] {
-    opacity: 0.6;
-    cursor: wait;
+.at8-mluc-redeem-note {
+	font-size: 0.8em;
+	color: rgba(127, 127, 127, 1);
 }
 
-.at8-mluc-buy-msg {
-    min-height: 1.4em;
-    margin: 12px 0 0;
-    color: #22763d;
+.at8-mluc-redeem-cost {
+	font-variant-numeric: tabular-nums;
+	font-weight: 600;
 }
 
-.at8-mluc-buy-instructions {
-    background: #f7f8fc;
-    border: 1px solid #e4e9f0;
-    border-radius: 8px;
-    padding: 12px 16px;
-    margin: 12px 0 0;
-    font-size: 14px;
+.at8-mluc-redeem-short {
+	font-size: 0.85em;
+	color: rgba(127, 127, 127, 1);
 }
 
-.at8-mluc-buy-instructions p {
-    margin: 6px 0 0;
-    white-space: pre-line;
+.at8-mluc-redeem-notice {
+	margin: 0.9em 0 0;
 }
 
-.at8-mluc-order-list {
-    margin-top: 18px;
+/* ---------------------------------------------------------- Paywall card */
+
+.at8-mluc-paywall-teaser {
+	color: rgba(127, 127, 127, 1);
 }
 
-.at8-mluc-order-list .at8-mluc-table {
-    margin-top: 8px;
+.at8-mluc-paywall {
+	margin: 1.5em 0;
+	padding: 1.6em 1.4em;
+	border: 1px solid rgba(127, 127, 127, 0.25);
+	border-radius: 12px;
+	background: rgba(127, 127, 127, 0.06);
+	text-align: center;
 }
 
-.at8-mluc-pill {
-    display: inline-block;
-    padding: 2px 10px;
-    border-radius: 999px;
-    font-size: 12px;
-    line-height: 1.6;
+.at8-mluc-paywall-icon {
+	display: block;
+	font-size: 2em;
+	width: auto;
+	height: auto;
+	color: var(--at8-mluc-accent, #4f46e5);
 }
 
-.at8-mluc-pill-pending {
-    background: #fff4dd;
-    color: #9a6b00;
+.at8-mluc-paywall-title {
+	margin: 0.4em 0 0.2em;
+	font-size: 1.1em;
 }
 
-.at8-mluc-pill-paid {
-    background: #e3f6e9;
-    color: #22763d;
+.at8-mluc-paywall-price {
+	margin: 0 0 0.3em;
+	font-size: 1.35em;
+	font-weight: 700;
 }
 
-.at8-mluc-pill-cancelled {
-    background: #fdeaea;
-    color: #a63636;
+.at8-mluc-paywall-levels {
+	margin: 0 0 1em;
+	font-size: 0.9em;
+	color: rgba(127, 127, 127, 1);
 }
 
-@media (max-width: 540px) {
-    .at8-mluc-buy-grid {
-        grid-template-columns: 1fr;
-    }
+.at8-mluc-paywall-gateways {
+	display: flex;
+	flex-wrap: wrap;
+	gap: 0.6em;
+	justify-content: center;
+	margin: 0;
 }
 
-
-
-
-/* 在线支付：PayPal 按钮挂载区 + 支付结果提示 */
-.at8-mluc-pp-mount {
-    margin-top: 14px;
-    max-width: 340px;
+.at8-mluc-paywall-notice {
+	margin: 1em 0 0;
+	text-align: left;
 }
-
-.at8-mluc-buy-notice {
-    margin: 0 0 14px;
-    padding: 10px 14px;
-    border-radius: 8px;
-    background: #f2f5fa;
-    color: #45505e;
-    font-size: 14px;
-}
-
-.at8-mluc-buy-notice-ok {
-    background: #e3f6e9;
-    color: #22763d;
-}
-
-.at8-mluc-buy-notice-err {
-    background: #fdeaea;
-    color: #a63636;
-}
-

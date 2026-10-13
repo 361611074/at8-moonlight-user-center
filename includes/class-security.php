@@ -53,6 +53,10 @@ class AT8_MLUC_Security {
 			'limit'  => 10,
 			'window' => 600,
 		),
+		'redeem'        => array(
+			'limit'  => 10,
+			'window' => 600,
+		),
 		'avatar'        => array(
 			'limit'  => 30,
 			'window' => 600,

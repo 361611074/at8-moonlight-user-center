@@ -21,15 +21,13 @@ $at8_mluc_levels  = isset( $args['levels'] ) && is_array( $args['levels'] ) ? $a
 	<section class="at8-mluc-card" aria-label="<?php esc_attr_e( 'Current Membership', 'at8-moonlight-user-center' ); ?>">
 		<h3 class="at8-mluc-card-title"><?php esc_html_e( 'Current Membership', 'at8-moonlight-user-center' ); ?></h3>
 		<p class="at8-mluc-membership-level">
-			<span class="at8-mluc-level-badge at8-mluc-level-<?php echo esc_attr( $at8_mluc_level ); ?>">
-				<?php
-				echo esc_html(
-					'' !== $at8_mluc_level
-						? AT8_MLUC_Membership::get_level_label( $at8_mluc_level )
-						: at8_mluc_ui_label( 'no_member', __( 'Non-member', 'at8-moonlight-user-center' ) )
-				);
-				?>
-			</span>
+			<?php
+			if ( '' !== $at8_mluc_level ) {
+				echo wp_kses_post( AT8_MLUC_Membership::get_level_badge( $at8_mluc_level ) );
+			} else {
+				echo '<span class="at8-mluc-level-badge">' . esc_html( at8_mluc_ui_label( 'no_member', __( 'Non-member', 'at8-moonlight-user-center' ) ) ) . '</span>';
+			}
+			?>
 		</p>
 		<?php if ( '' === $at8_mluc_level || 'free' === $at8_mluc_level ) : ?>
 			<p class="at8-mluc-membership-tip">
@@ -82,11 +80,9 @@ $at8_mluc_levels  = isset( $args['levels'] ) && is_array( $args['levels'] ) ? $a
 							: __( 'Browse basic content.', 'at8-moonlight-user-center' );
 						?>
 						<tr class="<?php echo $at8_mluc_key === $at8_mluc_level ? 'is-current' : ''; ?>">
-							<td>
-								<span class="at8-mluc-level-badge at8-mluc-level-<?php echo esc_attr( $at8_mluc_key ); ?>">
-									<?php echo esc_html( AT8_MLUC_Membership::get_level_label( $at8_mluc_key ) ); ?>
-								</span>
-							</td>
+						<td>
+							<?php echo wp_kses_post( AT8_MLUC_Membership::get_level_badge( $at8_mluc_key ) ); ?>
+						</td>
 							<td><?php echo esc_html( $at8_mluc_description ); ?></td>
 							<td>
 								<?php if ( $at8_mluc_key === $at8_mluc_level ) : ?>

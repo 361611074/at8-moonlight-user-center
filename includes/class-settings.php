@@ -66,7 +66,15 @@ class AT8_MLUC_Settings {
 	 * Register hooks.
 	 */
 	private function __construct() {
-		add_action( 'admin_menu', array( $this, 'add_menu' ) );
+		/*
+		 * Priority 5 (before the default 10): add_menu_page() populates
+		 * $admin_page_hooks, and every add_submenu_page() call that targets
+		 * this menu has to run afterwards, otherwise WordPress derives a
+		 * different page hook at registration time than it does when the
+		 * page is opened and rejects the request with a 403. Pro and the
+		 * license SDK register their submenus on the default priority.
+		 */
+		add_action( 'admin_menu', array( $this, 'add_menu' ), 5 );
 		add_action( 'admin_init', array( $this, 'register_settings' ) );
 		add_action( 'admin_enqueue_scripts', array( $this, 'enqueue_assets' ) );
 		add_action( 'admin_notices', array( $this, 'render_admin_notice' ) );
@@ -105,6 +113,20 @@ class AT8_MLUC_Settings {
 			AT8_MLUC_Security::manage_capability(),
 			'edit.php?post_type=' . AT8_MLUC_Avatar::POST_TYPE
 		);
+
+		/**
+		 * Fires right after the User Center menu has been built.
+		 *
+		 * Extensions should add their own entries here rather than on
+		 * `admin_menu`: this action runs after add_menu_page() has populated
+		 * the core menu hooks, so add_submenu_page() derives the same page
+		 * hook here as WordPress does when the page is opened. Registering
+		 * on the default `admin_menu` priority can produce a mismatched
+		 * hook and an unexplained 403 instead.
+		 *
+		 * @since 2.2.1
+		 */
+		do_action( 'at8_mluc_admin_menu' );
 	}
 
 	/**
@@ -142,6 +164,12 @@ class AT8_MLUC_Settings {
 				'navTitle'   => __( 'Sections', 'at8-moonlight-user-center' ),
 				'frameTitle' => __( 'Select or upload an icon', 'at8-moonlight-user-center' ),
 				'useIcon'    => __( 'Use this icon', 'at8-moonlight-user-center' ),
+				'saving'     => __( 'Saving…', 'at8-moonlight-user-center' ),
+				'saved'      => __( 'Fields saved.', 'at8-moonlight-user-center' ),
+				'ajax'       => array(
+					'url'   => admin_url( 'admin-ajax.php' ),
+					'nonce' => wp_create_nonce( 'at8_mluc_nonce' ),
+				),
 			)
 		);
 	}
@@ -199,6 +227,10 @@ class AT8_MLUC_Settings {
 		$this->add_field( 'enable_registration', __( 'Front-end registration', 'at8-moonlight-user-center' ), 'general', 'checkbox' );
 		$this->add_field( 'auto_login', __( 'Log in after registration', 'at8-moonlight-user-center' ), 'general', 'checkbox' );
 		$this->add_field( 'enable_avatar', __( 'Avatar library', 'at8-moonlight-user-center' ), 'general', 'checkbox' );
+		$this->add_field( 'accent_color', __( 'Accent colour', 'at8-moonlight-user-center' ), 'general', 'color' );
+		$this->add_field( 'terms_enabled', __( 'Require terms acceptance on registration', 'at8-moonlight-user-center' ), 'general', 'checkbox' );
+		$this->add_field( 'terms_page_id', __( 'Terms page', 'at8-moonlight-user-center' ), 'general', 'page_select' );
+		$this->add_field( 'terms_text', __( 'Terms checkbox text', 'at8-moonlight-user-center' ), 'general', 'text' );
 
 		add_settings_section(
 			'at8_mluc_membership',
@@ -227,6 +259,17 @@ class AT8_MLUC_Settings {
 		$this->add_field( 'pay_currency_code', __( 'Currency code (ISO, for online gateways)', 'at8-moonlight-user-center' ), 'payment', 'text' );
 		$this->add_field( 'pay_manual_instructions', __( 'Transfer instructions', 'at8-moonlight-user-center' ), 'payment', 'textarea' );
 		$this->add_field( 'order_auto_close_hours', __( 'Auto-close unpaid orders after (hours)', 'at8-moonlight-user-center' ), 'payment', 'number' );
+
+		add_settings_section(
+			'at8_mluc_points',
+			__( 'Points', 'at8-moonlight-user-center' ),
+			'__return_false',
+			self::PAGE
+		);
+
+		$this->add_field( 'points_label', __( 'Unit name', 'at8-moonlight-user-center' ), 'points', 'text' );
+		$this->add_field( 'points_per_currency', __( 'Points earned per currency unit spent', 'at8-moonlight-user-center' ), 'points', 'number' );
+		$this->add_field( 'points_signup_bonus', __( 'Bonus for a new account', 'at8-moonlight-user-center' ), 'points', 'number' );
 
 		add_settings_section(
 			'at8_mluc_nav_icons',
@@ -330,6 +373,7 @@ class AT8_MLUC_Settings {
 	 */
 	public function section_general() {
 		echo '<p>' . esc_html__( 'Choose which pages hold the plugin shortcodes. Leave a page unset to fall back to the WordPress login screens.', 'at8-moonlight-user-center' ) . '</p>';
+		echo '<p class="description">' . esc_html__( 'The accent colour tints buttons, active states and membership cards. Leave it empty to inherit a neutral indigo.', 'at8-moonlight-user-center' ) . '</p>';
 	}
 
 	/**
@@ -339,6 +383,7 @@ class AT8_MLUC_Settings {
 	 */
 	public function section_membership() {
 		$limit = AT8_MLUC_Membership::level_limit();
+		$used  = count( AT8_MLUC_Membership::get_levels() );
 
 		printf(
 			'<p>%s</p>',
@@ -350,6 +395,17 @@ class AT8_MLUC_Settings {
 				)
 			)
 		);
+
+		// Only mention Pro once the admin has actually run into the ceiling.
+		if ( $used >= $limit ) {
+			$message = sprintf(
+				/* translators: %d: maximum number of membership levels. */
+				__( 'You are using all %d levels this installation allows.', 'at8-moonlight-user-center' ),
+				$limit
+			);
+
+			echo wp_kses_post( AT8_MLUC_Upgrade::ceiling_notice( $message ) );
+		}
 	}
 
 	/**
@@ -358,7 +414,9 @@ class AT8_MLUC_Settings {
 	 * @return void
 	 */
 	public function section_payment() {
-		echo '<p>' . esc_html__( 'Members bought through bank transfer: the member transfers, then you confirm the payment on the order screen and the level is granted automatically. Online gateways (PayPal, Stripe) are added by the Pro add-on.', 'at8-moonlight-user-center' ) . '</p>';
+		echo '<p>' . esc_html__( 'Members bought through bank transfer: the member transfers, then you confirm the payment on the order screen and the level is granted automatically.', 'at8-moonlight-user-center' ) . '</p>';
+
+		AT8_MLUC_Upgrade::render_gateway_panel();
 	}
 
 	/**
@@ -435,6 +493,17 @@ class AT8_MLUC_Settings {
 				);
 				break;
 
+			case 'color':
+				printf(
+					'<input type="color" id="%1$s" name="%2$s" value="%3$s" />',
+					esc_attr( $id ),
+					esc_attr( $name ),
+					esc_attr( (string) $value )
+				);
+
+				echo '<button type="button" class="button button-small at8-mluc-color-reset" data-target="' . esc_attr( $id ) . '">' . esc_html__( 'Reset', 'at8-moonlight-user-center' ) . '</button>';
+				break;
+
 			case 'url':
 				printf(
 					'<input type="url" class="regular-text" id="%1$s" name="%2$s" value="%3$s" placeholder="%4$s" />',
@@ -505,13 +574,13 @@ class AT8_MLUC_Settings {
 		$limit   = AT8_MLUC_Membership::level_limit();
 		$used    = count( $levels );
 
-		$default_colors = array(
-			'free'    => '#95a5a6',
-			'monthly' => '#3498db',
-			'gold'    => '#f1c40f',
-			'premium' => '#9b59b6',
-			'diamond' => '#1abc9c',
-		);
+		// Derived from the membership registry so the editor and the front-end
+		// badges always agree on a level's fallback colour.
+		$default_colors = array();
+
+		foreach ( AT8_MLUC_Membership::factory_levels() as $key => $level ) {
+			$default_colors[ $key ] = isset( $level['color'] ) ? $level['color'] : '#2f6fed';
+		}
 		?>
 		<p>
 			<label>
@@ -539,6 +608,7 @@ class AT8_MLUC_Settings {
 					<th><?php esc_html_e( 'Name', 'at8-moonlight-user-center' ); ?></th>
 					<th><?php esc_html_e( 'Price', 'at8-moonlight-user-center' ); ?></th>
 					<th><?php esc_html_e( 'Validity (days)', 'at8-moonlight-user-center' ); ?></th>
+					<th><?php esc_html_e( 'Points cost', 'at8-moonlight-user-center' ); ?></th>
 					<th><?php esc_html_e( 'Colour', 'at8-moonlight-user-center' ); ?></th>
 					<th><?php esc_html_e( 'Sort', 'at8-moonlight-user-center' ); ?></th>
 					<th><?php esc_html_e( 'Action', 'at8-moonlight-user-center' ); ?></th>
@@ -575,6 +645,13 @@ class AT8_MLUC_Settings {
 								<input type="number" min="0" class="small-text" name="<?php echo esc_attr( $prefix ); ?>[validity]" value="<?php echo esc_attr( $validity ); ?>">
 							<?php endif; ?>
 						</td>
+						<td>
+							<?php if ( $is_free ) : ?>
+								—
+							<?php else : ?>
+								<input type="number" min="0" class="small-text" name="<?php echo esc_attr( $prefix ); ?>[points]" value="<?php echo esc_attr( isset( $level['points'] ) ? (int) $level['points'] : 0 ); ?>">
+							<?php endif; ?>
+						</td>
 						<td><input type="color" name="<?php echo esc_attr( $prefix ); ?>[color]" value="<?php echo esc_attr( $color ); ?>"></td>
 						<td><input type="number" min="0" class="small-text" name="<?php echo esc_attr( $prefix ); ?>[sort_order]" value="<?php echo esc_attr( $sort ); ?>"></td>
 						<td>
@@ -594,6 +671,7 @@ class AT8_MLUC_Settings {
 				<td><input type="text" class="regular-text" data-name="<?php echo esc_attr( self::OPTION ); ?>[membership_levels][__NEWKEY__][label]" placeholder="<?php esc_attr_e( 'Name', 'at8-moonlight-user-center' ); ?>"></td>
 				<td><input type="number" step="0.01" min="0" class="small-text" data-name="<?php echo esc_attr( self::OPTION ); ?>[membership_levels][__NEWKEY__][price]" value="0"></td>
 				<td><input type="number" min="0" class="small-text" data-name="<?php echo esc_attr( self::OPTION ); ?>[membership_levels][__NEWKEY__][validity]" value="30"></td>
+				<td><input type="number" min="0" class="small-text" data-name="<?php echo esc_attr( self::OPTION ); ?>[membership_levels][__NEWKEY__][points]" value="0"></td>
 				<td><input type="color" data-name="<?php echo esc_attr( self::OPTION ); ?>[membership_levels][__NEWKEY__][color]" value="#2f6fed"></td>
 				<td><input type="number" min="0" class="small-text" data-name="<?php echo esc_attr( self::OPTION ); ?>[membership_levels][__NEWKEY__][sort_order]" value="50"></td>
 				<td><button type="button" class="at8-mluc-del-level"><?php esc_html_e( 'Delete', 'at8-moonlight-user-center' ); ?></button></td>
@@ -1064,39 +1142,43 @@ class AT8_MLUC_Settings {
 		}
 		?>
 		<div class="wrap at8-mluc-settings-wrap">
-			<h1><?php echo esc_html( get_admin_page_title() ); ?></h1>
+			<header class="at8-mluc-hero">
+				<span class="dashicons dashicons-buddicons-buddypress-logo at8-mluc-hero-logo" aria-hidden="true"></span>
 
-			<p>
-				<?php esc_html_e( 'Place these shortcodes in the pages you selected below:', 'at8-moonlight-user-center' ); ?>
-			</p>
-			<table class="widefat striped" style="max-width:640px;margin-bottom:1.5em;">
-				<tbody>
-					<tr>
-						<td><code>[at8_mluc_login]</code></td>
-						<td><?php esc_html_e( 'Login form', 'at8-moonlight-user-center' ); ?></td>
-					</tr>
-					<tr>
-						<td><code>[at8_mluc_register]</code></td>
-						<td><?php esc_html_e( 'Registration form', 'at8-moonlight-user-center' ); ?></td>
-					</tr>
-					<tr>
-						<td><code>[at8_mluc_lostpassword]</code></td>
-						<td><?php esc_html_e( 'Password recovery form', 'at8-moonlight-user-center' ); ?></td>
-					</tr>
-					<tr>
-						<td><code>[at8_mluc_account]</code></td>
-						<td><?php esc_html_e( 'Account dashboard', 'at8-moonlight-user-center' ); ?></td>
-					</tr>
-					<tr>
-						<td><code>[at8_mluc_hide type="logged|reply"]</code></td>
-						<td><?php esc_html_e( 'Hidden content', 'at8-moonlight-user-center' ); ?></td>
-					</tr>
-					<tr>
-						<td><code>[at8_mluc_oauth_buttons]</code></td>
-						<td><?php esc_html_e( 'Social login buttons', 'at8-moonlight-user-center' ); ?></td>
-					</tr>
-				</tbody>
-			</table>
+				<div class="at8-mluc-hero-text">
+					<h1><?php echo esc_html( get_admin_page_title() ); ?></h1>
+					<p class="at8-mluc-hero-tagline">
+						<?php esc_html_e( 'Front-end accounts, membership levels and payments for WordPress.', 'at8-moonlight-user-center' ); ?>
+					</p>
+				</div>
+
+				<div class="at8-mluc-hero-meta">
+					<span class="at8-mluc-chip"><?php echo esc_html( 'v' . AT8_MLUC_VERSION ); ?></span>
+					<?php if ( at8_mluc_is_pro() ) : ?>
+						<span class="at8-mluc-chip at8-mluc-chip-pro"><?php esc_html_e( 'Pro active', 'at8-moonlight-user-center' ); ?></span>
+					<?php else : ?>
+						<span class="at8-mluc-chip at8-mluc-chip-free"><?php esc_html_e( 'Free', 'at8-moonlight-user-center' ); ?></span>
+					<?php endif; ?>
+				</div>
+			</header>
+
+			<?php AT8_MLUC_Upgrade::render_banner(); ?>
+
+			<details class="at8-mluc-shortcode-ref">
+				<summary>
+					<span class="dashicons dashicons-editor-code" aria-hidden="true"></span>
+					<?php esc_html_e( 'Shortcode reference', 'at8-moonlight-user-center' ); ?>
+				</summary>
+
+				<div class="at8-mluc-shortcode-grid">
+					<?php foreach ( $this->shortcode_reference() as $row ) : ?>
+						<div class="at8-mluc-shortcode-item">
+							<code><?php echo esc_html( $row['code'] ); ?></code>
+							<span><?php echo esc_html( $row['label'] ); ?></span>
+						</div>
+					<?php endforeach; ?>
+				</div>
+			</details>
 
 			<form action="options.php" method="post">
 				<?php
@@ -1113,11 +1195,74 @@ class AT8_MLUC_Settings {
 				do_action( 'at8_mluc_settings_extra_fields' );
 
 				do_settings_sections( self::PAGE );
-				submit_button();
+
+				echo '<div class="at8-mluc-save-bar">';
+				submit_button( esc_html__( 'Save changes', 'at8-moonlight-user-center' ), 'primary', 'submit', false );
+				echo '<span class="at8-mluc-save-hint">' . esc_html__( 'Need a hand? Every setting below falls back to a sensible default.', 'at8-moonlight-user-center' ) . '</span>';
+				echo '</div>';
 				?>
 			</form>
+
+			<?php
+			/*
+			 * Field definitions live in their own option and save through their
+			 * own action, so the editor sits outside the settings form: nesting
+			 * forms is invalid HTML and would swallow the submit button.
+			 */
+			AT8_MLUC_Fields::render_editor();
+			?>
 		</div>
 		<?php
+	}
+
+	/**
+	 * Shortcode cheat sheet shown above the settings form.
+	 *
+	 * @return array<int, array<string, string>>
+	 */
+	private function shortcode_reference() {
+		$rows = array(
+			array(
+				'code'  => '[at8_mluc_login]',
+				'label' => __( 'Login form', 'at8-moonlight-user-center' ),
+			),
+			array(
+				'code'  => '[at8_mluc_register]',
+				'label' => __( 'Registration form', 'at8-moonlight-user-center' ),
+			),
+			array(
+				'code'  => '[at8_mluc_lostpassword]',
+				'label' => __( 'Password recovery form', 'at8-moonlight-user-center' ),
+			),
+			array(
+				'code'  => '[at8_mluc_account]',
+				'label' => __( 'Account dashboard', 'at8-moonlight-user-center' ),
+			),
+			array(
+				'code'  => '[at8_mluc_hide type="logged"]',
+				'label' => __( 'Hidden content until login', 'at8-moonlight-user-center' ),
+			),
+			array(
+				'code'  => '[at8_mluc_hide type="reply"]',
+				'label' => __( 'Hidden content until comment', 'at8-moonlight-user-center' ),
+			),
+			array(
+				'code'  => '[at8_mluc_oauth_buttons]',
+				'label' => __( 'Social login buttons', 'at8-moonlight-user-center' ),
+			),
+		);
+
+		/**
+		 * Filter the shortcode cheat sheet.
+		 *
+		 * The Pro add-on appends its own shortcodes here so every snippet the
+		 * family supports lives in one place.
+		 *
+		 * @since 2.3.0
+		 *
+		 * @param array $rows Rows of code / label pairs.
+		 */
+		return (array) apply_filters( 'at8_mluc_shortcode_reference', $rows );
 	}
 
 	/**
@@ -1163,9 +1308,35 @@ class AT8_MLUC_Settings {
 			$clean[ $key ] = $page_id;
 		}
 
-		foreach ( array( 'enable_registration', 'auto_login', 'enable_avatar', 'free_level_enabled', 'manual_enabled' ) as $key ) {
+		foreach ( array( 'enable_registration', 'auto_login', 'enable_avatar', 'free_level_enabled', 'manual_enabled', 'terms_enabled' ) as $key ) {
 			$clean[ $key ] = empty( $input[ $key ] ) ? 0 : 1;
 		}
+
+		// Terms page: same existence check as the other page pickers.
+		$terms_page = isset( $input['terms_page_id'] ) ? absint( $input['terms_page_id'] ) : 0;
+		if ( $terms_page && 'page' !== get_post_type( $terms_page ) ) {
+			$terms_page = 0;
+		}
+		$clean['terms_page_id'] = $terms_page;
+
+		$terms_text = isset( $input['terms_text'] ) ? sanitize_text_field( (string) $input['terms_text'] ) : '';
+		$clean['terms_text'] = mb_substr( $terms_text, 0, 200 );
+
+		// The unit name is a display label, so it may be any language.
+		$clean['points_label'] = isset( $input['points_label'] )
+			? mb_substr( sanitize_text_field( (string) $input['points_label'] ), 0, 32 )
+			: 'points';
+		$clean['points_label'] = '' === trim( $clean['points_label'] ) ? 'points' : trim( $clean['points_label'] );
+
+		$clean['points_per_currency'] = isset( $input['points_per_currency'] )
+			? max( 0, (float) $input['points_per_currency'] )
+			: 0;
+		$clean['points_signup_bonus'] = isset( $input['points_signup_bonus'] )
+			? max( 0, (int) $input['points_signup_bonus'] )
+			: 0;
+
+		$clean['accent_color'] = isset( $input['accent_color'] ) ? sanitize_hex_color( trim( (string) $input['accent_color'] ) ) : '';
+		$clean['accent_color'] = (string) $clean['accent_color'];
 
 		$redirect = isset( $input['redirect_after_login'] ) ? esc_url_raw( trim( (string) $input['redirect_after_login'] ) ) : '';
 
@@ -1343,6 +1514,7 @@ class AT8_MLUC_Settings {
 				'label'      => isset( $value['label'] ) && '' !== (string) $value['label'] ? sanitize_text_field( wp_unslash( $value['label'] ) ) : $key,
 				'color'      => isset( $value['color'] ) ? sanitize_hex_color( wp_unslash( $value['color'] ) ) : '#2f6fed',
 				'price'      => isset( $value['price'] ) ? (float) $value['price'] : 0,
+				'points'     => isset( $value['points'] ) ? max( 0, (int) $value['points'] ) : 0,
 				'validity'   => $validity,
 				'sort_order' => isset( $value['sort_order'] ) ? (int) $value['sort_order'] : 50,
 			);

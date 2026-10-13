@@ -183,6 +183,20 @@ class AT8_MLUC_Register {
 			at8_mluc_send_json( false, __( 'That email address is already registered.', 'at8-moonlight-user-center' ) );
 		}
 
+		/*
+		 * Validate the configured extra fields before an account is created,
+		 * so a rejected submission never leaves a half-registered user behind.
+		 */
+		$field_error = AT8_MLUC_Fields::first_request_error( AT8_MLUC_Fields::for_register(), $_POST ); // phpcs:ignore WordPress.Security.NonceVerification -- the nonce was verified above.
+
+		if ( null !== $field_error ) {
+			at8_mluc_send_json( false, $field_error );
+		}
+
+		if ( AT8_MLUC_Terms::enabled() && empty( $_POST['at8_mluc_terms'] ) ) { // phpcs:ignore WordPress.Security.NonceVerification -- the nonce was verified above.
+			at8_mluc_send_json( false, __( 'Please accept the terms of service to continue.', 'at8-moonlight-user-center' ) );
+		}
+
 		/**
 		 * Filters the arguments passed to `wp_create_user()`.
 		 *
