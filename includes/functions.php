@@ -289,6 +289,9 @@ function at8_mluc_meta_labels() {
 		'at8_mluc_last_login'           => __( 'Last login date', 'at8-moonlight-user-center' ),
 		'at8_mluc_membership_level'     => __( 'Membership level', 'at8-moonlight-user-center' ),
 		'at8_mluc_membership_expires'   => __( 'Membership expiry date', 'at8-moonlight-user-center' ),
+		'at8_mluc_points'               => __( 'Point balance', 'at8-moonlight-user-center' ),
+		'at8_mluc_points_log'           => __( 'Point ledger', 'at8-moonlight-user-center' ),
+		'at8_mluc_pay_unlocks'          => __( 'Paywall unlocks', 'at8-moonlight-user-center' ),
 	);
 }
 

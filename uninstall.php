@@ -66,6 +66,15 @@ function at8_mluc_uninstall_site() {
 		)
 	);
 
+	// Custom field values use dynamic per-field keys (at8_mluc_field_<name>).
+	// phpcs:ignore WordPress.DB.DirectDatabaseQuery.DirectQuery, WordPress.DB.DirectDatabaseQuery.NoCaching -- Uninstall cleanup has no cache to use and must be exhaustive.
+	$wpdb->query(
+		$wpdb->prepare(
+			"DELETE FROM {$wpdb->usermeta} WHERE meta_key LIKE %s",
+			$wpdb->esc_like( 'at8_mluc_field_' ) . '%'
+		)
+	);
+
 	// Avatars published by an administrator are plugin content: remove them
 	// together with their meta, but never touch other post types.
 	$avatar_posts = get_posts(
