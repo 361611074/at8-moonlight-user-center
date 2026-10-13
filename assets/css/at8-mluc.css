@@ -643,6 +643,26 @@
 	letter-spacing: -0.01em;
 }
 
+/* Upgrade ladders: list price struck through next to the difference. */
+.at8-mluc-tiered-note {
+	margin: 0 0 1em;
+	color: rgba(127, 127, 127, 1);
+	font-size: 0.88em;
+	line-height: 1.6;
+}
+
+.at8-mluc-tiered-price {
+	display: flex;
+	align-items: baseline;
+	gap: 0.5em;
+}
+
+.at8-mluc-tiered-origin {
+	color: rgba(127, 127, 127, 1);
+	font-size: 0.95em;
+	text-decoration: line-through;
+}
+
 .at8-mluc-buy-validity {
 	color: rgba(127, 127, 127, 1);
 	font-size: 0.82em;

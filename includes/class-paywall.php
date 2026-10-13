@@ -542,9 +542,25 @@ class AT8_MLUC_Paywall {
 	/**
 	 * Register the meta box.
 	 *
+	 * An add-on that ships its own, richer paywall box (modes, resources,
+	 * per-level pricing) filters `at8_mluc_paywall_meta_box` to false and
+	 * takes the box over; the core gate keeps reading whatever meta that box
+	 * writes through the `at8_mluc_paywall_*` filters.
+	 *
 	 * @return void
 	 */
 	public function register_meta_box() {
+		/**
+		 * Filters whether the core paywall meta box is registered.
+		 *
+		 * @since 2.4.1
+		 *
+		 * @param bool $register Whether to register the core box.
+		 */
+		if ( ! apply_filters( 'at8_mluc_paywall_meta_box', true ) ) {
+			return;
+		}
+
 		foreach ( array( 'post', 'page' ) as $type ) {
 			add_meta_box(
 				'at8-mluc-paywall',

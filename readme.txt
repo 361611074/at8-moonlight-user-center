@@ -106,8 +106,9 @@ Yes. Styles are namespaced and inherit the theme wherever possible, and any temp
 == Changelog ==
 
 = 2.4.1 =
-* New: the paywall core is now an extension surface. The gate always runs and an add-on extends the same post fields through the `at8_mluc_paywall_enabled`, `at8_mluc_paywall_levels`, `at8_mluc_paywall_price`, `at8_mluc_paywall_days`, `at8_mluc_paywall_unlock_expire`, `at8_mluc_paywall_locked_html`, `at8_mluc_paywall_unlocked_html`, `at8_mluc_paywall_meta_extra` and `at8_mluc_paywall_can_purchase` filters instead of shipping its own content filter, so two gates can never double-lock the same post.
-* New: every upgrade method now renders from one registry. The Membership tab draws the points redemption card and the offline purchase card side by side, and an add-on adds its own paths (card payment, tier ladders, bulk seats) through the `at8_mluc_upgrade_paths` filter.
+* New: the paywall core is now an extension surface. The gate always runs and an add-on extends the same post fields through the `at8_mluc_paywall_enabled`, `at8_mluc_paywall_levels`, `at8_mluc_paywall_price`, `at8_mluc_paywall_days`, `at8_mluc_paywall_unlock_expire`, `at8_mluc_paywall_locked_html`, `at8_mluc_paywall_unlocked_html`, `at8_mluc_paywall_meta_extra` and `at8_mluc_paywall_can_purchase` filters instead of shipping its own content filter, so two gates can never double-lock the same post. An add-on with a richer paywall box takes the meta box over through `at8_mluc_paywall_meta_box`.
+* New: every upgrade method now renders from one registry. The Membership tab draws the points redemption card, the offline purchase card and any add-on path side by side through the `at8_mluc_upgrade_paths` filter.
+* New: `at8_mluc_order_price` lets an add-on charge a differential for upgrade orders, and the purchase script binds every card on the page (purchase, upgrade ladders), not just the first.
 * Improved: order history moved into its own block below the upgrade paths.
 * Improved: paid content is never served in feeds.
 * Fixed: `claim_order()` is public so the delivery handler owns the pending → paid transition; a second confirmation can never grant twice.

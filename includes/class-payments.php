@@ -531,6 +531,22 @@ class AT8_MLUC_Payments {
 		 */
 		$args = (array) apply_filters( 'at8_mluc_template_args', $args, 'membership-purchase' );
 
+		self::enqueue_purchase_script( $args );
+
+		at8_mluc_get_template( 'membership-purchase', $args );
+	}
+
+	/**
+	 * Enqueue and configure the purchase script.
+	 *
+	 * Every card that posts to `at8_mluc_buy_level` (the purchase path, an
+	 * add-on's upgrade ladder) calls this so the script, its nonce and the
+	 * PayPal strings are present exactly once per page.
+	 *
+	 * @param array $args Template arguments (nonce, PayPal flags).
+	 * @return void
+	 */
+	public static function enqueue_purchase_script( $args = array() ) {
 		wp_enqueue_script(
 			'at8-mluc-purchase',
 			AT8_MLUC_PLUGIN_URL . 'assets/js/at8-mluc-purchase.js',
@@ -568,8 +584,6 @@ class AT8_MLUC_Payments {
 				true
 			);
 		}
-
-		at8_mluc_get_template( 'membership-purchase', $args );
 	}
 
 	/**
@@ -615,6 +629,22 @@ class AT8_MLUC_Payments {
 		}
 
 		$price = AT8_MLUC_Membership::get_level_price( $level );
+
+		/**
+		 * Filters the price a membership order is created at.
+		 *
+		 * An add-on returns a differential (upgrade) price when the request
+		 * carries the upgrade marker, crediting what the member already paid
+		 * for a lower level.
+		 *
+		 * @since 2.4.1
+		 *
+		 * @param float  $price   List price of the level.
+		 * @param string $level   Level slug.
+		 * @param int    $user_id Buyer.
+		 * @param bool   $upgrade Whether the request is a paid upgrade.
+		 */
+		$price = (float) apply_filters( 'at8_mluc_order_price', $price, $level, $user_id, ! empty( $_POST['upgrade'] ) ); // phpcs:ignore WordPress.Security.NonceVerification.Recommended -- read-only flag, nonce already checked above.
 
 		if ( $price <= 0 ) {
 			at8_mluc_send_json( false, at8_mluc_ui_label( 'buy_no_price', __( 'This level has no price set and cannot be purchased yet.', 'at8-moonlight-user-center' ) ) );
