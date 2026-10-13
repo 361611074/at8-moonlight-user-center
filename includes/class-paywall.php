@@ -9,11 +9,14 @@
  * This is deliberately the small core. It stores four meta fields, renders one
  * locked card and records one unlock per user. An add-on extends the same
  * fields with additional levels, resource types and drip schedules through
- * `at8_mluc_paywall_fields` and `at8_mluc_paywall_level_limit`; it does not
- * need its own content filter.
+ * `at8_mluc_paywall_levels`, `at8_mluc_paywall_price`,
+ * `at8_mluc_paywall_locked_html`, `at8_mluc_paywall_unlocked_html`,
+ * `at8_mluc_paywall_meta_extra` and friends; it does not need its own
+ * content filter.
  *
- * When the add-on is active it registers its own richer engine and this class
- * stands down entirely, so two content filters never run on the same post.
+ * The core always runs. An add-on that still ships its own independent gate
+ * (legacy builds) keys off different meta, so the two never double-gate the
+ * same post: whichever gate recognises the post replaces the content.
  *
  * @package AT8_Moonlight_User_Center
  */
@@ -91,11 +94,6 @@ class AT8_MLUC_Paywall {
 	 * Register hooks.
 	 */
 	private function __construct() {
-		if ( at8_mluc_is_pro() ) {
-			// The add-on ships the richer engine; never double-gate content.
-			return;
-		}
-
 		add_action( 'add_meta_boxes', array( $this, 'register_meta_box' ) );
 		add_action( 'save_post', array( $this, 'save_meta' ), 25 );
 		add_filter( 'the_content', array( $this, 'filter_content' ), 20 );
@@ -121,7 +119,22 @@ class AT8_MLUC_Paywall {
 	 * @return bool
 	 */
 	public static function is_enabled( $post_id ) {
-		return (bool) get_post_meta( $post_id, self::META_ENABLED, true );
+		/**
+		 * Filters whether the paywall covers a post.
+		 *
+		 * An add-on maps its own enable flag onto the core so posts configured
+		 * before it existed keep their gate.
+		 *
+		 * @since 2.4.1
+		 *
+		 * @param bool $enabled Whether the core flag is set.
+		 * @param int  $post_id Post ID.
+		 */
+		return (bool) apply_filters(
+			'at8_mluc_paywall_enabled',
+			(bool) get_post_meta( $post_id, self::META_ENABLED, true ),
+			$post_id
+		);
 	}
 
 	/**
@@ -131,7 +144,19 @@ class AT8_MLUC_Paywall {
 	 * @return float
 	 */
 	public static function price( $post_id ) {
-		return (float) get_post_meta( $post_id, self::META_PRICE, true );
+		$price = (float) get_post_meta( $post_id, self::META_PRICE, true );
+
+		/**
+		 * Filters the price a visitor pays for a post.
+		 *
+		 * An add-on returns a member price for the visitor's level.
+		 *
+		 * @since 2.4.1
+		 *
+		 * @param float $price   Base price.
+		 * @param int   $post_id Post ID.
+		 */
+		return (float) apply_filters( 'at8_mluc_paywall_price', $price, $post_id );
 	}
 
 	/**
@@ -142,8 +167,19 @@ class AT8_MLUC_Paywall {
 	 */
 	public static function levels( $post_id ) {
 		$level = (string) get_post_meta( $post_id, self::META_LEVEL, true );
+		$found = '' === $level ? array() : array( $level );
 
-		return '' === $level ? array() : array( $level );
+		/**
+		 * Filters the membership levels that unlock a post.
+		 *
+		 * The core names at most one; an add-on returns several.
+		 *
+		 * @since 2.4.1
+		 *
+		 * @param array $levels  Level slugs.
+		 * @param int   $post_id Post ID.
+		 */
+		return (array) apply_filters( 'at8_mluc_paywall_levels', $found, $post_id );
 	}
 
 	/**
@@ -153,7 +189,43 @@ class AT8_MLUC_Paywall {
 	 * @return int
 	 */
 	public static function days( $post_id ) {
-		return max( 0, (int) get_post_meta( $post_id, self::META_DAYS, true ) );
+		$days = max( 0, (int) get_post_meta( $post_id, self::META_DAYS, true ) );
+
+		/**
+		 * Filters the access length in days.
+		 *
+		 * @since 2.4.1
+		 *
+		 * @param int $days    Access length in days (0 = forever).
+		 * @param int $post_id Post ID.
+		 */
+		return max( 0, (int) apply_filters( 'at8_mluc_paywall_days', $days, $post_id ) );
+	}
+
+	/**
+	 * Timestamp at which a fresh unlock expires (0 = forever).
+	 *
+	 * @param int $post_id  Post ID.
+	 * @param int $user_id  User ID.
+	 * @return int
+	 */
+	public static function unlock_expire( $post_id, $user_id = 0 ) {
+		$days = self::days( $post_id );
+
+		$expires = $days > 0 ? time() + ( $days * DAY_IN_SECONDS ) : 0;
+
+		/**
+		 * Filters the expiry timestamp of a fresh unlock.
+		 *
+		 * An add-on with finer units (hours, months) returns its own timestamp.
+		 *
+		 * @since 2.4.1
+		 *
+		 * @param int $expires Expiry timestamp (0 = forever).
+		 * @param int $post_id Post ID.
+		 * @param int $user_id User ID.
+		 */
+		return (int) apply_filters( 'at8_mluc_paywall_unlock_expire', $expires, $post_id, $user_id );
 	}
 
 	/**
@@ -220,12 +292,35 @@ class AT8_MLUC_Paywall {
 	 * @return void
 	 */
 	public static function grant_unlock( $post_id, $user_id, $days = 0 ) {
+		self::grant_unlock_ts( $post_id, $user_id, $days > 0 ? time() + ( $days * DAY_IN_SECONDS ) : 0 );
+	}
+
+	/**
+	 * Grant an unlock that expires at a fixed timestamp.
+	 *
+	 * @param int $post_id  Post ID.
+	 * @param int $user_id  User ID.
+	 * @param int $expires  Expiry timestamp (0 = forever).
+	 * @return void
+	 */
+	public static function grant_unlock_ts( $post_id, $user_id, $expires = 0 ) {
 		$unlocks = get_user_meta( $user_id, self::UNLOCK_META, true );
 		$unlocks = is_array( $unlocks ) ? $unlocks : array();
 
-		$unlocks[ $post_id ] = $days > 0 ? time() + ( $days * DAY_IN_SECONDS ) : 0;
+		$unlocks[ $post_id ] = max( 0, (int) $expires );
 
 		update_user_meta( $user_id, self::UNLOCK_META, $unlocks );
+
+		/**
+		 * Fires after a post was unlocked for a user.
+		 *
+		 * @since 2.4.1
+		 *
+		 * @param int $post_id Post ID.
+		 * @param int $user_id User ID.
+		 * @param int $expires Expiry timestamp (0 = forever).
+		 */
+		do_action( 'at8_mluc_paywall_unlocked', $post_id, $user_id, max( 0, (int) $expires ) );
 	}
 
 	/**
@@ -257,7 +352,7 @@ class AT8_MLUC_Paywall {
 			return $handled;
 		}
 
-		self::grant_unlock( $post_id, $user_id, self::days( $post_id ) );
+		self::grant_unlock_ts( $post_id, $user_id, self::unlock_expire( $post_id, $user_id ) );
 
 		return true;
 	}
@@ -269,6 +364,17 @@ class AT8_MLUC_Paywall {
 	 * @return string
 	 */
 	public function filter_content( $content ) {
+		// Feeds carry no login state, so paid content is never served there.
+		if ( is_feed() ) {
+			$feed_post = (int) get_the_ID();
+
+			if ( $feed_post > 0 && self::is_paywalled( $feed_post ) ) {
+				return '';
+			}
+
+			return $content;
+		}
+
 		if ( ! is_singular() || ! in_the_loop() || ! is_main_query() ) {
 			return $content;
 		}
@@ -277,6 +383,25 @@ class AT8_MLUC_Paywall {
 
 		if ( ! $post_id || ! self::is_paywalled( $post_id ) ) {
 			return $content;
+		}
+
+		if ( self::is_unlocked( $post_id ) ) {
+			$extra = '';
+
+			/**
+			 * Filters the markup appended to an unlocked post.
+			 *
+			 * An add-on returns its resource blocks (downloads, galleries,
+			 * players) here.
+			 *
+			 * @since 2.4.1
+			 *
+			 * @param string $extra   Markup (empty by default).
+			 * @param int    $post_id Post ID.
+			 */
+			$extra = (string) apply_filters( 'at8_mluc_paywall_unlocked_html', $extra, $post_id );
+
+			return '' === $extra ? $content : $content . $extra;
 		}
 
 		ob_start();
@@ -293,6 +418,18 @@ class AT8_MLUC_Paywall {
 			)
 		);
 		$card = ob_get_clean();
+
+		/**
+		 * Filters the locked card markup.
+		 *
+		 * An add-on returns its own richer card and the core renders nothing.
+		 *
+		 * @since 2.4.1
+		 *
+		 * @param string $card    Core card markup.
+		 * @param int    $post_id Post ID.
+		 */
+		$card = (string) apply_filters( 'at8_mluc_paywall_locked_html', $card, $post_id );
 
 		/*
 		 * Keep a short excerpt so search results and social cards stay
@@ -320,6 +457,23 @@ class AT8_MLUC_Paywall {
 
 		if ( $post_id <= 0 || ! self::is_paywalled( $post_id ) ) {
 			at8_mluc_send_json( false, __( 'This content is not available for purchase.', 'at8-moonlight-user-center' ) );
+		}
+
+		/**
+		 * Filters whether the current user may buy this post at all.
+		 *
+		 * An add-on restricts purchases to a membership tier.
+		 *
+		 * @since 2.4.1
+		 *
+		 * @param bool $can_buy Whether the core allows the purchase.
+		 * @param int  $post_id Post ID.
+		 * @param int  $user_id User ID.
+		 */
+		$can_buy = (bool) apply_filters( 'at8_mluc_paywall_can_purchase', true, $post_id, $user_id );
+
+		if ( ! $can_buy ) {
+			at8_mluc_send_json( false, __( 'Your membership level does not include this purchase.', 'at8-moonlight-user-center' ) );
 		}
 
 		$price = self::price( $post_id );
