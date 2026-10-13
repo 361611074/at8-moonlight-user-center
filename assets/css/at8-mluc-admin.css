@@ -527,26 +527,6 @@
 	vertical-align: middle;
 }
 
-.at8-mluc-ceiling {
-	display: flex;
-	align-items: center;
-	gap: 6px;
-	margin: 12px 0 0;
-	padding: 10px 14px;
-	border: 1px dashed var(--at8-line-strong);
-	border-radius: var(--at8-radius-sm);
-	background: var(--at8-surface-sunken);
-	font-size: 12.5px;
-	color: var(--at8-text-muted);
-}
-
-.at8-mluc-ceiling .dashicons {
-	color: #b8860b;
-	font-size: 15px;
-	width: 15px;
-	height: 15px;
-}
-
 .at8-mluc-fixed-tag {
 	display: inline-block;
 	margin-left: 6px;

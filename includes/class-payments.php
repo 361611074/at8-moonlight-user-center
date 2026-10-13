@@ -117,6 +117,9 @@ class AT8_MLUC_Payments {
 	/**
 	 * Available gateways.
 	 *
+	 * Every gateway registered through the filter is offered; nothing is
+	 * trimmed by a licence or a quota.
+	 *
 	 * @return array<string, string>
 	 */
 	public static function get_gateways() {
@@ -129,45 +132,7 @@ class AT8_MLUC_Payments {
 		 */
 		$gateways = (array) apply_filters( 'at8_mluc_payment_gateways', array() );
 
-		return self::cap_gateways( $gateways );
-	}
-
-	/**
-	 * Trim the gateway shelf to the licensed ceiling.
-	 *
-	 * The free plugin offers bank transfer only; Pro raises the ceiling to
-	 * three. Bank transfer always survives the cut so a site never loses the
-	 * one gateway it can configure without an add-on.
-	 *
-	 * @param array<string, string> $gateways Gateway id => title.
-	 * @return array<string, string>
-	 */
-	private static function cap_gateways( $gateways ) {
-		$limit = AT8_MLUC_Upgrade::gateway_limit();
-
-		if ( $limit <= 0 || count( $gateways ) <= $limit ) {
-			return $gateways;
-		}
-
-		$kept = array();
-
-		if ( isset( $gateways['manual'] ) ) {
-			$kept['manual'] = $gateways['manual'];
-		}
-
-		foreach ( $gateways as $id => $title ) {
-			if ( count( $kept ) >= $limit ) {
-				break;
-			}
-
-			if ( 'manual' === $id ) {
-				continue;
-			}
-
-			$kept[ $id ] = $title;
-		}
-
-		return $kept;
+		return $gateways;
 	}
 
 	/**

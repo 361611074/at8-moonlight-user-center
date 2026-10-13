@@ -102,17 +102,6 @@ class AT8_MLUC_Paywall {
 	}
 
 	/**
-	 * How many levels one paywall rule may name.
-	 *
-	 * The free core names exactly one; an add-on raises it.
-	 *
-	 * @return int
-	 */
-	public static function level_limit() {
-		return max( 1, (int) apply_filters( 'at8_mluc_paywall_level_limit', 1 ) );
-	}
-
-	/**
 	 * Whether a post is behind the paywall.
 	 *
 	 * @param int $post_id Post ID.
@@ -166,8 +155,13 @@ class AT8_MLUC_Paywall {
 	 * @return array<int, string>
 	 */
 	public static function levels( $post_id ) {
-		$level = (string) get_post_meta( $post_id, self::META_LEVEL, true );
-		$found = '' === $level ? array() : array( $level );
+		$raw = get_post_meta( $post_id, self::META_LEVEL, true );
+
+		if ( is_array( $raw ) ) {
+			$found = array_values( array_filter( array_map( 'sanitize_key', $raw ) ) );
+		} else {
+			$found = '' === (string) $raw ? array() : array( sanitize_key( (string) $raw ) );
+		}
 
 		/**
 		 * Filters the membership levels that unlock a post.
@@ -581,11 +575,11 @@ class AT8_MLUC_Paywall {
 	public function render_meta_box( $post ) {
 		wp_nonce_field( 'at8_mluc_paywall_save', 'at8_mluc_paywall_nonce' );
 
-		$on    = self::is_enabled( $post->ID );
-		$price = self::price( $post->ID );
-		$days  = self::days( $post->ID );
-		$level = implode( ',', self::levels( $post->ID ) );
+		$on     = self::is_enabled( $post->ID );
+		$price  = self::price( $post->ID );
+		$days   = self::days( $post->ID );
 		$levels = AT8_MLUC_Membership::get_levels();
+		$chosen = self::levels( $post->ID );
 		?>
 		<p>
 			<label>
@@ -601,17 +595,16 @@ class AT8_MLUC_Paywall {
 		</p>
 
 		<p>
-			<label for="at8-mluc-pw-level"><?php esc_html_e( 'Unlocked by membership', 'at8-moonlight-user-center' ); ?></label>
-			<select class="widefat" id="at8-mluc-pw-level" name="<?php echo esc_attr( self::META_LEVEL ); ?>">
-				<option value=""><?php esc_html_e( '— Purchase only —', 'at8-moonlight-user-center' ); ?></option>
+			<label for="at8-mluc-pw-level"><?php esc_html_e( 'Free for these membership levels', 'at8-moonlight-user-center' ); ?></label>
+			<select class="widefat" id="at8-mluc-pw-level" name="<?php echo esc_attr( self::META_LEVEL ); ?>[]" multiple size="4">
 				<?php foreach ( array_keys( $levels ) as $key ) : ?>
-					<option value="<?php echo esc_attr( $key ); ?>" <?php selected( $level, $key ); ?>>
+					<option value="<?php echo esc_attr( $key ); ?>" <?php selected( in_array( $key, $chosen, true ) ); ?>>
 						<?php echo esc_html( AT8_MLUC_Membership::get_level_label( $key ) ); ?>
 					</option>
 				<?php endforeach; ?>
 			</select>
 			<span class="description">
-				<?php esc_html_e( 'Members of this level read it for free. Leave empty to sell it to everyone.', 'at8-moonlight-user-center' ); ?>
+				<?php esc_html_e( 'Members of any selected level read it for free. Hold Ctrl (Cmd on Mac) to pick several. Leave all unselected to sell it to everyone.', 'at8-moonlight-user-center' ); ?>
 			</span>
 		</p>
 
@@ -661,17 +654,31 @@ class AT8_MLUC_Paywall {
 		update_post_meta( $post_id, self::META_ENABLED, 1 );
 		update_post_meta( $post_id, self::META_PRICE, isset( $_POST[ self::META_PRICE ] ) ? (float) wp_unslash( $_POST[ self::META_PRICE ] ) : 0 );
 
+		/*
+		 * The level field is a multi-select, so it arrives as an array. Legacy
+		 * single-value meta (one level slug) keeps working: levels() wraps a
+		 * lone string into an array, and re-saving normalises it.
+		 */
 		$levels = AT8_MLUC_Membership::get_levels();
-		$level  = isset( $_POST[ self::META_LEVEL ] ) ? sanitize_key( wp_unslash( $_POST[ self::META_LEVEL ] ) ) : '';
+		$picked = isset( $_POST[ self::META_LEVEL ] ) ? (array) wp_unslash( $_POST[ self::META_LEVEL ] ) : array();
+		$picked = array_values( array_filter( array_map( 'sanitize_key', $picked ) ) );
 
-		if ( '' !== $level && ! isset( $levels[ $level ] ) ) {
-			$level = '';
-		}
-
-		if ( '' === $level ) {
+		if ( empty( $picked ) ) {
 			delete_post_meta( $post_id, self::META_LEVEL );
 		} else {
-			update_post_meta( $post_id, self::META_LEVEL, $level );
+			$valid = array();
+
+			foreach ( $picked as $slug ) {
+				if ( isset( $levels[ $slug ] ) ) {
+					$valid[] = $slug;
+				}
+			}
+
+			if ( empty( $valid ) ) {
+				delete_post_meta( $post_id, self::META_LEVEL );
+			} else {
+				update_post_meta( $post_id, self::META_LEVEL, $valid );
+			}
 		}
 
 		update_post_meta( $post_id, self::META_DAYS, isset( $_POST[ self::META_DAYS ] ) ? max( 0, (int) wp_unslash( $_POST[ self::META_DAYS ] ) ) : 0 );

@@ -382,30 +382,10 @@ class AT8_MLUC_Settings {
 	 * @return void
 	 */
 	public function section_membership() {
-		$limit = AT8_MLUC_Membership::level_limit();
-		$used  = count( AT8_MLUC_Membership::get_levels() );
-
 		printf(
 			'<p>%s</p>',
-			esc_html(
-				sprintf(
-					/* translators: %d: maximum number of membership levels. */
-					__( 'Define the membership levels members can buy. This installation allows up to %d levels (including the free base level).', 'at8-moonlight-user-center' ),
-					$limit
-				)
-			)
+			esc_html__( 'Define the membership levels members can buy. There is no limit on the number of levels.', 'at8-moonlight-user-center' )
 		);
-
-		// Only mention Pro once the admin has actually run into the ceiling.
-		if ( $used >= $limit ) {
-			$message = sprintf(
-				/* translators: %d: maximum number of membership levels. */
-				__( 'You are using all %d levels this installation allows.', 'at8-moonlight-user-center' ),
-				$limit
-			);
-
-			echo wp_kses_post( AT8_MLUC_Upgrade::ceiling_notice( $message ) );
-		}
 	}
 
 	/**
@@ -569,9 +549,8 @@ class AT8_MLUC_Settings {
 	 * @return void
 	 */
 	public function render_membership_field() {
-		$levels = AT8_MLUC_Membership::get_levels();
+		$levels  = AT8_MLUC_Membership::get_levels();
 		$free_on = AT8_MLUC_Membership::free_enabled();
-		$limit   = AT8_MLUC_Membership::level_limit();
 		$used    = count( $levels );
 
 		// Derived from the membership registry so the editor and the front-end
@@ -594,10 +573,9 @@ class AT8_MLUC_Settings {
 		<p class="description">
 			<?php
 			printf(
-				/* translators: 1: number of levels in use, 2: level limit. */
-				esc_html__( 'Levels in use: %1$d of %2$d. Levels beyond the limit are dropped on save.', 'at8-moonlight-user-center' ),
-				(int) $used,
-				(int) $limit
+				/* translators: %d: number of levels defined. */
+				esc_html__( 'Levels defined: %d. Add as many tiers as you need.', 'at8-moonlight-user-center' ),
+				(int) $used
 			);
 			?>
 		</p>
@@ -1517,33 +1495,6 @@ class AT8_MLUC_Settings {
 				'points'     => isset( $value['points'] ) ? max( 0, (int) $value['points'] ) : 0,
 				'validity'   => $validity,
 				'sort_order' => isset( $value['sort_order'] ) ? (int) $value['sort_order'] : 50,
-			);
-		}
-
-		// Enforce the level limit: keep the highest-sorting levels.
-		$limit = AT8_MLUC_Membership::level_limit();
-
-		if ( count( $levels ) > $limit ) {
-			uasort(
-				$levels,
-				function ( $a, $b ) {
-					return ( $a['sort_order'] ?? 0 ) - ( $b['sort_order'] ?? 0 );
-				}
-			);
-
-			$dropped = array_slice( $levels, $limit, null, true );
-			$levels  = array_slice( $levels, 0, $limit, true );
-
-			add_settings_error(
-				self::OPTION,
-				'at8_mluc_levels_over_limit',
-				sprintf(
-					/* translators: 1: number of dropped levels, 2: level limit. */
-					_n( '%1$d level was dropped because this installation allows at most %2$d levels.', '%1$d levels were dropped because this installation allows at most %2$d levels.', count( $dropped ), 'at8-moonlight-user-center' ),
-					count( $dropped ),
-					$limit
-				),
-				'warning'
 			);
 		}
 

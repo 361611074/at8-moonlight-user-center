@@ -78,8 +78,6 @@ class AT8_MLUC_Avatar {
 		add_action( 'init', array( $this, 'register_post_type' ) );
 		add_action( 'wp_ajax_at8_mluc_select_avatar', array( $this, 'handle_select' ) );
 		add_filter( 'get_avatar_url', array( $this, 'filter_avatar_url' ), 10, 3 );
-		add_filter( 'wp_insert_post_data', array( $this, 'enforce_avatar_limit' ), 10, 2 );
-		add_action( 'admin_notices', array( $this, 'render_limit_notice' ) );
 	}
 
 	/**
@@ -140,17 +138,6 @@ class AT8_MLUC_Avatar {
 	 * @return array<int, array{id:int, attachment_id:int, url:string, title:string}>
 	 */
 	/**
-	 * How many avatars may be published on this installation.
-	 *
-	 * Zero means unlimited.
-	 *
-	 * @return int
-	 */
-	public static function limit() {
-		return AT8_MLUC_Upgrade::avatar_limit();
-	}
-
-	/**
 	 * Number of avatars currently published.
 	 *
 	 * @return int
@@ -162,114 +149,16 @@ class AT8_MLUC_Avatar {
 	}
 
 	/**
-	 * Keep new avatars as drafts once the published ceiling is reached.
+	 * Published avatars, in display order.
 	 *
-	 * Editing an avatar that is already published never bumps into the
-	 * ceiling, so existing libraries keep working after a downgrade.
-	 *
-	 * @param array<string, mixed> $data    Slashed, sanitised post data.
-	 * @param array<string, mixed> $postarr Raw submitted post data.
-	 * @return array<string, mixed>
+	 * @return array<int, array{id:int, attachment_id:int, url:string, title:string}>
 	 */
-	public function enforce_avatar_limit( $data, $postarr ) {
-		if ( self::POST_TYPE !== $data['post_type'] || 'publish' !== $data['post_status'] ) {
-			return $data;
-		}
-
-		$limit = self::limit();
-
-		if ( $limit < 1 || at8_mluc_is_pro() ) {
-			return $data;
-		}
-
-		$post_id = isset( $postarr['ID'] ) ? (int) $postarr['ID'] : 0;
-
-		// Already published: saving it again is not a new avatar.
-		if ( $post_id && 'publish' === get_post_status( $post_id ) ) {
-			return $data;
-		}
-
-		if ( self::published_count() < $limit ) {
-			return $data;
-		}
-
-		$data['post_status'] = 'draft';
-
-		set_transient(
-			'at8_mluc_avatar_limit_notice_' . get_current_user_id(),
-			array(
-				'message' => sprintf(
-					/* translators: %d: maximum number of published avatars. */
-					__( 'The avatar kept as a draft: this installation allows up to %d published avatars.', 'at8-moonlight-user-center' ),
-					$limit
-				),
-				'limit'   => $limit,
-			),
-			30
-		);
-
-		return $data;
-	}
-
-	/**
-	 * Explain why an avatar stayed unpublished, or how close the library is.
-	 *
-	 * Rendered on the avatar screens only, never globally.
-	 *
-	 * @return void
-	 */
-	public function render_limit_notice() {
-		if ( ! function_exists( 'get_current_screen' ) ) {
-			return;
-		}
-
-		$screen = get_current_screen();
-
-		// Restricted to the avatar screens: no global nag.
-		if ( ! $screen || ! in_array( $screen->id, array( 'edit-' . self::POST_TYPE, self::POST_TYPE ), true ) ) {
-			return;
-		}
-
-		if ( at8_mluc_is_pro() ) {
-			return;
-		}
-
-		$transient = get_transient( 'at8_mluc_avatar_limit_notice_' . get_current_user_id() );
-
-		if ( is_array( $transient ) && ! empty( $transient['message'] ) ) {
-			printf(
-				'<div class="notice notice-warning is-dismissible"><p>%s</p></div>',
-				esc_html( $transient['message'] )
-			);
-
-			delete_transient( 'at8_mluc_avatar_limit_notice_' . get_current_user_id() );
-
-			return;
-		}
-
-		$limit = self::limit();
-
-		if ( $limit > 0 && self::published_count() >= $limit ) {
-			$html = AT8_MLUC_Upgrade::ceiling_notice(
-				sprintf(
-					/* translators: %d: maximum number of published avatars. */
-					__( 'You have published all %d avatars this installation allows.', 'at8-moonlight-user-center' ),
-					$limit
-				)
-			);
-
-			if ( '' !== $html ) {
-				echo '<div class="notice notice-info is-dismissible">' . wp_kses_post( $html ) . '</div>';
-			}
-		}
-	}
-
 	public static function get_library() {
 		$posts = get_posts(
 			array(
 				'post_type'        => self::POST_TYPE,
 				'post_status'      => 'publish',
-				'posts_per_page'   => self::limit() > 0 ? self::limit() : 200,
+				'posts_per_page'   => 200,
 				'orderby'          => array(
 					'menu_order' => 'ASC',
 					'date'       => 'DESC',

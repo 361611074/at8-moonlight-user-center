@@ -6,9 +6,8 @@
  * Levels and stored in `at8_mluc_options['membership_levels']`. A user's level
  * lives in user meta (`at8_mluc_membership_level` + `at8_mluc_membership_expires`).
  *
- * The number of levels a site may define is capped by the
- * `at8_mluc_membership_level_limit` filter: the free plugin allows three
- * (including the free base level); the Pro add-on raises the cap.
+ * A site may define as many levels as it needs; there is no artificial
+ * ceiling anywhere in this plugin.
  *
  * @package AT8_Moonlight_User_Center
  */
@@ -106,23 +105,10 @@ class AT8_MLUC_Membership {
 	}
 
 	/**
-	 * Maximum number of levels this installation may define.
-	 *
-	 * @return int
-	 */
-	public static function level_limit() {
-		/**
-		 * Filters the membership level limit.
-		 *
-		 * @since 2.2.0
-		 *
-		 * @param int $limit Maximum number of levels, including the free base level.
-		 */
-		return max( 1, (int) apply_filters( 'at8_mluc_membership_level_limit', 3 ) );
-	}
-
-	/**
 	 * All level definitions, ordered by sort weight.
+	 *
+	 * There is no artificial ceiling on the number of levels: a WordPress
+	 * site may define as many membership tiers as its funnel needs.
 	 *
 	 * @return array<string, array<string, mixed>>
 	 */
@@ -220,21 +206,6 @@ class AT8_MLUC_Membership {
 		 * @param array $levels Level definitions keyed by level slug.
 		 */
 		$levels = apply_filters( 'at8_mluc_membership_levels', $levels );
-
-		// Final guard: the level limit also applies to factory defaults, to
-		// imported legacy definitions and to levels injected by filters.
-		$limit = self::level_limit();
-
-		if ( count( $levels ) > $limit ) {
-			uasort(
-				$levels,
-				function ( $a, $b ) {
-					return ( $a['sort_order'] ?? 0 ) - ( $b['sort_order'] ?? 0 );
-				}
-			);
-
-			$levels = array_slice( $levels, 0, $limit, true );
-		}
 
 		$cache = $levels;
 

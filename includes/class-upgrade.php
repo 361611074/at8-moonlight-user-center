@@ -1,12 +1,12 @@
 <?php
 /**
- * Free / Pro boundary and upgrade affordances.
+ * Pro comparison table and upgrade affordances.
  *
- * This class is the single source of truth for what the free plugin can do
- * and what the Pro add-on unlocks. Every limit is expressed as a *quantity*
- * rather than a missing feature: the free plugin ships a complete, working
- * monetisation loop, and it simply has a lower ceiling. Crossing that ceiling
- * is what makes Pro worth buying.
+ * This class answers one question: what does the Pro add-on add on top of a
+ * free plugin that is already complete? Every catalogue row describes a
+ * capability Pro contributes (online gateways, tier ladders, paywall
+ * resources, level-gated content); the free plugin itself has no artificial
+ * ceilings, quotas or licence gates anywhere.
  *
  * Nothing here degrades the free experience with nag screens elsewhere in
  * wp-admin: every affordance renders on a User Center screen only, is
@@ -75,87 +75,35 @@ class AT8_MLUC_Upgrade {
 	}
 
 	/**
-	 * Free-tier ceilings for every limited resource.
-	 *
-	 * `0` means unlimited. Ceilings are filterable so the Pro add-on can raise
-	 * them without this class knowing it exists.
-	 *
-	 * @param string $key Resource key.
-	 * @param int    $default Free-tier value used when nothing filters it.
-	 * @return int
-	 */
-	public static function limit( $key, $default ) {
-		return (int) apply_filters( 'at8_mluc_limit_' . $key, (int) $default );
-	}
-
-	/**
-	 * Membership level ceiling (including the free base level).
-	 *
-	 * @return int
-	 */
-	public static function level_limit() {
-		return max( 1, AT8_MLUC_Membership::level_limit() );
-	}
-
-	/**
-	 * Avatar library ceiling. Zero means unlimited.
-	 *
-	 * @return int
-	 */
-	public static function avatar_limit() {
-		return self::limit( 'avatar_count', 12 );
-	}
-
-	/**
-	 * Payment gateway ceiling.
-	 *
-	 * @return int
-	 */
-	public static function gateway_limit() {
-		return self::limit( 'gateway_count', 1 );
-	}
-
-	/**
 	 * The Pro feature catalogue.
 	 *
 	 * Each entry: slug => array( title, free, pro, note ). `free` and `pro`
 	 * are short human-readable values used in the comparison table; all of
 	 * them are translated on render so the file stays translation-free.
 	 *
+	 * Every row describes a capability the Pro add-on *adds*; the free
+	 * plugin never holds a reduced version of a feature behind a counter.
+	 *
 	 * @return array<string, array<string, string>>
 	 */
 	public static function features() {
 		$catalogue = array(
-			'membership_levels' => array(
-				'title' => __( 'Membership levels', 'at8-moonlight-user-center' ),
-				'free'  => sprintf(
-					/* translators: %d: number of membership levels included in the free plugin. */
-					__( 'Up to %d', 'at8-moonlight-user-center' ),
-					3
-				),
-				'pro'   => sprintf(
-					/* translators: %d: number of membership levels included in the Pro add-on. */
-					__( 'Up to %d', 'at8-moonlight-user-center' ),
-					8
-				),
-				'note'  => __( 'Split your audience into as many tiers as your funnel needs.', 'at8-moonlight-user-center' ),
-			),
 			'upgrade_paths'    => array(
 				'title' => __( 'Ways to upgrade a member', 'at8-moonlight-user-center' ),
-				'free'  => __( 'Redeem points', 'at8-moonlight-user-center' ),
-				'pro'   => __( 'Points, direct payment, tier ladders', 'at8-moonlight-user-center' ),
+				'free'  => __( 'Redeem points or pay by bank transfer', 'at8-moonlight-user-center' ),
+				'pro'   => __( 'Adds card payment and tier ladders', 'at8-moonlight-user-center' ),
 				'note'  => __( 'Let members pay with a card, climb a tier ladder or spend points — whichever converts best.', 'at8-moonlight-user-center' ),
 			),
 			'gateways'          => array(
 				'title' => __( 'Payment gateways', 'at8-moonlight-user-center' ),
-				'free'  => __( 'Bank transfer only', 'at8-moonlight-user-center' ),
-				'pro'   => __( 'Bank transfer, PayPal, Stripe', 'at8-moonlight-user-center' ),
+				'free'  => __( 'Bank transfer', 'at8-moonlight-user-center' ),
+				'pro'   => __( 'Adds PayPal and Stripe', 'at8-moonlight-user-center' ),
 				'note'  => __( 'Stop confirming transfers by hand — card payments settle themselves.', 'at8-moonlight-user-center' ),
 			),
 			'paywall'           => array(
 				'title' => __( 'Paywall for single posts', 'at8-moonlight-user-center' ),
-				'free'  => __( 'One level per post', 'at8-moonlight-user-center' ),
-				'pro'   => __( 'Any levels, plus videos and downloads', 'at8-moonlight-user-center' ),
+				'free'  => __( 'Price per post, free for chosen levels', 'at8-moonlight-user-center' ),
+				'pro'   => __( 'Adds video, download and gallery resources', 'at8-moonlight-user-center' ),
 				'note'  => __( 'Sell one article at a time without a membership.', 'at8-moonlight-user-center' ),
 			),
 			'media'             => array(
@@ -167,18 +115,8 @@ class AT8_MLUC_Upgrade {
 			'content_gates'     => array(
 				'title' => __( 'Content gates', 'at8-moonlight-user-center' ),
 				'free'  => __( 'Login, comment', 'at8-moonlight-user-center' ),
-				'pro'   => __( 'Login, comment, level, purchase', 'at8-moonlight-user-center' ),
+				'pro'   => __( 'Adds level and purchase gates', 'at8-moonlight-user-center' ),
 				'note'  => __( 'Reveal teaser content only to paying members.', 'at8-moonlight-user-center' ),
-			),
-			'avatars'           => array(
-				'title' => __( 'Avatar library', 'at8-moonlight-user-center' ),
-				'free'  => sprintf(
-					/* translators: %d: number of avatars allowed in the free plugin. */
-					__( 'Up to %d', 'at8-moonlight-user-center' ),
-					12
-				),
-				'pro'   => __( 'Unlimited', 'at8-moonlight-user-center' ),
-				'note'  => __( 'Offer a full avatar gallery instead of a token handful.', 'at8-moonlight-user-center' ),
 			),
 			'purchases'         => array(
 				'title' => __( 'Purchase history placement', 'at8-moonlight-user-center' ),
@@ -186,19 +124,14 @@ class AT8_MLUC_Upgrade {
 				'pro'   => __( 'Any page, via shortcode', 'at8-moonlight-user-center' ),
 				'note'  => __( 'Put receipts where your funnel needs them.', 'at8-moonlight-user-center' ),
 			),
-			'reports'           => array(
-				'title' => __( 'Revenue reporting', 'at8-moonlight-user-center' ),
-				'free'  => __( 'Order list', 'at8-moonlight-user-center' ),
-				'pro'   => __( 'Sales insights', 'at8-moonlight-user-center' ),
-				'note'  => __( 'See what sells before deciding what to write next.', 'at8-moonlight-user-center' ),
-			),
 		);
 
 		/**
 		 * Filter the Pro comparison catalogue.
 		 *
-		 * The Pro add-on can correct the "free" column to reflect the limits
-		 * it has actually raised, keeping one table honest for both plugins.
+		 * The Pro add-on can correct the rows to describe what it actually
+		 * contributes on this installation, keeping one table honest for both
+		 * plugins.
 		 *
 		 * @param array $catalogue Feature rows.
 		 */
@@ -368,24 +301,5 @@ class AT8_MLUC_Upgrade {
 			<?php endforeach; ?>
 		</div>
 		<?php
-	}
-
-	/**
-	 * Inline row telling the admin a ceiling was reached.
-	 *
-	 * @param string $message What is capped.
-	 * @return string
-	 */
-	public static function ceiling_notice( $message ) {
-		if ( self::is_pro() ) {
-			return '';
-		}
-
-		return sprintf(
-			'<p class="at8-mluc-ceiling"><span class="dashicons dashicons-lock" aria-hidden="true"></span>%1$s <a href="%2$s" target="_blank" rel="noopener noreferrer">%3$s</a></p>',
-			esc_html( $message ),
-			esc_url( self::upgrade_url() ),
-			esc_html__( 'Unlock with Pro', 'at8-moonlight-user-center' )
-		);
 	}
 }

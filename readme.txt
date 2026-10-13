@@ -3,7 +3,7 @@ Contributors: 361611074
 Tags: user profile, login, registration, avatar, user center
 Requires at least: 5.8
 Tested up to: 7.1
-Stable tag: 2.4.1
+Stable tag: 2.5.0
 Requires PHP: 7.4
 License: GPL-2.0-or-later
 License URI: https://www.gnu.org/licenses/gpl-2.0.html
@@ -25,16 +25,23 @@ AT8 Moonlight User Center gives a WordPress site a complete front-end account ar
 * A password change form that signs the user out of every other device
 * Social login: WeChat, QQ, GitHub, Google and Apple sign-in, configured per provider in the admin
 * A hidden-content shortcode that reveals content after login or after an approved comment
-* Membership levels: define up to three levels (free base level plus paid ones with a price and validity in days); users buy a level from the account dashboard and an administrator confirms the bank transfer
+* Custom registration and profile fields (text, textarea, number, date, URL, email, dropdown, radio, checkbox), editable per user from the profile screen
+* A points ledger per user: balance, running history, configurable unit, points earned per currency unit spent, optional welcome bonus, admin adjustments
+* Optional terms-of-service checkbox on registration and a password strength meter
+* Membership levels with no cap on the number of tiers (label, colour, price, validity in days, sort order, point cost); members redeem a level with points or buy it from the account dashboard, and an administrator confirms the bank transfer
+* A paywall for single posts and pages: set a price, pick the membership levels that read it for free, and everyone else buys it through the same order engine
 * Offline payment engine: order records, admin confirmation, automatic expiry of abandoned pending orders, and purchase history in the account dashboard
-* A dedicated top-level "User Center" menu in wp-admin, with a card-based settings screen covering general settings, membership levels, offline payments, sidebar menu icons, interface text, social login and the avatar library
+* Elementor widgets for the login, registration and account forms
+* A dedicated top-level "User Center" menu in wp-admin, with a card-based settings screen covering general settings, membership levels, offline payments, paywall defaults, points, registration fields, sidebar menu icons, interface text, social login and the avatar library
 
-**Membership and payments**
+**Membership, points and paywall**
 
-* Up to three membership levels in the free version (label, colour, price, validity in days, sort order); AT8 Moonlight User Center Pro lifts the cap to eight and adds PayPal and Stripe on top of bank transfer
-* Users pick a level on the Membership tab of the account dashboard; orders stay pending until an administrator confirms the transfer, then the level is granted automatically
+* Define as many membership levels as you need; there is no artificial cap and nothing is unlocked by a licence
+* Members reach a level by redeeming points (each level has a point cost) or by paying; both flow through the same order engine
 * Paid levels expire on their own and the free base level remains
 * Abandoned pending orders are closed automatically after a configurable number of hours
+* A paywalled post shows a teaser plus an unlock card; members of the chosen levels, or members who bought access, see the full content — and paid content is never served in feeds
+* The separate AT8 Moonlight User Center Pro add-on (not required) contributes online card payments (PayPal, Stripe), tiered upgrade pricing, paywall resources such as videos and downloads, and extra content-gate types. The free plugin is complete on its own.
 
 **Shortcodes**
 
@@ -52,7 +59,7 @@ Place each shortcode on its own page, then choose those pages under User Center 
 * All accounts are created with the WordPress user API. Passwords are hashed by WordPress and are never read, stored, displayed or transmitted by this plugin.
 * Every form submission is protected by a nonce, every action is checked against the user's capabilities, all input is sanitised and all output is escaped.
 * Submission endpoints are rate limited.
-* The plugin embeds no trackers or analytics and loads no third-party scripts or fonts. The only outbound requests happen when a visitor uses social login: the browser is then redirected to the chosen provider and back.
+* The plugin embeds no trackers or analytics and loads no third-party scripts or fonts. The only outbound requests happen when a visitor uses social login: the browser is then redirected to the chosen provider and back, and the server exchanges the authorisation code with that provider's API (WeChat, QQ, GitHub, Google or Apple, whichever the administrator enabled). No data is sent anywhere else.
 * It registers a personal data exporter and eraser, so a user's information can be exported or erased through Tools → Export Personal Data and Tools → Erase Personal Data.
 * On uninstall you choose whether the plugin's settings and the profile fields it added are removed. WordPress user accounts, posts and comments are never deleted.
 
@@ -104,6 +111,12 @@ Yes. Styles are namespaced and inherit the theme wherever possible, and any temp
 4. The front-end login form.
 
 == Changelog ==
+
+= 2.5.0 =
+* Removed every artificial ceiling from the free plugin. Membership levels are no longer capped at three, the avatar library is no longer capped at twelve, and every registered payment gateway is offered instead of trimming the shelf to one. The filters that let an add-on raise those caps (`at8_mluc_membership_level_limit`, `at8_mluc_limit_avatar_count`, `at8_mluc_limit_gateway_count`) and the unused `at8_mluc_paywall_level_limit` filter are gone; the free plugin is complete on its own and nothing is unlocked by a licence.
+* The paywall meta box now accepts several free-read levels per post (multi-select), and level meta written by older single-select versions keeps working.
+* The Pro comparison table now describes only what the add-on adds — online gateways, tiered upgrades, paywall resources and extra content gates — instead of quota differences.
+* Documentation updated: the feature list covers the paywall, points, custom fields and terms-of-service, and the data section names the social-login providers the server talks to.
 
 = 2.4.1 =
 * New: the paywall core is now an extension surface. The gate always runs and an add-on extends the same post fields through the `at8_mluc_paywall_enabled`, `at8_mluc_paywall_levels`, `at8_mluc_paywall_price`, `at8_mluc_paywall_days`, `at8_mluc_paywall_unlock_expire`, `at8_mluc_paywall_locked_html`, `at8_mluc_paywall_unlocked_html`, `at8_mluc_paywall_meta_extra` and `at8_mluc_paywall_can_purchase` filters instead of shipping its own content filter, so two gates can never double-lock the same post. An add-on with a richer paywall box takes the meta box over through `at8_mluc_paywall_meta_box`.
