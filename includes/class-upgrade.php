@@ -191,7 +191,7 @@ class AT8_MLUC_Upgrade {
 				<div>
 					<h2 class="at8-mluc-upgrade-title"><?php esc_html_e( 'AT8 Moonlight User Center Pro', 'at8-moonlight-user-center' ); ?></h2>
 					<p class="at8-mluc-upgrade-tagline">
-						<?php esc_html_e( 'Everything here works today. Pro raises the ceiling.', 'at8-moonlight-user-center' ); ?>
+						<?php esc_html_e( 'Everything here works today. Pro adds online payments and content gates.', 'at8-moonlight-user-center' ); ?>
 					</p>
 				</div>
 			</div>
