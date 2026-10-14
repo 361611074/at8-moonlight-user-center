@@ -133,11 +133,6 @@ class AT8_MLUC_Avatar {
 	}
 
 	/**
-	 * Read the published avatar library.
-	 *
-	 * @return array<int, array{id:int, attachment_id:int, url:string, title:string}>
-	 */
-	/**
 	 * Number of avatars currently published.
 	 *
 	 * @return int
