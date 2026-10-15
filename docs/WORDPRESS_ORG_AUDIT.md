@@ -78,7 +78,7 @@ PCP 的 35 条 WARNING 全部为既有类别：NonceVerification（只读 `$_GET
 | 包 | 文件数 | 大小 | SHA-256 |
 |---|---|---|---|
 | `at8-moonlight-user-center-2.5.0.zip` | 52 | 171,122 B | `0b2bc52328409b36c0dcfe878ba37c2b559cab69b987b06b507b6f3301ebc0ca` |
-| （Pro，站外分发）`at8-moonlight-user-center-pro-1.6.0.zip` | 42 | 127,003 B | `05559cf37f1519e71a2b8bfb584f687ee15a60547ec805ab1114514e73a30e65` |
+| （Pro，站外分发）`at8-moonlight-user-center-pro-1.6.1.zip` | 42 | 127,561 B | `029c89d44498f1d5d2c3e0d5489a5220d27c1c08e2dfc11f9ae2aca64b177c1e` |
 
 ## 8. 未完成项与剩余风险
 
