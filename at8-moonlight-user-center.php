@@ -1,7 +1,6 @@
 <?php
 /**
  * Plugin Name:       AT8 Moonlight User Center
- * Plugin URI:        https://www.at8.fun/
  * Description:       A lightweight, theme-agnostic front-end user center. Provides login, registration, password recovery, an account dashboard, profile editing, an admin-curated avatar library, social login, hidden content and membership sales with offline payments.
  * Version:           2.5.0
  * Requires at least: 5.8
