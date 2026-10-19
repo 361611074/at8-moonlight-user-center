@@ -395,6 +395,7 @@ class AT8_MLUC_Settings {
 	 */
 	public function section_payment() {
 		echo '<p>' . esc_html__( 'Members bought through bank transfer: the member transfers, then you confirm the payment on the order screen and the level is granted automatically.', 'at8-moonlight-user-center' ) . '</p>';
+		echo '<p>' . esc_html__( 'Note: refunds for online card payments (PayPal / Stripe, added by the Pro add-on) are processed in the gateway dashboard. A refund does not revoke the member level or a paywall unlock automatically — remove the access on the member\'s user profile when a refund is granted.', 'at8-moonlight-user-center' ) . '</p>';
 
 		AT8_MLUC_Upgrade::render_gateway_panel();
 	}

@@ -117,6 +117,7 @@ Yes. Styles are namespaced and inherit the theme wherever possible, and any temp
 * The paywall meta box now accepts several free-read levels per post (multi-select), and level meta written by older single-select versions keeps working.
 * The Pro comparison table now describes only what the add-on adds — online gateways, tiered upgrades, paywall resources and extra content gates — instead of quota differences.
 * Documentation updated: the feature list covers the paywall, points, custom fields and terms-of-service, and the data section names the social-login providers the server talks to.
+* The Offline Payments settings section now states that refunds for the Pro online gateways are handled in the gateway dashboard and do not revoke a member's access automatically.
 
 = 2.4.1 =
 * New: the paywall core is now an extension surface. The gate always runs and an add-on extends the same post fields through the `at8_mluc_paywall_enabled`, `at8_mluc_paywall_levels`, `at8_mluc_paywall_price`, `at8_mluc_paywall_days`, `at8_mluc_paywall_unlock_expire`, `at8_mluc_paywall_locked_html`, `at8_mluc_paywall_unlocked_html`, `at8_mluc_paywall_meta_extra` and `at8_mluc_paywall_can_purchase` filters instead of shipping its own content filter, so two gates can never double-lock the same post. An add-on with a richer paywall box takes the meta box over through `at8_mluc_paywall_meta_box`.
