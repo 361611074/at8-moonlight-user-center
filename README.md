@@ -4,7 +4,7 @@ A lightweight, theme-agnostic front-end user center for WordPress. It gives a si
 front-end login, registration, password recovery and a personal account area without
 touching the WordPress admin.
 
-**Version 2.4.0** · GPL-2.0-or-later · PHP 7.4+ · WordPress 5.8+
+**Version 2.5.0** · GPL-2.0-or-later · PHP 7.4+ · WordPress 5.8+
 
 ---
 
@@ -32,12 +32,12 @@ Place each shortcode on its own page, then choose those pages under
 **User Center → Settings**. Any page you leave unset falls back to the equivalent
 WordPress screen.
 
-### Membership and offline payments
+### Membership, offline payments and extras
 
-The free plugin ships a complete membership sales flow with a **quantity limit**
-instead of missing features:
+The free plugin ships a complete membership sales flow with **no artificial
+limits** — every feature below is present and unlocked:
 
-- Up to **three** membership levels (a free base level plus paid ones with a price
+- **Unlimited** membership levels (a free base level plus paid ones with a price
   and validity in days), edited in **User Center → Settings → Membership Levels**
 - Bank transfer as the offline gateway: the buyer sees transfer instructions, the
   order stays pending, and an administrator confirms payment in
@@ -45,10 +45,17 @@ instead of missing features:
 - Paid levels expire on their own; abandoned pending orders close automatically
   after a configurable number of hours
 - Purchase history is visible in the account dashboard
+- Configurable registration / profile fields (nine control types) and a points
+  ledger with a welcome bonus and an earn rate, redeemable for level upgrades
+- A paywall for single posts: per-post price, free-read levels and unlock expiry,
+  sold through the same order engine
 
-**AT8 Moonlight User Center Pro** lifts the level cap from three to eight and
-adds PayPal and Stripe on top of bank transfer. The free plugin stays fully
-functional on its own; nothing is locked.
+**AT8 Moonlight User Center Pro** adds PayPal and Stripe on top of bank transfer,
+tiered upgrade pricing, paywall resources (video / download / gallery), level and
+purchase content gates, demo videos, downloadable materials and a purchases
+shortcode. Since 2.5.0 the free plugin has no artificial caps, so Pro no longer
+"lifts limits" — it only contributes what it actually adds. The free plugin stays
+fully functional on its own; nothing is locked.
 
 ### Admin menu
 
@@ -81,7 +88,7 @@ installed — License (Pro).
 
 ## Installation
 
-1. Download `at8-moonlight-user-center-2.4.0.zip` from the releases, or clone this
+1. Download `at8-moonlight-user-center-2.5.0.zip` from the releases, or clone this
    repository into `wp-content/plugins/at8-moonlight-user-center/`.
 2. Activate the plugin under **Plugins**.
 3. Create pages containing the shortcodes listed above.
@@ -223,6 +230,19 @@ Paid features continue in the separate repository
 which this plugin does not depend on. All extension points are plain WordPress hooks
 (`at8_mluc_loaded`, `at8_mluc_account_tabs`, `at8_mluc_template_args`, `at8_mluc_after_register`, …).
 
+### 2.5.0 — no artificial ceilings
+
+WordPress.org guidelines prohibit holding free functionality behind a quantity cap
+that a paid add-on lifts. Version 2.5.0 therefore removes every artificial ceiling:
+membership levels, published avatars and payment gateways are **unlimited** in the
+free plugin, the single-post paywall accepts any number of free-read levels, and the
+Pro comparison table was rewritten to describe what Pro actually adds instead of
+marketing lifted limits. The old `at8_mluc_membership_level_limit`,
+`at8_mluc_limit_avatar_count`, `at8_mluc_limit_gateway_count` and
+`at8_mluc_paywall_level_limit` filters no longer exist, and Pro 1.6.x no longer
+references them. Historical tables below still mention the old caps — they describe
+the version they are named after, not the current one.
+
 ### 2.4.0 — the free version gets the user centre it was missing
 
 Version 2.4.0 rebalances the split again, this time along the axis that matters
@@ -239,6 +259,9 @@ and the ceilings.**
 | Published avatars | 12 | unlimited |
 | Payment gateways | bank transfer | bank transfer, PayPal, Stripe |
 | Content gates | login, comment | login, comment, level, purchase |
+
+*(Historical record of 2.4.0. Since 2.5.0 the three quantity caps in this table are
+gone — levels, avatars and gateways are unlimited in the free plugin.)*
 
 New modules: `class-fields.php` (configurable fields, nine control types),
 `class-points.php` (ledger with a hard floor of zero), `class-upgrade-paths.php`
@@ -268,6 +291,8 @@ Free/Pro boundary. Every limit is a *quantity*, filterable by Pro:
 | Membership levels | 3 | 8 |
 | Published avatars | 12 | unlimited |
 | Payment gateways | bank transfer | bank transfer, PayPal, Stripe |
+
+*(Historical record of 2.3.0. These caps were removed in 2.5.0.)*
 
 The ceiling is now **enforced**, not just advertised: `AT8_MLUC_Payments::get_gateways()`
 trims the shelf to the licensed count and always keeps bank transfer, and avatars past
@@ -302,6 +327,7 @@ feature set with **quantity limits**, not a crippled subset:
 - **Membership levels** moved into the free plugin (up to three; Pro lifts the cap
   to eight through the `at8_mluc_membership_level_limit` filter). The level
   editor, the membership account tab and the purchase card ship unlocked.
+  *(Historical: that filter and the cap were removed in 2.5.0.)*
 - **Offline payments** moved in as well: the order engine (custom post type
   `at8_mluc_order` with an atomic pending→paid claim), the bank-transfer gateway
   and admin confirmation. Pro contributes PayPal / Stripe through the
