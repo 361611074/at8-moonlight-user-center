@@ -1,5 +1,5 @@
 === AT8 Moonlight User Center ===
-Contributors: 361611074
+Contributors: x361611074
 Tags: user profile, login, registration, avatar, user center
 Requires at least: 5.8
 Tested up to: 7.1
