@@ -770,8 +770,29 @@ class AT8_MLUC_Fields {
 		$fields = self::all();
 
 		foreach ( $fields as $field ) {
-			$name  = self::META_PREFIX . $field['id'];
-			$value = 'checkbox' === $field['type'] ? ( isset( $_POST[ $name ] ) ? '1' : '' ) : ( isset( $_POST[ $name ] ) ? wp_unslash( (string) $_POST[ $name ] ) : '' ); // phpcs:ignore WordPress.Security.NonceVerification -- core profile screens verify their own nonce.
+			$name = self::META_PREFIX . $field['id'];
+
+			/*
+			 * The sanitiser is applied right at the read, per control type, so
+			 * no raw input ever travels through this method; sanitize_value()
+			 * below normalises again (idempotent for every type).
+			 */
+			switch ( $field['type'] ) {
+				case 'checkbox':
+					$value = isset( $_POST[ $name ] ) ? '1' : '';
+					break;
+				case 'textarea':
+					$value = isset( $_POST[ $name ] ) ? sanitize_textarea_field( wp_unslash( $_POST[ $name ] ) ) : '';
+					break;
+				case 'url':
+					$value = isset( $_POST[ $name ] ) ? esc_url_raw( wp_unslash( $_POST[ $name ] ) ) : '';
+					break;
+				case 'email':
+					$value = isset( $_POST[ $name ] ) ? sanitize_email( wp_unslash( $_POST[ $name ] ) ) : '';
+					break;
+				default: // text, number, tel, select, radio — single-line values.
+					$value = isset( $_POST[ $name ] ) ? sanitize_text_field( wp_unslash( $_POST[ $name ] ) ) : '';
+			}
 
 			if ( 'checkbox' === $field['type'] && '' === $value ) {
 				delete_user_meta( $user_id, self::meta_key( $field['id'] ) );
