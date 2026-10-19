@@ -77,7 +77,7 @@ PCP 的 27 条 WARNING：19 条 OAuth 回调/原子认领等结构性不可消�
 
 | 包 | 文件数 | 大小 | SHA-256 |
 |---|---|---|---|
-| `at8-moonlight-user-center-2.5.0.zip` | 51 | 164,330 B | `82dacd081d504a8b4f1956b61baf1c0c8eba1743c0439a4ff02691750ddbf813` |
+| `at8-moonlight-user-center-2.5.0.zip` | 51 | 164,476 B | `1255a1a0628c983f540cf0170d6416b73723eee265c97a5c7d7df53b0970cbb5` |
 | （Pro，站外分发）`at8-moonlight-user-center-pro-1.6.2.zip` | 41 | 124,138 B | `56e3bd6366b8986495f14fa74a95be3cd66bc91d5be8b1e925e49c886a923bcb` |
 
 ## 8. 未完成项与剩余风险
