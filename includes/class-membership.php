@@ -565,6 +565,11 @@ class AT8_MLUC_Membership {
 			return;
 		}
 
+		// Core verifies this nonce before firing the profile-save hooks; the
+		// re-check is free and keeps the intent visible right where the input
+		// is read.
+		check_admin_referer( 'update-user_' . $user_id );
+
 		// Nothing submitted means nothing to change: other plugins may fire
 		// the profile save hooks without rendering these fields.
 		if ( ! isset( $_POST['at8_mluc_membership_level'] ) ) {

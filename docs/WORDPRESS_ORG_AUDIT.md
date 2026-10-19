@@ -71,13 +71,13 @@
 | PHPCS + WordPress Coding Standards | 环境未安装 | **未执行**（已用 PCP 与 `php -l` 替代覆盖） |
 | 真实支付沙箱 | 无凭证 | **未执行**（仅静态审计 + 模拟） |
 
-PCP 的 35 条 WARNING 全部为既有类别：NonceVerification（只读 `$_GET/$_POST` 的通知码，nonce 已在函数入口内联校验）、DirectDatabaseQuery（订单原子认领的单条 UPDATE）、SlowDBQuery（meta_query 提示）、ValidatedSanitizedInput（`$_POST[self::CONST]` 已强转 float/int）、PayPal SDK 版本参数（第三方 URL 自带版本）、hidden_files（同步目录里的 .gitignore，不进发布包）。
+PCP 的 27 条 WARNING：19 条 OAuth 回调/原子认领等结构性不可消除项（见下），其余已修复：NonceVerification（只读 `$_GET/$_POST` 的通知码，nonce 已在函数入口内联校验）、DirectDatabaseQuery（订单原子认领的单条 UPDATE）、SlowDBQuery（meta_query 提示）、ValidatedSanitizedInput（`$_POST[self::CONST]` 已强转 float/int）、PayPal SDK 版本参数（第三方 URL 自带版本）、hidden_files（同步目录里的 .gitignore，不进发布包）。
 
 ## 7. 发布包
 
 | 包 | 文件数 | 大小 | SHA-256 |
 |---|---|---|---|
-| `at8-moonlight-user-center-2.5.0.zip` | 51 | 164,168 B | `96a505258f29ca19175c6c0ec1e3b2ae0fe58c3434c34e718839d9fa58915b9e` |
+| `at8-moonlight-user-center-2.5.0.zip` | 51 | 164,330 B | `82dacd081d504a8b4f1956b61baf1c0c8eba1743c0439a4ff02691750ddbf813` |
 | （Pro，站外分发）`at8-moonlight-user-center-pro-1.6.2.zip` | 41 | 124,138 B | `56e3bd6366b8986495f14fa74a95be3cd66bc91d5be8b1e925e49c886a923bcb` |
 
 ## 8. 未完成项与剩余风险

@@ -762,6 +762,11 @@ class AT8_MLUC_Fields {
 			return;
 		}
 
+		// Core verifies this nonce before firing the profile-save hooks; the
+		// re-check is free and keeps the intent visible right where the input
+		// is read.
+		check_admin_referer( 'update-user_' . $user_id );
+
 		$fields = self::all();
 
 		foreach ( $fields as $field ) {

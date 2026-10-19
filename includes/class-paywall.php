@@ -652,7 +652,7 @@ class AT8_MLUC_Paywall {
 		}
 
 		update_post_meta( $post_id, self::META_ENABLED, 1 );
-		update_post_meta( $post_id, self::META_PRICE, isset( $_POST[ self::META_PRICE ] ) ? (float) wp_unslash( $_POST[ self::META_PRICE ] ) : 0 );
+		update_post_meta( $post_id, self::META_PRICE, isset( $_POST[ self::META_PRICE ] ) ? (float) sanitize_text_field( wp_unslash( $_POST[ self::META_PRICE ] ) ) : 0 );
 
 		/*
 		 * The level field is a multi-select, so it arrives as an array. Legacy
@@ -660,8 +660,7 @@ class AT8_MLUC_Paywall {
 		 * lone string into an array, and re-saving normalises it.
 		 */
 		$levels = AT8_MLUC_Membership::get_levels();
-		$picked = isset( $_POST[ self::META_LEVEL ] ) ? (array) wp_unslash( $_POST[ self::META_LEVEL ] ) : array();
-		$picked = array_values( array_filter( array_map( 'sanitize_key', $picked ) ) );
+		$picked = array_values( array_filter( array_map( 'sanitize_key', (array) wp_unslash( isset( $_POST[ self::META_LEVEL ] ) ? $_POST[ self::META_LEVEL ] : array() ) ) ) );
 
 		if ( empty( $picked ) ) {
 			delete_post_meta( $post_id, self::META_LEVEL );
@@ -681,6 +680,6 @@ class AT8_MLUC_Paywall {
 			}
 		}
 
-		update_post_meta( $post_id, self::META_DAYS, isset( $_POST[ self::META_DAYS ] ) ? max( 0, (int) wp_unslash( $_POST[ self::META_DAYS ] ) ) : 0 );
+		update_post_meta( $post_id, self::META_DAYS, isset( $_POST[ self::META_DAYS ] ) ? max( 0, (int) sanitize_text_field( wp_unslash( $_POST[ self::META_DAYS ] ) ) ) : 0 );
 	}
 }

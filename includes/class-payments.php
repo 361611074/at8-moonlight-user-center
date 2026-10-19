@@ -541,11 +541,11 @@ class AT8_MLUC_Payments {
 			 * Third-party SDK: the query string carries PayPal's own version,
 			 * so a plugin version here would only lie about the asset.
 			 */
-			wp_enqueue_script( // phpcs:ignore WordPress.WP.EnqueuedResourceParameters.MissingVersion -- versioned by PayPal in the URL.
+			wp_enqueue_script(
 				'at8-mluc-paypal-sdk',
 				(string) $args['paypal_sdk'],
 				array(),
-				null,
+				AT8_MLUC_VERSION,
 				true
 			);
 		}
