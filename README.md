@@ -191,6 +191,11 @@ msgfmt languages/at8-moonlight-user-center-zh_CN.po \
 
 ## Project history
 
+*The sections below are version-by-version snapshots of this repository's past.
+They describe the release they are named after, not the current behaviour — for
+what the plugin does today, see the feature list above and the External
+services section of readme.txt.*
+
 This repository previously hosted a **commercialised Free edition (v2.1.1)** that bundled
 payment gateways (Alipay, PayPal, Stripe), a paywall, a license manager, paid membership
 tiers, and a credits/balance ledger.
