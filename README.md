@@ -74,7 +74,8 @@ installed — License (Pro).
   OAuth exchanges with the social-login providers the administrator enables, made
   when a visitor actively uses that login method (see the External services
   section of readme.txt for every endpoint, payload and policy link).
-- **No telemetry.** Nothing about your site or your users leaves the server.
+  When a provider is not enabled — or a visitor never uses those buttons — no
+  request to that service is made at all.
 - **Nothing is locked.** Every feature described here is present and unlocked.
 - **Security by default.** Per-action nonces, capability checks on every state-changing
   handler, sanitised input, escaped output, and rate limiting on public endpoints.
