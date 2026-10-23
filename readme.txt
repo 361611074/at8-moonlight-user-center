@@ -3,7 +3,7 @@ Contributors: x361611074
 Tags: user profile, login, registration, avatar, user center
 Requires at least: 5.8
 Tested up to: 7.1
-Stable tag: 2.5.0
+Stable tag: 2.5.1
 Requires PHP: 7.4
 License: GPL-2.0-or-later
 License URI: https://www.gnu.org/licenses/gpl-2.0.html
@@ -154,6 +154,14 @@ No access tokens, authorization codes or provider API responses are written to l
 4. The front-end login form.
 
 == Changelog ==
+
+= 2.5.1 =
+* Points: purchases now really award points — every completed order grants floor(price x rate) through the ledger with an auditable order reference and a per-order unique lock, so repeated or racing triggers cannot double-award. A zero or negative rate awards nothing; refunds do not remove earned points (documented).
+* Uninstall: the documented "Delete data on uninstall" choice is now a real checkbox on the settings screen, defaulting to keeping data.
+* Scripts: the editor i18n payload and the profile points buttons travel through the standard script API instead of hand-echoed script tags, loaded only where needed.
+* OAuth: provider SVG icons pass a strict element/attribute allow-list before output; the deprecated openssl_free_key() call was removed.
+* readme.txt: a full External services section discloses every social-login endpoint, the data exchanged and each provider's terms and privacy policies.
+* Packaging: local .po/.mo files are no longer bundled; language packs come from translate.wordpress.org.
 
 = 2.5.0 =
 * Removed every artificial ceiling from the free plugin. Membership levels are no longer capped at three, the avatar library is no longer capped at twelve, and every registered payment gateway is offered instead of trimming the shelf to one. The filters that let an add-on raise those caps (`at8_mluc_membership_level_limit`, `at8_mluc_limit_avatar_count`, `at8_mluc_limit_gateway_count`) and the unused `at8_mluc_paywall_level_limit` filter are gone; the free plugin is complete on its own and nothing is unlocked by a licence.
