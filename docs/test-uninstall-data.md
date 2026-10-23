@@ -21,3 +21,11 @@
 | 5 | 未授权请求触发清理 | 不可能 | 卸载仅在 `WP_UNINSTALL_PLUGIN` + 删除插件时执行，无任何 HTTP 入口 | **PASS** |
 | 6 | 多站点 | 逐站清理，不误删其他站 | `is_multisite()` 分支 + switch_to_blog 循环 | **PASS**（代码审计；多站实机 NOT RUN） |
 | 7 | 非本插件数据 | 不触碰 | 删除键全部带 `at8_mluc_` 前缀或显式清单；无模糊 `LIKE 'mluc_%'` | **PASS** |
+
+## 补充（2.5.2 验收轮，2026-10-23）
+
+| # | 用例 | 预期 | 实际 | 结果 |
+|---|---|---|---|---|
+| 8 | Pro 1.x 历史遗留键（`at8_mlucp_membership_level/expires`，Free 迁移垫片读取）在 delete_data=1 卸载后 | 一并清理（插件语义拥有其生命周期） | 2 → 0，`at8_mluc_%` 总残留 0 | **PASS** |
+| 9 | Pro 现版活跃键（`at8_mlucp_material_dl_*` 等） | 不受卸载影响（无通配匹配，只按显式键清单删除） | 精确键清单设计，未触碰 | **PASS**（设计审计） |
+| 10 | WordPress 核心数据（users/posts/comments）在 delete_data=1 卸载前后 | 完全不变 | 17→17、11→11、1→1 | **PASS** |

@@ -4,7 +4,7 @@
 - 构建命令：`python _tools/make_zip.py at8-moonlight-user-center 2.5.2`（从经测试的提交 `master` 工作区打包）
 - 产物：`at8-moonlight-user-center-2.5.2.zip`
 - **SHA-256**：`134efdaa1c86218c662e5289140a24d9206770577aaef0d2ac0151d711c5d341`
-- **50 文件 / 156,865 B**
+- **50 文件 / 157,114 B**
 
 ## 核对项
 
