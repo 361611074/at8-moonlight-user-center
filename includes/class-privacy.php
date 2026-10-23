@@ -206,7 +206,7 @@ class AT8_MLUC_Privacy {
 
 		$content .= '<p>' . esc_html__( 'When you register, the username, email address and password you submit are stored by WordPress. Your password is stored only as a one-way hash and is never visible to this site or to the plugin. If you complete your profile, the display name, nickname, first and last name, website address, biographical information and phone number you enter are stored on this site. If you pick an avatar, the identifier of the image you selected is stored with your account.', 'at8-moonlight-user-center' ) . '</p>';
 
-		$content .= '<p>' . esc_html__( 'This plugin does not send any data to an external service, does not embed third-party trackers and does not use cookies of its own. Sign-in sessions use the standard WordPress cookies.', 'at8-moonlight-user-center' ) . '</p>';
+		$content .= '<p>' . esc_html__( 'This plugin performs no analytics, telemetry or tracking, and does not embed third-party trackers or use cookies of its own; sign-in sessions use the standard WordPress cookies. If the site administrator enables a social-login provider, the plugin exchanges authentication data with that provider only when a visitor actively uses its login button, as described in the External services section of the plugin readme.', 'at8-moonlight-user-center' ) . '</p>';
 
 		$content .= '<p>' . esc_html__( 'You can request an export of your personal data, or the erasure of the information listed above, at any time through the privacy tools on this site.', 'at8-moonlight-user-center' ) . '</p>';
 

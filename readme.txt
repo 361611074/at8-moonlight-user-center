@@ -3,7 +3,7 @@ Contributors: x361611074
 Tags: user profile, login, registration, avatar, user center
 Requires at least: 5.8
 Tested up to: 7.1
-Stable tag: 2.5.1
+Stable tag: 2.5.2
 Requires PHP: 7.4
 License: GPL-2.0-or-later
 License URI: https://www.gnu.org/licenses/gpl-2.0.html
@@ -12,7 +12,7 @@ Front-end user center: login, registration, account dashboard, avatars, social l
 
 == Description ==
 
-AT8 Moonlight User Center gives a WordPress site a complete front-end account area without touching the WordPress admin. It is deliberately small: it uses the WordPress user system for everything, stores no passwords of its own, and contacts no external service.
+AT8 Moonlight User Center gives a WordPress site a complete front-end account area without touching the WordPress admin. It is deliberately small: it uses the WordPress user system for everything and stores no passwords of its own. It performs no analytics, telemetry or tracking; the only third-party communication is the optional social login (see the External services section).
 
 **What it provides**
 
@@ -154,6 +154,10 @@ No access tokens, authorization codes or provider API responses are written to l
 4. The front-end login form.
 
 == Changelog ==
+
+= 2.5.2 =
+* Points: a defensive status guard means only paid orders ever earn points, even if the completion hook is fired by another plugin out of order.
+* Documentation: removed absolute "no external service" claims that contradicted the optional social login; the description, the privacy-policy suggestion and the developer README now state precisely when third-party communication happens.
 
 = 2.5.1 =
 * Points: purchases now really award points — every completed order grants floor(price x rate) through the ledger with an auditable order reference and a per-order unique lock, so repeated or racing triggers cannot double-award. A zero or negative rate awards nothing; refunds do not remove earned points (documented).

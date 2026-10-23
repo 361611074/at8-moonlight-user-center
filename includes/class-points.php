@@ -96,6 +96,13 @@ class AT8_MLUC_Points {
 			return;
 		}
 
+		// Defensive status check: the hook is documented to fire on completed
+		// orders only, so anything still pending, cancelled or failed earns
+		// nothing even if another plugin fires the hook prematurely.
+		if ( 'paid' !== (string) get_post_meta( $order_id, '_at8_mluc_pay_status', true ) ) {
+			return;
+		}
+
 		if ( ! get_userdata( $user_id ) ) {
 			return;
 		}

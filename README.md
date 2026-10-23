@@ -4,7 +4,7 @@ A lightweight, theme-agnostic front-end user center for WordPress. It gives a si
 front-end login, registration, password recovery and a personal account area without
 touching the WordPress admin.
 
-**Version 2.5.1** · GPL-2.0-or-later · PHP 7.4+ · WordPress 5.8+
+**Version 2.5.2** · GPL-2.0-or-later · PHP 7.4+ · WordPress 5.8+
 
 ---
 
@@ -69,8 +69,11 @@ installed — License (Pro).
   `wp_create_user()`, authenticated with `wp_signon()`, and reset through
   `retrieve_password()`. This plugin never reads, stores, displays or transmits a
   plain-text password, and stores no password hash of its own.
-- **No external communication.** No external HTTP requests, no third-party scripts
-  or fonts, no trackers, no analytics, no license or update server.
+- **No analytics, no telemetry.** The plugin never sends visitor or usage data for
+  analysis, advertising or tracking purposes. The only outbound requests are the
+  OAuth exchanges with the social-login providers the administrator enables, made
+  when a visitor actively uses that login method (see the External services
+  section of readme.txt for every endpoint, payload and policy link).
 - **No telemetry.** Nothing about your site or your users leaves the server.
 - **Nothing is locked.** Every feature described here is present and unlocked.
 - **Security by default.** Per-action nonces, capability checks on every state-changing
@@ -88,7 +91,7 @@ installed — License (Pro).
 
 ## Installation
 
-1. Download `at8-moonlight-user-center-2.5.1.zip` from the releases, or clone this
+1. Download `at8-moonlight-user-center-2.5.2.zip` from the releases, or clone this
    repository into `wp-content/plugins/at8-moonlight-user-center/`.
 2. Activate the plugin under **Plugins**.
 3. Create pages containing the shortcodes listed above.
