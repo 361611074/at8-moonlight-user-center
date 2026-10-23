@@ -1,6 +1,6 @@
 # External Requests Audit — AT8 Moonlight User Center 2.5.2
 
-- 审计日期：2026-10-23；对象：`master` @ 整改提交（v2.5.2）
+- 审计日期：2026-10-23（政策链接复核 2026-10-23）；对象：`master` @ 整改提交（v2.5.2）
 - 搜索范围：`includes/`、根 PHP、模板；模式：`wp_remote_get`、`wp_remote_post`、`wp_remote_request`、`curl_init`、URL 形式 `file_get_contents`、`fetch(`、`XMLHttpRequest`、`sendBeacon`、`analytics`、`telemetry`、`tracking`、`beacon`、`pixel`、`usage`、全部 OAuth 域名
 
 ## 结论

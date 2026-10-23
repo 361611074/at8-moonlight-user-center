@@ -127,8 +127,8 @@ This plugin connects to third-party services **only** when the site administrato
 
 * Endpoints contacted: `open.weixin.qq.com/connect/qrconnect` (authorization), `api.weixin.qq.com/sns/oauth2/access_token` (code exchange), `api.weixin.qq.com/sns/userinfo` (profile).
 * Data sent: the OAuth authorization code and the administrator's app credentials; in return the plugin receives the WeChat OpenID/UnionID, display name and avatar URL.
-* Terms of service: https://www.qq.com/contract/
-* Privacy policy: https://privacy.qq.com/
+* Terms of service: https://weixin.qq.com/cgi-bin/readtemplate?uin=&stype=&promote=&fr=&lang=zh_CN&check=false&t=weixin_agreement (the agreement covers WeChat Open Platform, see section 2.1)
+* Privacy policy: https://weixin.qq.com/cgi-bin/readtemplate?uin=&stype=&promote=&fr=&lang=zh_CN&check=false&t=weixin_agreement&s=privacy
 
 **QQ Connect OAuth** (login with a QQ account)
 
@@ -144,7 +144,7 @@ This plugin connects to third-party services **only** when the site administrato
 * Terms of service: https://www.apple.com/legal/internet-services/terms/site.html
 * Privacy policy: https://www.apple.com/legal/privacy/
 
-No access tokens, authorization codes or provider API responses are written to logs or persistent storage; only the provider account identifier is stored as the account binding (see the privacy section below). Policy links were verified on 2026-10-19.
+No access tokens, authorization codes or provider API responses are written to logs or persistent storage; only the provider account identifier is stored as the account binding (see the privacy section below). Policy links were verified on 2026-10-23 (Google, GitHub, Apple, WeChat — including the WeChat agreement's Open Platform coverage; QQ uses Tencent's general service agreement and privacy policy at the same official domains).
 
 == Screenshots ==
 
