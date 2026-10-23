@@ -1,4 +1,4 @@
-# Request Security Audit — AT8 Moonlight User Center 2.5.2
+# Request Security Audit — AT8 Moonlight User Center 2.5.8
 
 - 审计日期：2026-10-23
 - 方法：全仓搜索 `$_GET/$_POST/$_REQUEST/$_COOKIE/$_FILES`、`admin_post_`、`wp_ajax_`、`register_rest_route`、`update_option`、用户创建/更新、积分增减、OAuth 回调、导出/删除、设置保存，逐入口核对

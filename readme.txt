@@ -3,7 +3,7 @@ Contributors: x361611074
 Tags: user profile, login, registration, avatar, user center
 Requires at least: 5.8
 Tested up to: 7.1
-Stable tag: 2.5.7
+Stable tag: 2.5.8
 Requires PHP: 7.4
 License: GPL-2.0-or-later
 License URI: https://www.gnu.org/licenses/gpl-2.0.html
@@ -154,6 +154,13 @@ No access tokens, authorization codes or provider API responses are written to l
 4. The front-end login form.
 
 == Changelog ==
+
+= 2.5.8 =
+* Points: exactly-once awarding is now enforced by the database instead of a read-then-write check. A movement with an idempotency key first creates a claim row in the options table, whose option_name column is UNIQUE, so two concurrent callbacks for the same order cannot both decide to write it: one wins, the others wait for the resulting ledger row and report the same balance. Previously two simultaneous callbacks could each pass the "no entry yet" check and both award points.
+* Points: every movement for one user now runs inside a per-user mutex, taken with an atomic INSERT and released only by the request that owns it (compare-and-swap, no blind delete). The read-compute-write sequence can therefore no longer be interleaved, which closes two holes: a concurrent deduction could pass the overdraft check on a stale balance, and a concurrent recompute could write back a total that was already out of date.
+* Points: the stored balance is no longer read to decide anything. It is a mirror written last and verified by read-back; balances and overdraft checks are always replayed from the ledger rows, and the replay is no longer clamped to zero, so a ledger that went negative is visible instead of hidden behind a 0.
+* Points: the mutex and claim rows expire, so a request that dies while holding one cannot block an account; an abandoned claim is taken over through a compare-and-swap and the award completes exactly once. Both row types are removed on uninstall.
+* Tests: added a real multi-process concurrency suite (8 simultaneous callbacks / deductions / mixed movements) plus fault-injection cases for a failed ledger write, a failed balance write, and an abandoned claim.
 
 = 2.5.7 =
 * Points: the ledger is now the single source of truth. Every movement is its own row (atomic INSERT) carrying an idempotency key, and the stored balance is a cache replayed from those rows — so an award interrupted at any point (after the order marker, after the ledger row, or after the balance) resumes correctly on the next trigger without duplicating the award, without losing it, and without ever removing a historical ledger entry. add_entry() now returns the exact stored row so an exact-row rollback is always possible.

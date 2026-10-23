@@ -4,7 +4,7 @@ A lightweight, theme-agnostic front-end user center for WordPress. It gives a si
 front-end login, registration, password recovery and a personal account area without
 touching the WordPress admin.
 
-**Version 2.5.7** · GPL-2.0-or-later · PHP 7.4+ · WordPress 5.8+
+**Version 2.5.8** · GPL-2.0-or-later · PHP 7.4+ · WordPress 5.8+
 
 ---
 
@@ -77,6 +77,15 @@ installed — License (Pro).
   When a provider is not enabled — or a visitor never uses those buttons — no
   request to that service is made at all.
 - **Nothing is locked.** Every feature described here is present and unlocked.
+- **Points are awarded exactly once, even under concurrency.** A movement that
+  carries an idempotency key claims it with an atomic `INSERT` into the options
+  table, whose `option_name` column is `UNIQUE`, so the database — not a
+  read-then-write check — decides which request owns the key. Every movement for
+  one user then runs inside a per-user mutex that is taken with an atomic `INSERT`
+  and released only by its owner. The stored balance is a mirror that is never
+  read to decide anything: balances and overdraft checks are replayed from the
+  ledger rows. See `docs/concurrency-ledger.md` for the model and the
+  multi-process test results.
 - **Security by default.** Per-action nonces, capability checks on every state-changing
   handler, sanitised input, escaped output, and rate limiting on public endpoints.
 
@@ -92,7 +101,7 @@ installed — License (Pro).
 
 ## Installation
 
-1. Download `at8-moonlight-user-center-2.5.7.zip` from the releases, or clone this
+1. Download `at8-moonlight-user-center-2.5.8.zip` from the releases, or clone this
    repository into `wp-content/plugins/at8-moonlight-user-center/`.
 2. Activate the plugin under **Plugins**.
 3. Create pages containing the shortcodes listed above.

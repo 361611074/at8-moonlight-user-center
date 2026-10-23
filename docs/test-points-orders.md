@@ -1,4 +1,4 @@
-# Points & Orders Test Record — 2.5.2
+# Points & Orders Test Record — 2.5.8
 
 - 环境：本地隔离 WordPress 7.1.3 / PHP 8.3 / SQLite（WP_DEBUG 开）
 - 执行方式：`wp eval-file v4_matrix_test.php`（自动化断言）+ 调用链代码审计
@@ -10,8 +10,11 @@
 1. rate ≤ 0 / ID 非法 → return
 2. 订单状态防御：仅 `_at8_mluc_pay_status == 'paid'` 继续
 3. `get_userdata()` 确认买家存在
-4. 幂等锁：`add_post_meta($order_id, '_at8_mluc_points_awarded', 1, true)`（unique，并发下仅一次成功）
-5. 服务端价格 meta → `floor(price × rate)` → `Points::adjust()` 记 ledger（source=purchase，含订单号）
+4. 服务端价格 meta → `floor(price × rate)` → `Points::adjust(..., 'purchase:<id>')`
+5. `adjust()` 先用**原子 INSERT** 在 options 表认领幂等键（`option_name` 有 UNIQUE 索引，数据库裁决唯一赢家），
+   再取 per-user 互斥行，在临界区内重放账本 → 写流水 → 写余额镜像 → 校验
+6. 发放成功后 `add_post_meta($order_id, '_at8_mluc_points_awarded', 1, true)` 只作快路径标记，
+   不再承担幂等职责（并发正确性由 claim 行 + 互斥行保证）
 
 ## 测试结果
 
@@ -48,6 +51,27 @@
 | 13q | 中断于**流水后**（entry 已写、余额缓存未加）→ 重试 | 重放补余额、**不重复流水行** | 全过 | **PASS**（2.5.7 新增） |
 | 13r | 中断于**余额后**（流水+余额已写、标记未写）→ 重试 | 幂等：不双加 | balance 不变 | **PASS**（2.5.7 新增） |
 | 14 | 真实第三方支付回调（Stripe/PayPal 沙箱） | — | 无沙箱凭据 | **NOT RUN** |
+
+## 并发与一致性（2.5.8 新增，真实多进程）
+
+执行方式：`bash _tools/v4_conc_run.sh <award|deduct|mixed> 8`。8 个独立 `wp eval-file` 进程对齐到同一
+barrier 后同时发起操作；临界区进出时间由 `at8_mluc_points_lock_acquired/released` 钩子记录。
+
+| # | 用例 | 预期 | 实际 | 结果 |
+|---|---|---|---|---|
+| 12 | **8 进程同时回调同一已支付订单** | 只产生 1 条流水、余额 = 单次发放 | 1 条流水，余额 20（2.5.7 实测为 8 条 / 160，已复现并修复） | **PASS**（`v4_conc_run.sh award 8`，6/0） |
+| 13 | **余额 100，8 进程各扣 30** | 3 成功 5 拒绝，余额 10，无透支 | 3 成功 / 5 拒绝（`at8_mluc_points_balance`），余额 10，账本合计 10 | **PASS**（2.5.7 实测 8 个全成功、账本 -140） |
+| 14 | **4 加 10 / 4 扣 30 混合并发** | 余额恒等于账本合计且非负 | 余额 = 账本合计，无负值 | **PASS**（`v4_conc_run.sh mixed 8`，6/0） |
+| 15 | 临界区串行化 | 同一用户的临界区两两不重叠 | 8 个窗口，overlaps = 0 | **PASS**（lock acquired/released 时间戳） |
+| 16 | claim 行由数据库唯一约束建立 | 每订单一行 | 行存在；重复 INSERT 被拒 | **PASS** |
+| 17 | 中断在"已 claim、未写流水" | 过期后可被接管，只发一次 | 接管成功，1 条流水，余额正确 | **PASS** |
+| 18 | 余额镜像被篡改（9999） | 读余额与扣分都不受影响 | `balance()` 返回账本合计，扣 100 被拒 | **PASS** |
+| 19 | 镜像写入失败 | 账本仍正确，不误报失败 | 返回正确余额，账本合计一致 | **PASS** |
+| 20 | 互斥行泄漏 | 每次变动后释放 | 无残留 | **PASS** |
+| 21 | 进程中断（标记后 / 流水后 / 余额后） | 重试后状态一致 | 三种窗口均正确恢复 | **PASS** |
+| 22 | 并发压测（100+ 进程） | — | 未执行 | **NOT RUN** |
+| 23 | MySQL/MariaDB 实机并发 | — | 本机为 SQLite，未执行 | **NOT RUN** |
+
 
 ## 备注
 

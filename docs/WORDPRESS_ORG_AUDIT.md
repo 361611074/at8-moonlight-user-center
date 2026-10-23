@@ -1,5 +1,9 @@
 # WordPress.org 审核整改审计报告（Free）
 
+> **历史快照**：本文记录的是 2.5.0 提交轮的审计结果，版本号、commit 与哈希均为当时值。
+> 当前版本请以 `readme.txt` 的 Stable tag、`docs/final-qa-report.md` 与
+> `docs/release-zip-audit.md` 为准。
+
 - 审计日期：2026-10-13
 - 仓库：`github.com/361611074/at8-moonlight-user-center`
 - 分支 / commit：`master` @ `c9ac41a`

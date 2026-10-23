@@ -1,5 +1,9 @@
 # WordPress.org 测试报告（Free）
 
+> **历史快照**：本文记录的是 2.5.0 提交轮的审计结果，版本号、commit 与哈希均为当时值。
+> 当前版本请以 `readme.txt` 的 Stable tag、`docs/final-qa-report.md` 与
+> `docs/release-zip-audit.md` 为准。
+
 - 日期：2026-10-13
 - 环境：本地隔离 WordPress 7.1.3 / PHP 8.3.35 / wp-cli（`wptest/wordpress`）
 - Free：`master` @ `c9ac41a`（v2.5.0）；Pro（组合场景）：`main` @ `eef731a`（v1.6.0，含本地授权种子）

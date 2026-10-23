@@ -70,6 +70,21 @@ class AT8_MLUC_Activator {
 	}
 
 	/**
+	 * Keep the recorded version in step with the code after an update.
+	 *
+	 * WordPress replaces plugin files without running the activation hook, so
+	 * the option written on activation would otherwise keep reporting the
+	 * version that was installed first.
+	 *
+	 * @return void
+	 */
+	public static function sync_version() {
+		if ( (string) get_option( 'at8_mluc_version', '' ) !== AT8_MLUC_VERSION ) {
+			update_option( 'at8_mluc_version', AT8_MLUC_VERSION, false );
+		}
+	}
+
+	/**
 	 * Run on deactivation.
 	 *
 	 * No user data is removed here; removal only happens on uninstall and only
