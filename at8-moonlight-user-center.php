@@ -2,7 +2,7 @@
 /**
  * Plugin Name:       AT8 Moonlight User Center
  * Description:       A lightweight, theme-agnostic front-end user center. Provides login, registration, password recovery, an account dashboard, profile editing, an admin-curated avatar library, social login, hidden content and membership sales with offline payments.
- * Version:           2.5.6
+ * Version:           2.5.7
  * Requires at least: 5.8
  * Requires PHP:      7.4
  * Author:            漫步白月光
@@ -24,7 +24,7 @@ defined( 'ABSPATH' ) || exit;
  * relative to __DIR__ instead, so a constant defined elsewhere can never
  * redirect this plugin's class loading.
  */
-define( 'AT8_MLUC_VERSION', '2.5.6' );
+define( 'AT8_MLUC_VERSION', '2.5.7' );
 define( 'AT8_MLUC_PLUGIN_FILE', __FILE__ );
 define( 'AT8_MLUC_PLUGIN_DIR', plugin_dir_path( __FILE__ ) );
 define( 'AT8_MLUC_PLUGIN_URL', plugin_dir_url( __FILE__ ) );
