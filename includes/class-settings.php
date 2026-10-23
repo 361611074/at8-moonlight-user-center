@@ -231,6 +231,7 @@ class AT8_MLUC_Settings {
 		$this->add_field( 'terms_enabled', __( 'Require terms acceptance on registration', 'at8-moonlight-user-center' ), 'general', 'checkbox' );
 		$this->add_field( 'terms_page_id', __( 'Terms page', 'at8-moonlight-user-center' ), 'general', 'page_select' );
 		$this->add_field( 'terms_text', __( 'Terms checkbox text', 'at8-moonlight-user-center' ), 'general', 'text' );
+		$this->add_field( 'delete_data', __( 'Delete data on uninstall', 'at8-moonlight-user-center' ), 'general', 'checkbox' );
 
 		add_settings_section(
 			'at8_mluc_membership',
@@ -1287,7 +1288,7 @@ class AT8_MLUC_Settings {
 			$clean[ $key ] = $page_id;
 		}
 
-		foreach ( array( 'enable_registration', 'auto_login', 'enable_avatar', 'free_level_enabled', 'manual_enabled', 'terms_enabled' ) as $key ) {
+		foreach ( array( 'enable_registration', 'auto_login', 'enable_avatar', 'free_level_enabled', 'manual_enabled', 'terms_enabled', 'delete_data' ) as $key ) {
 			$clean[ $key ] = empty( $input[ $key ] ) ? 0 : 1;
 		}
 

@@ -103,6 +103,49 @@ Nothing is removed unless you enable "Delete data on uninstall" in User Center �
 
 Yes. Styles are namespaced and inherit the theme wherever possible, and any template can be overridden from your theme.
 
+== External services ==
+
+This plugin connects to third-party services **only** when the site administrator enables the matching social-login provider under User Center → Settings → Social Login, and **only** when a visitor actively clicks that provider's login button. No external request is made for visitors who do not use these buttons, and the plugin performs no analytics, telemetry or tracking.
+
+**Google OAuth** (login with a Google account)
+
+* Endpoints contacted: `accounts.google.com/o/oauth2/v2/auth` (authorization), `oauth2.googleapis.com/token` (code exchange), `www.googleapis.com/oauth2/v3/userinfo` (profile).
+* Data sent: the OAuth authorization code and the plugin's own client credentials configured by the administrator; in return the plugin receives the provider account ID, display name and verified email address.
+* Data is exchanged once per login attempt and is not stored beyond the account binding (provider ID) described in the privacy section. Verified emails may be used to match an existing account, as described in the plugin FAQ.
+
+* Terms of service: https://policies.google.com/terms
+* Privacy policy: https://policies.google.com/privacy
+
+**GitHub OAuth** (login with a GitHub account)
+
+* Endpoints contacted: `github.com/login/oauth/authorize` (authorization), `github.com/login/oauth/access_token` (code exchange), `api.github.com/user` and `api.github.com/user/emails` (profile and verified addresses).
+* Data sent: the OAuth authorization code and the administrator's client credentials; in return the plugin receives the GitHub account ID, display name, avatar URL and email addresses.
+* Terms of service: https://docs.github.com/en/site-policy/github-terms-of-service
+* Privacy policy: https://docs.github.com/en/site-policy/privacy-policies
+
+**WeChat Open Platform OAuth** (login with a WeChat account)
+
+* Endpoints contacted: `open.weixin.qq.com/connect/qrconnect` (authorization), `api.weixin.qq.com/sns/oauth2/access_token` (code exchange), `api.weixin.qq.com/sns/userinfo` (profile).
+* Data sent: the OAuth authorization code and the administrator's app credentials; in return the plugin receives the WeChat OpenID/UnionID, display name and avatar URL.
+* Terms of service: https://www.qq.com/contract/
+* Privacy policy: https://privacy.qq.com/
+
+**QQ Connect OAuth** (login with a QQ account)
+
+* Endpoints contacted: `graph.qq.com/oauth2.0/authorize`, `graph.qq.com/oauth2.0/token`, `graph.qq.com/oauth2.0/me`, `graph.qq.com/user/get_user_info`.
+* Data sent: the OAuth authorization code and the administrator's app credentials; in return the plugin receives the QQ OpenID, display name and avatar URL.
+* Terms of service: https://www.qq.com/contract/
+* Privacy policy: https://privacy.qq.com/
+
+**Sign in with Apple** (login with an Apple ID)
+
+* Endpoints contacted: `appleid.apple.com/auth/authorize` (authorization, form_post supported), `appleid.apple.com/auth/token` (code exchange), `appleid.apple.com/auth/keys` (public keys for JWT verification).
+* Data sent: the OAuth authorization code and the administrator's client credentials; in return the plugin receives the Apple account identifier, name fragments (when the user shares them) and email address (possibly a private relay address, which is never matched against existing accounts).
+* Terms of service: https://www.apple.com/legal/internet-services/terms/site.html
+* Privacy policy: https://www.apple.com/legal/privacy/
+
+No access tokens, authorization codes or provider API responses are written to logs or persistent storage; only the provider account identifier is stored as the account binding (see the privacy section below). Policy links were verified on 2026-10-19.
+
 == Screenshots ==
 
 1. The account dashboard overview.

@@ -68,9 +68,66 @@ class AT8_MLUC_Points {
 		add_action( 'at8_mluc_after_register', array( $this, 'grant_signup_bonus' ), 20 );
 		add_action( 'show_user_profile', array( $this, 'render_admin_balance' ) );
 		add_action( 'edit_user_profile', array( $this, 'render_admin_balance' ) );
-		add_action( 'admin_print_footer_scripts-profile.php', array( $this, 'print_admin_script' ) );
-		add_action( 'admin_print_footer_scripts-user-edit.php', array( $this, 'print_admin_script' ) );
+		add_action( 'admin_print_footer_scripts-profile.php', array( $this, 'enqueue_admin_script' ) );
+		add_action( 'admin_print_footer_scripts-user-edit.php', array( $this, 'enqueue_admin_script' ) );
 		add_action( 'wp_ajax_at8_mluc_adjust_points', array( $this, 'ajax_adjust' ) );
+		add_action( 'at8_mluc_payment_completed', array( $this, 'grant_for_order' ), 10, 3 );
+	}
+
+	/**
+	 * Award points for a completed order, based on the configured
+	 * points-per-currency rate.
+	 *
+	 * The hook fires exactly once per order because complete_order() refuses
+	 * to run twice; the unique post-meta lock additionally makes the award
+	 * race-proof and keeps an auditable marker on the order itself.
+	 *
+	 * @param int    $order_id Completed order ID.
+	 * @param int    $user_id  Buyer user ID.
+	 * @param string $subject  Level slug or "paywall:<post_id>".
+	 * @return void
+	 */
+	public function grant_for_order( $order_id, $user_id, $subject ) {
+		$order_id = (int) $order_id;
+		$user_id  = (int) $user_id;
+		$rate     = self::rate();
+
+		if ( $order_id <= 0 || $user_id <= 0 || $rate <= 0 ) {
+			return;
+		}
+
+		if ( ! get_userdata( $user_id ) ) {
+			return;
+		}
+
+		// One award per order: add_post_meta with $unique fails when the lock
+		// already exists, so concurrent or repeated triggers cannot double-award.
+		if ( ! add_post_meta( $order_id, '_at8_mluc_points_awarded', 1, true ) ) {
+			return;
+		}
+
+		// Server-side amount taken from the order record; client input is never trusted.
+		$price = (float) get_post_meta( $order_id, '_at8_mluc_pay_price', true );
+
+		if ( $price <= 0 ) {
+			return;
+		}
+
+		$points = (int) floor( $price * $rate );
+
+		if ( $points <= 0 ) {
+			return;
+		}
+
+		$subject = is_string( $subject ) ? $subject : '';
+		$reason  = sprintf(
+			/* translators: 1: order ID, 2: purchased item (level slug or paywall post). */
+			__( 'Order #%1$d (%2$s)', 'at8-moonlight-user-center' ),
+			$order_id,
+			$subject
+		);
+
+		self::adjust( $user_id, $points, $reason, 'purchase' );
 	}
 
 	/**
@@ -94,58 +151,34 @@ class AT8_MLUC_Points {
 	 *
 	 * @return void
 	 */
-	public function print_admin_script() {
+	/**
+	 * Enqueue the profile-screen script through the standard script API.
+	 *
+	 * The hook only fires on profile.php / user-edit.php, so the asset loads
+	 * exactly where the grant / deduct buttons exist.
+	 *
+	 * @return void
+	 */
+	public function enqueue_admin_script() {
 		$config = array(
 			'ajaxUrl' => admin_url( 'admin-ajax.php' ),
 			'nonce'   => wp_create_nonce( 'at8_mluc_nonce' ),
 		);
-		?>
-		<script type="text/javascript">
-		window.at8MlucData = <?php echo wp_json_encode( $config ); ?>;
-		( function () {
-			var data = window.at8MlucData || {};
 
-			function post( mode ) {
-				var userId = document.getElementById( 'at8-mluc-points-add' ).getAttribute( 'data-user' );
-				var amount = parseInt( document.getElementById( 'at8-mluc-points-amount' ).value, 10 );
-				var status = document.getElementById( 'at8-mluc-points-status' );
-				var body = new FormData();
-
-				body.append( 'action', 'at8_mluc_adjust_points' );
-				body.append( 'nonce', data.nonce );
-				body.append( 'user_id', userId );
-				body.append( 'amount', isNaN( amount ) ? 0 : amount );
-				body.append( 'mode', mode );
-
-				fetch( data.ajaxUrl, { method: 'POST', body: body, credentials: 'same-origin' } )
-					.then( function ( r ) { return r.json(); } )
-					.then( function ( res ) {
-						if ( ! res || ! res.success ) {
-							status.textContent = ( res && res.data && res.data.message ) || 'Error.';
-							return;
-						}
-
-						document.getElementById( 'at8-mluc-points-balance' ).value = res.data.balance;
-						status.textContent = res.data.label;
-					} )
-					.catch( function () {
-						status.textContent = 'Error.';
-					} );
-			}
-
-			var add = document.getElementById( 'at8-mluc-points-add' );
-			var deduct = document.getElementById( 'at8-mluc-points-deduct' );
-
-			if ( add ) {
-				add.addEventListener( 'click', function () { post( 'add' ); } );
-			}
-
-			if ( deduct ) {
-				deduct.addEventListener( 'click', function () { post( 'deduct' ); } );
-			}
-		}() );
-		</script>
-		<?php
+		wp_register_script( 'at8-mluc-points-admin', '', array(), AT8_MLUC_VERSION, true );
+		wp_add_inline_script(
+			'at8-mluc-points-admin',
+			'window.at8MlucData = ' . wp_json_encode( $config ) . ';',
+			'before'
+		);
+		wp_enqueue_script( 'at8-mluc-points-admin' );
+		wp_enqueue_script(
+			'at8-mluc-points-admin-buttons',
+			AT8_MLUC_PLUGIN_URL . 'assets/js/at8-mluc-points-admin.js',
+			array( 'at8-mluc-points-admin' ),
+			AT8_MLUC_VERSION,
+			true
+		);
 	}
 
 	/**

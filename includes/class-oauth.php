@@ -246,8 +246,10 @@ class AT8_MLUC_OAuth
 				/* translators: %s: social network name (WeChat, QQ, GitHub, ...). */
 				sprintf(esc_attr__('使用 %s 登录', 'at8-moonlight-user-center'), esc_attr($p['label']))
 			);
-			// phpcs:ignore WordPress.Security.EscapeOutput.OutputNotEscaped -- Hard-coded brand SVG from the provider table above; contains no dynamic data.
-			echo isset($p['icon_svg']) ? $p['icon_svg'] : '';
+			// The SVG passes a strict element/attribute allow-list below: filter
+			// providers are not trusted, so scripts, event handlers, external
+			// references and unknown elements/attributes are stripped by wp_kses.
+			echo wp_kses( isset($p['icon_svg']) ? $p['icon_svg'] : '', self::svg_allowed_tags() );
 			printf('<span>%s</span></a>', esc_html($p['label']));
 		}
 		echo '</div></div>';
@@ -258,6 +260,33 @@ class AT8_MLUC_OAuth
 		ob_start();
 		$this->render_buttons();
 		return ob_get_clean();
+	}
+
+	/**
+	 * Sanitise an SVG icon down to a fixed element/attribute allow-list.
+	 *
+	 * Providers come from a filterable table, so the value is never trusted:
+	 * <script>, foreignObject, event handlers (on*), external <use>/<image>
+	 * references and unknown elements/attributes are removed by wp_kses.
+	 *
+	 * @return array Allowed SVG elements and attributes.
+	 */
+	public static function svg_allowed_tags()
+	{
+		$allowed = array(
+			'svg'      => array('viewbox' => true, 'width' => true, 'height' => true, 'fill' => true, 'aria-hidden' => true, 'focusable' => true, 'role' => true, 'xmlns' => true, 'class' => true),
+			'g'        => array('fill' => true, 'fill-opacity' => true, 'stroke' => true, 'transform' => true, 'opacity' => true),
+			'path'     => array('d' => true, 'fill' => true, 'fill-opacity' => true, 'fill-rule' => true, 'clip-rule' => true, 'stroke' => true, 'stroke-width' => true, 'stroke-linecap' => true, 'stroke-linejoin' => true),
+			'circle'   => array('cx' => true, 'cy' => true, 'r' => true, 'fill' => true, 'stroke' => true),
+			'ellipse'  => array('cx' => true, 'cy' => true, 'rx' => true, 'ry' => true, 'fill' => true),
+			'rect'     => array('x' => true, 'y' => true, 'width' => true, 'height' => true, 'rx' => true, 'ry' => true, 'fill' => true),
+			'polygon'  => array('points' => true, 'fill' => true),
+			'polyline' => array('points' => true, 'fill' => true),
+			'line'     => array('x1' => true, 'y1' => true, 'x2' => true, 'y2' => true, 'stroke' => true, 'stroke-width' => true),
+			'title'    => array(),
+		);
+
+		return $allowed;
 	}
 
 	/**
@@ -631,7 +660,8 @@ class AT8_MLUC_OAuth
 		$signing = $head_b64 . '.' . $payload_b64;
 		$sig = $this->b64url_raw($sig_b64);
 		$ok = openssl_verify($signing, $sig, $key, OPENSSL_ALGO_SHA256);
-		openssl_free_key($key);
+		// OpenSSL key resources are freed automatically since PHP 8; the
+		// deprecated openssl_free_key() call was removed.
 		if (1 !== $ok) {
 			return new WP_Error('oauth_apple', __('Apple 令牌签名校验失败。', 'at8-moonlight-user-center'));
 		}

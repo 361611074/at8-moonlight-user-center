@@ -116,15 +116,23 @@ class AT8_MLUC_Assets {
 		}
 
 		wp_enqueue_media();
-		add_action( 'admin_head', array( $this, 'print_tinymce_i18n' ) );
+
+		// Inline-only script container (WP 5.7+): the JSON payload travels
+		// through the standard script API instead of a hand-echoed tag.
+		wp_register_script( 'at8-mluc-editor-i18n', '', array(), AT8_MLUC_VERSION, false );
+		wp_add_inline_script(
+			'at8-mluc-editor-i18n',
+			'window.at8_mluc_tinymce_i18n = ' . wp_json_encode( $this->tinymce_payload() ) . ';'
+		);
+		wp_enqueue_script( 'at8-mluc-editor-i18n' );
 	}
 
 	/**
-	 * Print the TinyMCE button strings as an inline global.
+	 * Button strings for the TinyMCE hidden-content plugin.
 	 *
-	 * @return void
+	 * @return array
 	 */
-	public function print_tinymce_i18n() {
+	private function tinymce_payload() {
 		$types = array();
 
 		if ( class_exists( 'AT8_MLUC_Hidecontent' ) ) {
@@ -138,13 +146,11 @@ class AT8_MLUC_Assets {
 			}
 		}
 
-		$payload = array(
+		return array(
 			'button_label' => __( 'Hidden Content', 'at8-moonlight-user-center' ),
 			'inserting'    => __( 'Choose a visibility rule…', 'at8-moonlight-user-center' ),
 			'types'        => $types,
 		);
-
-		echo '<script>window.at8_mluc_tinymce_i18n = ' . wp_json_encode( $payload ) . ";</script>\n";
 	}
 
 	/**
