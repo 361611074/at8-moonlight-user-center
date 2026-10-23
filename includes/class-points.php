@@ -35,6 +35,12 @@ class AT8_MLUC_Points {
 	const LEDGER_META = 'at8_mluc_points_log';
 
 	/**
+	 * Per-entry ledger storage (one row per entry). Appends are atomic
+	 * INSERTs, so concurrent awards for the same user can never lose an entry.
+	 */
+	const ENTRY_META = 'at8_mluc_points_entry';
+
+	/**
 	 * Maximum ledger entries kept per user.
 	 *
 	 * @var int
@@ -92,11 +98,7 @@ class AT8_MLUC_Points {
 		$user_id  = (int) $user_id;
 		$rate     = self::rate();
 
-		if ( $order_id <= 0 || $user_id <= 0 || $rate <= 0 ) {
-			return;
-		}
-
-		// Defensive status check: the hook is documented to fire on completed
+			// Defensive status check: the hook is documented to fire on completed
 		// orders only, so anything still pending, cancelled or failed earns
 		// nothing even if another plugin fires the hook prematurely.
 		if ( 'paid' !== (string) get_post_meta( $order_id, '_at8_mluc_pay_status', true ) ) {
@@ -124,12 +126,6 @@ class AT8_MLUC_Points {
 			return;
 		}
 
-		// One award per order: add_post_meta with $unique fails when the lock
-		// already exists, so concurrent or repeated triggers cannot double-award.
-		if ( ! add_post_meta( $order_id, '_at8_mluc_points_awarded', 1, true ) ) {
-			return;
-		}
-
 		$subject = is_string( $subject ) ? $subject : '';
 		$reason  = sprintf(
 			/* translators: 1: order ID, 2: purchased item (level slug or paywall post). */
@@ -138,15 +134,38 @@ class AT8_MLUC_Points {
 			$subject
 		);
 
-		$before = (int) self::balance( $user_id );
-		$result = self::adjust( $user_id, $points, $reason, 'purchase' );
+		$key     = 'purchase:' . $order_id;
+		$already = self::has_entry( $user_id, $key );
 
-		/*
-		 * Award verification: a WP_Error or a balance that did not actually
-		 * move by $points (e.g. a failed meta write) rolls the lock back, so
-		 * the next trigger can retry the award instead of losing it.
-		 */
-		if ( is_wp_error( $result ) || (int) self::balance( $user_id ) !== $before + $points ) {
+		// One award per order: add_post_meta with $unique is an atomic insert,
+		// so concurrent or repeated triggers cannot double-award.
+		if ( ! add_post_meta( $order_id, '_at8_mluc_points_awarded', 1, true ) ) {
+			return;
+		}
+
+		// Recovery path: a previous attempt wrote the ledger entry but failed
+		// the balance update — only the balance still needs bumping.
+		$entry = array(
+			'time'   => time(),
+			'amount' => $points,
+			'reason' => $reason,
+			'source' => 'purchase',
+			'by'     => get_current_user_id(),
+			'key'    => $key,
+		);
+
+		if ( ! $already ) {
+			if ( ! self::add_entry( $user_id, $entry ) ) {
+				// Nothing was persisted; rolling the lock back keeps the award retryable.
+				delete_post_meta( $order_id, '_at8_mluc_points_awarded' );
+				return;
+			}
+		}
+
+		if ( ! self::bump_balance( $user_id, $points ) ) {
+			// The ledger entry is already recorded; leaving the order lock
+			// rolled back makes the next trigger resume through the recovery
+			// path above and complete the balance update exactly once.
 			delete_post_meta( $order_id, '_at8_mluc_points_awarded' );
 			return;
 		}
@@ -168,11 +187,6 @@ class AT8_MLUC_Points {
 		self::adjust( $user_id, $bonus, __( 'Welcome bonus', 'at8-moonlight-user-center' ), 'signup' );
 	}
 
-	/**
-	 * Wire the grant / deduct buttons on the profile screen.
-	 *
-	 * @return void
-	 */
 	/**
 	 * Enqueue the profile-screen script through the standard script API.
 	 *
@@ -232,16 +246,10 @@ class AT8_MLUC_Points {
 	 * @return array<int, array<string, mixed>>
 	 */
 	public static function ledger( $user_id, $limit = 20 ) {
-		$log = get_user_meta( $user_id, self::LEDGER_META, true );
+		$entries = self::entries( $user_id );
+		$entries = array_reverse( $entries );
 
-		if ( ! is_array( $log ) ) {
-			return array();
-		}
-
-		$log = array_values( array_filter( $log, 'is_array' ) );
-		$log = array_reverse( $log );
-
-		return array_slice( $log, 0, max( 1, (int) $limit ) );
+		return array_slice( $entries, 0, max( 1, (int) $limit ) );
 	}
 
 	/**
@@ -261,42 +269,11 @@ class AT8_MLUC_Points {
 			return new WP_Error( 'at8_mluc_points_user', __( 'Unknown user.', 'at8-moonlight-user-center' ) );
 		}
 
-		/*
-		 * Per-user mutual exclusion. add_option() is an INSERT, so acquiring
-		 * the lock is atomic even when two orders complete for the same user
-		 * at the same moment. The stamp enables stale-lock takeover and the
-		 * deadline bounds the wait.
-		 */
-		$lock     = 'at8_mluc_points_lock_' . $user_id;
-		$deadline = time() + 5;
-
-		while ( true ) {
-			if ( add_option( $lock, array( 't' => time() ), '', 'no' ) ) {
-				break;
-			}
-
-			$held = get_option( $lock );
-
-			if ( is_array( $held ) && ( time() - (int) $held['t'] ) > 10 ) {
-				delete_option( $lock );
-				continue;
-			}
-
-			if ( time() > $deadline ) {
-				return new WP_Error( 'at8_mluc_points_busy', __( 'Another points update is in progress, please retry.', 'at8-moonlight-user-center' ) );
-			}
-
-			usleep( 50000 );
-		}
-
 		$balance = self::balance( $user_id );
 
 		if ( $amount < 0 && abs( $amount ) > $balance ) {
-			delete_option( $lock );
 			return new WP_Error( 'at8_mluc_points_balance', __( 'That would take the balance below zero.', 'at8-moonlight-user-center' ) );
 		}
-
-		$new_balance = max( 0, $balance + $amount );
 
 		$entry = array(
 			'time'   => time(),
@@ -306,41 +283,21 @@ class AT8_MLUC_Points {
 			'by'     => get_current_user_id(),
 		);
 
-		// Pre-update snapshot: the rollback restores this exact state, so no
-		// ledger entry that predates this adjustment can ever be removed.
-		$log_before = get_user_meta( $user_id, self::LEDGER_META, true );
-		$log_before = is_array( $log_before ) ? $log_before : array();
-
-		$log = $log_before;
-		$log[] = $entry;
-
-		if ( count( $log ) > self::LOG_LIMIT ) {
-			$log = array_slice( $log, -self::LOG_LIMIT );
+		/*
+		 * Ordering: the ledger entry (an atomic INSERT) records the intent
+		 * first, then the balance is bumped with a conditional atomic SQL
+		 * update. There is no read-modify-write anywhere, so concurrent
+		 * adjustments for the same user cannot lose an update, and a failed
+		 * balance bump rolls the entry back by deleting exactly the one row
+		 * this call added.
+		 */
+		if ( ! self::add_entry( $user_id, $entry ) ) {
+			return new WP_Error( 'at8_mluc_points_save', __( 'The points update could not be saved, please retry.', 'at8-moonlight-user-center' ) );
 		}
 
-		update_user_meta( $user_id, self::BALANCE_META, $new_balance );
-		update_user_meta( $user_id, self::LEDGER_META, $log );
-
-		/*
-		 * Read-back verification while still holding the mutex: a silently
-		 * failed meta write is detected here and the half-written state is
-		 * rolled back, so balance and ledger can never drift apart.
-		 */
-		$saved_balance = (int) self::balance( $user_id );
-		$saved_log     = get_user_meta( $user_id, self::LEDGER_META, true );
-		$last          = is_array( $saved_log ) ? end( $saved_log ) : null;
-		$ledger_ok     = is_array( $last ) && (int) $last['amount'] === $amount && $last['source'] === $entry['source'] && (int) $last['time'] === (int) $entry['time'];
-
-		if ( $saved_balance !== $new_balance || ! $ledger_ok ) {
-			/*
-			 * Snapshot-based rollback: restore the exact pre-update balance
-			 * and the pre-update ledger. No entry that predates this
-			 * adjustment can ever be removed by the rollback.
-			 */
-			update_user_meta( $user_id, self::BALANCE_META, $balance );
-			update_user_meta( $user_id, self::LEDGER_META, $log_before );
-			delete_option( $lock );
-			return new WP_Error( 'at8_mluc_points_save', __( 'The points update could not be saved, please retry.', 'at8-moonlight-user-center' ) );
+		if ( ! self::bump_balance( $user_id, $amount ) ) {
+			self::remove_entry( $user_id, $entry );
+			return new WP_Error( 'at8_mluc_points_balance', __( 'That would take the balance below zero.', 'at8-moonlight-user-center' ) );
 		}
 
 		/**
@@ -353,11 +310,119 @@ class AT8_MLUC_Points {
 		 * @param int   $balance New balance.
 		 * @param array $entry   Ledger entry.
 		 */
-		do_action( 'at8_mluc_points_adjusted', $user_id, $amount, $new_balance, $entry );
+		do_action( 'at8_mluc_points_adjusted', $user_id, $amount, self::balance( $user_id ), $entry );
 
-		delete_option( $lock );
+		return self::balance( $user_id );
+	}
 
-		return $new_balance;
+	/**
+	 * Append one ledger entry. add_user_meta is an atomic INSERT, so entries
+	 * from concurrent adjustments for the same user interleave safely instead
+	 * of overwriting each other.
+	 *
+	 * @param int    $user_id User ID.
+	 * @param array  $entry   Ledger entry.
+	 * @return bool Whether the entry was stored.
+	 */
+	private static function add_entry( $user_id, $entry ) {
+		$entry['u'] = uniqid( '', true );
+
+		return (bool) add_user_meta( $user_id, self::ENTRY_META, $entry );
+	}
+
+	/**
+	 * Remove exactly one ledger entry (the one this call added).
+	 *
+	 * @param int   $user_id User ID.
+	 * @param array $entry   The entry to remove.
+	 * @return void
+	 */
+	private static function remove_entry( $user_id, $entry ) {
+		delete_user_meta( $user_id, self::ENTRY_META, $entry );
+	}
+
+	/**
+	 * Whether a ledger entry carrying the given idempotency key exists.
+	 *
+	 * @param int    $user_id User ID.
+	 * @param string $key     Idempotency key.
+	 * @return bool
+	 */
+	public static function has_entry( $user_id, $key ) {
+		foreach ( self::entries( $user_id ) as $entry ) {
+			if ( isset( $entry['key'] ) && '' !== $entry['key'] && $entry['key'] === $key ) {
+				return true;
+			}
+		}
+
+		return false;
+	}
+
+	/**
+	 * All ledger entries, oldest first. New per-row entries are merged with
+	 * any legacy single-meta history so nothing already recorded is lost.
+	 *
+	 * @param int $user_id User ID.
+	 * @return array<int, array<string, mixed>>
+	 */
+	private static function entries( $user_id ) {
+		global $wpdb;
+
+		$entries = get_user_meta( $user_id, self::ENTRY_META, false );
+		$entries = is_array( $entries ) ? array_values( array_filter( $entries, 'is_array' ) ) : array();
+
+		$legacy = get_user_meta( $user_id, self::LEDGER_META, true );
+		if ( is_array( $legacy ) ) {
+			$entries = array_merge( array_values( array_filter( $legacy, 'is_array' ) ), $entries );
+		}
+
+		usort( $entries, function ( $a, $b ) {
+			return (int) $a['time'] <=> (int) $b['time'];
+		} );
+
+		return $entries;
+	}
+
+	/**
+	 * Atomically move the balance by $delta.
+	 *
+	 * A negative delta carries an all-or-nothing overdraft guard: the WHERE
+	 * clause only matches when the stored balance can absorb the deduction,
+	 * evaluated atomically inside the UPDATE. A positive delta always matches
+	 * once the balance row exists.
+	 *
+	 * @param int $user_id User ID.
+	 * @param int $delta   Signed delta.
+	 * @return bool Whether the balance moved.
+	 */
+	private static function bump_balance( $user_id, $delta ) {
+		global $wpdb;
+
+		$delta = (int) $delta;
+
+		if ( '' === get_user_meta( $user_id, self::BALANCE_META, true ) ) {
+			add_user_meta( $user_id, self::BALANCE_META, 0, true );
+		}
+
+		// phpcs:ignore WordPress.DB.DirectDatabaseQuery.DirectQuery, WordPress.DB.DirectDatabaseQuery.NoCaching -- The balance must move atomically; the meta API cannot express a conditional increment.
+		$rows = $wpdb->query(
+			$wpdb->prepare(
+				"UPDATE {$wpdb->usermeta} SET meta_value = CAST( meta_value AS DECIMAL( 20, 0 ) ) + %d
+				 WHERE meta_key = %s AND user_id = %d
+				   AND ( %d >= 0 OR CAST( meta_value AS DECIMAL( 20, 0 ) ) >= ABS( %d ) )",
+				$delta,
+				self::BALANCE_META,
+				$user_id,
+				$delta,
+				$delta
+			)
+		);
+
+		if ( function_exists( 'clean_user_cache' ) ) {
+			clean_user_cache( $user_id );
+		}
+
+		return 0 < (int) $rows;
 	}
 
 	/**

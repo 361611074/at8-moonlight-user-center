@@ -291,6 +291,7 @@ function at8_mluc_meta_labels() {
 		'at8_mluc_membership_expires'   => __( 'Membership expiry date', 'at8-moonlight-user-center' ),
 		'at8_mluc_points'               => __( 'Point balance', 'at8-moonlight-user-center' ),
 		'at8_mluc_points_log'           => __( 'Point ledger', 'at8-moonlight-user-center' ),
+		'at8_mluc_points_entry'         => __( 'Point ledger entry', 'at8-moonlight-user-center' ),
 		'at8_mluc_pay_unlocks'          => __( 'Paywall unlocks', 'at8-moonlight-user-center' ),
 		// Legacy Pro 1.x keys: the membership layer reads them as a migration
 		// fallback, so the plugin owns their lifecycle (export/erase/uninstall).

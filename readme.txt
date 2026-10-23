@@ -3,7 +3,7 @@ Contributors: x361611074
 Tags: user profile, login, registration, avatar, user center
 Requires at least: 5.8
 Tested up to: 7.1
-Stable tag: 2.5.5
+Stable tag: 2.5.6
 Requires PHP: 7.4
 License: GPL-2.0-or-later
 License URI: https://www.gnu.org/licenses/gpl-2.0.html
@@ -154,6 +154,9 @@ No access tokens, authorization codes or provider API responses are written to l
 4. The front-end login form.
 
 == Changelog ==
+
+= 2.5.6 =
+* Points: balance and ledger writes are now built on atomic primitives only — the ledger entry is an INSERT (add_user_meta) and the balance moves with a conditional SQL UPDATE, so concurrent awards for the same user can no longer lose updates and no per-user lock is needed. A failed balance bump rolls back exactly the one ledger row it added, and an idempotency key on each entry lets an interrupted award resume without duplicating history.
 
 = 2.5.5 =
 * Points: the failure rollback now restores an exact pre-update snapshot of the balance and the ledger, so a failed write can never remove a ledger entry that predates the adjustment (the previous comparison-based rollback could drop one historical entry in a specific failure case).
