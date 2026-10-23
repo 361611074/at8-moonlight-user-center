@@ -107,13 +107,11 @@ class AT8_MLUC_Points {
 			return;
 		}
 
-		// One award per order: add_post_meta with $unique fails when the lock
-		// already exists, so concurrent or repeated triggers cannot double-award.
-		if ( ! add_post_meta( $order_id, '_at8_mluc_points_awarded', 1, true ) ) {
-			return;
-		}
-
-		// Server-side amount taken from the order record; client input is never trusted.
+		/*
+		 * Compute first, lock last: an invalid amount or a zero result returns
+		 * before the lock exists, so a corrected order can be awarded later.
+		 * The price comes from the order record; client input is never trusted.
+		 */
 		$price = (float) get_post_meta( $order_id, '_at8_mluc_pay_price', true );
 
 		if ( $price <= 0 ) {
@@ -126,6 +124,12 @@ class AT8_MLUC_Points {
 			return;
 		}
 
+		// One award per order: add_post_meta with $unique fails when the lock
+		// already exists, so concurrent or repeated triggers cannot double-award.
+		if ( ! add_post_meta( $order_id, '_at8_mluc_points_awarded', 1, true ) ) {
+			return;
+		}
+
 		$subject = is_string( $subject ) ? $subject : '';
 		$reason  = sprintf(
 			/* translators: 1: order ID, 2: purchased item (level slug or paywall post). */
@@ -134,7 +138,18 @@ class AT8_MLUC_Points {
 			$subject
 		);
 
-		self::adjust( $user_id, $points, $reason, 'purchase' );
+		$before = (int) self::balance( $user_id );
+		$result = self::adjust( $user_id, $points, $reason, 'purchase' );
+
+		/*
+		 * Award verification: a WP_Error or a balance that did not actually
+		 * move by $points (e.g. a failed meta write) rolls the lock back, so
+		 * the next trigger can retry the award instead of losing it.
+		 */
+		if ( is_wp_error( $result ) || (int) self::balance( $user_id ) !== $before + $points ) {
+			delete_post_meta( $order_id, '_at8_mluc_points_awarded' );
+			return;
+		}
 	}
 
 	/**

@@ -3,7 +3,7 @@ Contributors: x361611074
 Tags: user profile, login, registration, avatar, user center
 Requires at least: 5.8
 Tested up to: 7.1
-Stable tag: 2.5.2
+Stable tag: 2.5.3
 Requires PHP: 7.4
 License: GPL-2.0-or-later
 License URI: https://www.gnu.org/licenses/gpl-2.0.html
@@ -154,6 +154,9 @@ No access tokens, authorization codes or provider API responses are written to l
 4. The front-end login form.
 
 == Changelog ==
+
+= 2.5.3 =
+* Points: the award is now failure-safe. The idempotency lock is written only after the amount and rate checks pass, and if the balance write fails the lock rolls itself back so the next trigger retries instead of losing the award. Verified with forced-failure and retry tests.
 
 = 2.5.2 =
 * Points: a defensive status guard means only paid orders ever earn points, even if the completion hook is fired by another plugin out of order.
