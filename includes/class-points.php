@@ -261,15 +261,42 @@ class AT8_MLUC_Points {
 			return new WP_Error( 'at8_mluc_points_user', __( 'Unknown user.', 'at8-moonlight-user-center' ) );
 		}
 
+		/*
+		 * Per-user mutual exclusion. add_option() is an INSERT, so acquiring
+		 * the lock is atomic even when two orders complete for the same user
+		 * at the same moment. The stamp enables stale-lock takeover and the
+		 * deadline bounds the wait.
+		 */
+		$lock     = 'at8_mluc_points_lock_' . $user_id;
+		$deadline = time() + 5;
+
+		while ( true ) {
+			if ( add_option( $lock, array( 't' => time() ), '', 'no' ) ) {
+				break;
+			}
+
+			$held = get_option( $lock );
+
+			if ( is_array( $held ) && ( time() - (int) $held['t'] ) > 10 ) {
+				delete_option( $lock );
+				continue;
+			}
+
+			if ( time() > $deadline ) {
+				return new WP_Error( 'at8_mluc_points_busy', __( 'Another points update is in progress, please retry.', 'at8-moonlight-user-center' ) );
+			}
+
+			usleep( 50000 );
+		}
+
 		$balance = self::balance( $user_id );
 
 		if ( $amount < 0 && abs( $amount ) > $balance ) {
+			delete_option( $lock );
 			return new WP_Error( 'at8_mluc_points_balance', __( 'That would take the balance below zero.', 'at8-moonlight-user-center' ) );
 		}
 
-		$balance = max( 0, $balance + $amount );
-
-		update_user_meta( $user_id, self::BALANCE_META, $balance );
+		$new_balance = max( 0, $balance + $amount );
 
 		$entry = array(
 			'time'   => time(),
@@ -288,7 +315,29 @@ class AT8_MLUC_Points {
 			$log = array_slice( $log, -self::LOG_LIMIT );
 		}
 
+		update_user_meta( $user_id, self::BALANCE_META, $new_balance );
 		update_user_meta( $user_id, self::LEDGER_META, $log );
+
+		/*
+		 * Read-back verification while still holding the mutex: a silently
+		 * failed meta write is detected here and the half-written state is
+		 * rolled back, so balance and ledger can never drift apart.
+		 */
+		$saved_balance = (int) self::balance( $user_id );
+		$saved_log     = get_user_meta( $user_id, self::LEDGER_META, true );
+		$last          = is_array( $saved_log ) ? end( $saved_log ) : null;
+		$ledger_ok     = is_array( $last ) && (int) $last['amount'] === $amount && $last['source'] === $entry['source'] && (int) $last['time'] === (int) $entry['time'];
+
+		if ( $saved_balance !== $new_balance || ! $ledger_ok ) {
+			update_user_meta( $user_id, self::BALANCE_META, $balance );
+			$rolled_log = is_array( $saved_log ) ? $saved_log : $log;
+			if ( count( $rolled_log ) > 0 && $last === end( $rolled_log ) ) {
+				$rolled_log = array_slice( $rolled_log, 0, -1 );
+			}
+			update_user_meta( $user_id, self::LEDGER_META, $rolled_log );
+			delete_option( $lock );
+			return new WP_Error( 'at8_mluc_points_save', __( 'The points update could not be saved, please retry.', 'at8-moonlight-user-center' ) );
+		}
 
 		/**
 		 * Fires after a balance changed.
@@ -300,9 +349,11 @@ class AT8_MLUC_Points {
 		 * @param int   $balance New balance.
 		 * @param array $entry   Ledger entry.
 		 */
-		do_action( 'at8_mluc_points_adjusted', $user_id, $amount, $balance, $entry );
+		do_action( 'at8_mluc_points_adjusted', $user_id, $amount, $new_balance, $entry );
 
-		return $balance;
+		delete_option( $lock );
+
+		return $new_balance;
 	}
 
 	/**

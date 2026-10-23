@@ -123,9 +123,10 @@ function at8_mluc_uninstall_clear_transients() {
 	// phpcs:ignore WordPress.DB.DirectDatabaseQuery.DirectQuery, WordPress.DB.DirectDatabaseQuery.NoCaching -- Uninstall cleanup has no cache to use and must be exhaustive.
 	$wpdb->query(
 		$wpdb->prepare(
-			"DELETE FROM {$wpdb->options} WHERE option_name LIKE %s OR option_name LIKE %s",
+			"DELETE FROM {$wpdb->options} WHERE option_name LIKE %s OR option_name LIKE %s OR option_name LIKE %s",
 			$wpdb->esc_like( '_transient_at8_mluc_rl_' ) . '%',
-			$wpdb->esc_like( '_transient_timeout_at8_mluc_rl_' ) . '%'
+			$wpdb->esc_like( '_transient_timeout_at8_mluc_rl_' ) . '%',
+			$wpdb->esc_like( 'at8_mluc_points_lock_' ) . '%'
 		)
 	);
 
