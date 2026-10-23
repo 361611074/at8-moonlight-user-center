@@ -3,7 +3,7 @@ Contributors: x361611074
 Tags: user profile, login, registration, avatar, user center
 Requires at least: 5.8
 Tested up to: 7.1
-Stable tag: 2.5.4
+Stable tag: 2.5.5
 Requires PHP: 7.4
 License: GPL-2.0-or-later
 License URI: https://www.gnu.org/licenses/gpl-2.0.html
@@ -154,6 +154,12 @@ No access tokens, authorization codes or provider API responses are written to l
 4. The front-end login form.
 
 == Changelog ==
+
+= 2.5.5 =
+* Points: the failure rollback now restores an exact pre-update snapshot of the balance and the ledger, so a failed write can never remove a ledger entry that predates the adjustment (the previous comparison-based rollback could drop one historical entry in a specific failure case).
+
+= 2.5.5 =
+* Points: the failure rollback now restores an exact pre-update snapshot of the balance and the ledger, so a failed write can never remove a ledger entry that predates the adjustment (the previous comparison-based rollback could drop one historical entry in a specific failure case).
 
 = 2.5.4 =
 * Points: balance and ledger writes are now guarded by a per-user atomic lock and verified by read-back; a half-written award (balance saved, ledger not, or the reverse) is rolled back inside the lock and the retry re-awards exactly once. Concurrent completions for the same user no longer risk lost updates.

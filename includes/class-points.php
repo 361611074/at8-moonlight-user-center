@@ -306,9 +306,12 @@ class AT8_MLUC_Points {
 			'by'     => get_current_user_id(),
 		);
 
-		$log = get_user_meta( $user_id, self::LEDGER_META, true );
-		$log = is_array( $log ) ? $log : array();
+		// Pre-update snapshot: the rollback restores this exact state, so no
+		// ledger entry that predates this adjustment can ever be removed.
+		$log_before = get_user_meta( $user_id, self::LEDGER_META, true );
+		$log_before = is_array( $log_before ) ? $log_before : array();
 
+		$log = $log_before;
 		$log[] = $entry;
 
 		if ( count( $log ) > self::LOG_LIMIT ) {
@@ -329,12 +332,13 @@ class AT8_MLUC_Points {
 		$ledger_ok     = is_array( $last ) && (int) $last['amount'] === $amount && $last['source'] === $entry['source'] && (int) $last['time'] === (int) $entry['time'];
 
 		if ( $saved_balance !== $new_balance || ! $ledger_ok ) {
+			/*
+			 * Snapshot-based rollback: restore the exact pre-update balance
+			 * and the pre-update ledger. No entry that predates this
+			 * adjustment can ever be removed by the rollback.
+			 */
 			update_user_meta( $user_id, self::BALANCE_META, $balance );
-			$rolled_log = is_array( $saved_log ) ? $saved_log : $log;
-			if ( count( $rolled_log ) > 0 && $last === end( $rolled_log ) ) {
-				$rolled_log = array_slice( $rolled_log, 0, -1 );
-			}
-			update_user_meta( $user_id, self::LEDGER_META, $rolled_log );
+			update_user_meta( $user_id, self::LEDGER_META, $log_before );
 			delete_option( $lock );
 			return new WP_Error( 'at8_mluc_points_save', __( 'The points update could not be saved, please retry.', 'at8-moonlight-user-center' ) );
 		}
