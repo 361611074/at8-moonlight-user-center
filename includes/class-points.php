@@ -113,6 +113,15 @@ class AT8_MLUC_Points {
 	private static $schema_ok = false;
 
 	/**
+	 * Which transaction this request opened: '' (none), 'own' (START
+	 * TRANSACTION) or 'savepoint' (nested inside a transaction another plugin
+	 * had already opened, in which case committing would destroy their work).
+	 *
+	 * @var string
+	 */
+	private static $tx_mode = '';
+
+	/**
 	 * Retrieve the singleton.
 	 *
 	 * @return AT8_MLUC_Points
@@ -143,13 +152,17 @@ class AT8_MLUC_Points {
 	 * ------------------------------------------------------------------ */
 
 	/**
-	 * Create or upgrade the two tables.
+	 * Create or upgrade the two tables, then prove they are usable.
 	 *
 	 * Both are InnoDB so the account update and the ledger insert belong to
 	 * one transaction. dbDelta is idempotent, so this is safe to call on
 	 * activation and again whenever DB_VERSION moves.
 	 *
-	 * @return void
+	 * The schema option is only written when the verification passes: a
+	 * silently failed dbDelta must not leave the site believing the tables
+	 * exist.
+	 *
+	 * @return true|WP_Error
 	 */
 	public static function install() {
 		global $wpdb;
@@ -187,9 +200,231 @@ class AT8_MLUC_Points {
 ) ENGINE=InnoDB {$charset};"
 		);
 
+		$problems = self::schema_problems();
+
+		if ( $problems ) {
+			self::$schema_ok = false;
+
+			return new WP_Error(
+				'at8_mluc_points_schema',
+				sprintf(
+					/* translators: %s: semicolon separated list of schema problems. */
+					__( 'The points tables are not usable: %s', 'at8-moonlight-user-center' ),
+					implode( '; ', array_slice( $problems, 0, 4 ) )
+				)
+			);
+		}
+
 		self::$schema_ok = true;
 
 		update_option( self::DB_OPTION, self::DB_VERSION, false );
+
+		return true;
+	}
+
+	/**
+	 * Everything that must be true for the two tables to be safe to write to.
+	 *
+	 * @return array<int, string> Human readable problems, empty when fine.
+	 */
+	private static function schema_problems() {
+		global $wpdb;
+
+		$problems = array();
+		$ledger   = $wpdb->prefix . 'at8_mluc_points_ledger';
+		$account  = $wpdb->prefix . 'at8_mluc_points_account';
+
+		foreach ( array( $ledger, $account ) as $table ) {
+			// phpcs:ignore WordPress.DB.DirectDatabaseQuery.DirectQuery, WordPress.DB.DirectDatabaseQuery.NoCaching -- Verifying the plugin's own schema.
+			$exists = $wpdb->get_var( $wpdb->prepare( 'SHOW TABLES LIKE %s', $table ) );
+
+			if ( $table !== $exists ) {
+				/* translators: %s: table name. */
+				$problems[] = sprintf( __( 'table %s is missing', 'at8-moonlight-user-center' ), $table );
+				continue;
+			}
+
+			// phpcs:ignore WordPress.DB.DirectDatabaseQuery.DirectQuery, WordPress.DB.DirectDatabaseQuery.NoCaching -- Engine check.
+			$status = $wpdb->get_results( $wpdb->prepare( 'SHOW TABLE STATUS LIKE %s', $table ), ARRAY_A );
+
+			if ( is_array( $status ) && isset( $status[0]['Engine'] ) && '' !== $status[0]['Engine'] && 0 !== strcasecmp( 'InnoDB', (string) $status[0]['Engine'] ) ) {
+				/* translators: 1: table name, 2: storage engine. */
+				$problems[] = sprintf( __( 'table %1$s uses %2$s instead of InnoDB', 'at8-moonlight-user-center' ), $table, (string) $status[0]['Engine'] );
+			}
+		}
+
+		if ( $problems ) {
+			return $problems;
+		}
+
+		// The unique index is what makes "award once" a database guarantee.
+		// phpcs:ignore WordPress.DB.DirectDatabaseQuery.DirectQuery, WordPress.DB.DirectDatabaseQuery.NoCaching -- Index check on the plugin's own table.
+		$indexes = $wpdb->get_results( "SHOW INDEX FROM {$wpdb->prefix}at8_mluc_points_ledger", ARRAY_A );
+		$unique  = array();
+
+		foreach ( (array) $indexes as $index ) {
+			if ( 0 === (int) $index['Non_unique'] && 'PRIMARY' !== $index['Key_name'] ) {
+				$unique[ $index['Key_name'] ][ (int) $index['Seq_in_index'] ] = strtolower( (string) $index['Column_name'] );
+			}
+		}
+
+		$has_idem = false;
+
+		foreach ( $unique as $columns ) {
+			ksort( $columns );
+
+			if ( array( 'user_id', 'idem_key' ) === array_values( $columns ) ) {
+				$has_idem = true;
+			}
+		}
+
+		if ( ! $has_idem ) {
+			$problems[] = sprintf(
+				/* translators: %s: table name. */
+				__( 'table %s has no UNIQUE (user_id, idem_key) index', 'at8-moonlight-user-center' ),
+				$ledger
+			);
+		}
+
+		// phpcs:ignore WordPress.DB.DirectDatabaseQuery.DirectQuery, WordPress.DB.DirectDatabaseQuery.NoCaching -- Primary key check on the plugin's own table.
+		$account_keys = $wpdb->get_results( "SHOW KEYS FROM {$wpdb->prefix}at8_mluc_points_account", ARRAY_A );
+		$has_pk       = false;
+
+		foreach ( (array) $account_keys as $key ) {
+			if ( 'PRIMARY' === $key['Key_name'] && 'user_id' === strtolower( (string) $key['Column_name'] ) ) {
+				$has_pk = true;
+			}
+		}
+
+		if ( ! $has_pk ) {
+			$problems[] = sprintf(
+				/* translators: %s: table name. */
+				__( 'table %s has no PRIMARY KEY (user_id)', 'at8-moonlight-user-center' ),
+				$account
+			);
+		}
+
+		$problems = array_merge( $problems, self::column_problems( 'ledger', self::ledger_columns() ) );
+		$problems = array_merge( $problems, self::column_problems( 'account', self::account_columns() ) );
+
+		return $problems;
+	}
+
+	/**
+	 * Column name => expected type prefix for the ledger table.
+	 *
+	 * @return array<string, string>
+	 */
+	private static function ledger_columns() {
+		return array(
+			'id'         => 'bigint',
+			'user_id'    => 'bigint',
+			'amount'     => 'int',
+			'reason'     => 'varchar',
+			'source'     => 'varchar',
+			'by_user'    => 'bigint',
+			'idem_key'   => 'varchar',
+			'fence'      => 'bigint',
+			'created_at' => 'bigint',
+		);
+	}
+
+	/**
+	 * Column name => expected type prefix for the account table.
+	 *
+	 * @return array<string, string>
+	 */
+	private static function account_columns() {
+		return array(
+			'user_id'    => 'bigint',
+			'balance'    => 'bigint',
+			'fence'      => 'bigint',
+			'updated_at' => 'bigint',
+		);
+	}
+
+	/**
+	 * Compare a table's real columns with the ones the writer expects.
+	 *
+	 * Without this a renamed column would only show up as a failed movement
+	 * at runtime, long after the migration claimed to be done.
+	 *
+	 * @param string                $table   Table name.
+	 * @param array<string, string> $expected Column => type prefix.
+	 * @return array<int, string>
+	 */
+	private static function column_problems( $which, $expected ) {
+		global $wpdb;
+
+		if ( 'ledger' === $which ) {
+			$table = $wpdb->prefix . 'at8_mluc_points_ledger';
+
+			// phpcs:ignore WordPress.DB.DirectDatabaseQuery.DirectQuery, WordPress.DB.DirectDatabaseQuery.NoCaching -- Column check on the plugin's own table.
+			$rows = $wpdb->get_results( "SHOW COLUMNS FROM {$wpdb->prefix}at8_mluc_points_ledger", ARRAY_A );
+		} else {
+			$table = $wpdb->prefix . 'at8_mluc_points_account';
+
+			// phpcs:ignore WordPress.DB.DirectDatabaseQuery.DirectQuery, WordPress.DB.DirectDatabaseQuery.NoCaching -- Column check on the plugin's own table.
+			$rows = $wpdb->get_results( "SHOW COLUMNS FROM {$wpdb->prefix}at8_mluc_points_account", ARRAY_A );
+		}
+
+		$actual   = array();
+		$problems = array();
+
+		foreach ( (array) $rows as $row ) {
+			$actual[ strtolower( (string) $row['Field'] ) ] = strtolower( (string) $row['Type'] );
+		}
+
+		foreach ( $expected as $column => $type ) {
+			if ( ! isset( $actual[ $column ] ) ) {
+				$problems[] = sprintf(
+					/* translators: 1: table name, 2: column name. */
+					__( 'table %1$s has no %2$s column', 'at8-moonlight-user-center' ),
+					$table,
+					$column
+				);
+
+				continue;
+			}
+
+			if ( 0 !== strpos( $actual[ $column ], $type ) ) {
+				$problems[] = sprintf(
+					/* translators: 1: table name, 2: column name, 3: expected type. */
+					__( 'column %1$s.%2$s is not %3$s', 'at8-moonlight-user-center' ),
+					$table,
+					$column,
+					$type
+				);
+			}
+		}
+
+		return $problems;
+	}
+
+	/**
+	 * Confirm the schema once per request, repairing it if it is broken.
+	 *
+	 * Called before any write, so a site whose tables did not survive a
+	 * migration gets a clear error instead of a silent no-op.
+	 *
+	 * @return true|WP_Error
+	 */
+	private static function schema_ready() {
+		if ( self::$schema_ok ) {
+			return true;
+		}
+
+		if ( ! self::schema_problems() ) {
+			self::$schema_ok = true;
+
+			return true;
+		}
+
+		// One repair attempt: dbDelta recreates a missing table and adds a
+		// missing index. install() re-verifies before claiming success.
+		$repaired = self::install();
+
+		return $repaired;
 	}
 
 	/**
@@ -202,8 +437,8 @@ class AT8_MLUC_Points {
 	 */
 	public static function maybe_install() {
 		if ( (int) get_option( self::DB_OPTION, 0 ) === self::DB_VERSION ) {
-			self::$schema_ok = true;
-
+			// The stored version only says "dbDelta ran once". The tables are
+			// verified lazily, before the first write, by schema_ready().
 			return;
 		}
 
@@ -217,39 +452,104 @@ class AT8_MLUC_Points {
 	 * drift on its own. This exists for recovery (a row deleted by hand, a
 	 * database restored without the account table) and for the test suite.
 	 *
+	 * The rebuild goes through the same versioned UPDATE every movement uses:
+	 * it reads the sum and the version, then writes only if the version is
+	 * still the one it read. A movement that lands in between moves the
+	 * version, the repair loses the race and starts over with fresh numbers —
+	 * it can never overwrite a newer balance with an older snapshot.
+	 *
 	 * @param int $user_id User ID.
-	 * @return int Rebuilt balance.
+	 * @return int|WP_Error Rebuilt balance, or an error.
 	 */
 	public static function reconcile( $user_id ) {
 		global $wpdb;
 
 		$user_id = (int) $user_id;
 
-		// phpcs:ignore WordPress.DB.DirectDatabaseQuery.DirectQuery, WordPress.DB.DirectDatabaseQuery.NoCaching -- Summing the ledger is the authoritative recompute.
+		$ready = self::schema_ready();
+
+		if ( is_wp_error( $ready ) ) {
+			return $ready;
+		}
+
+		for ( $attempt = 1; $attempt <= self::MAX_ATTEMPTS; $attempt++ ) {
+			$account = self::account( $user_id );
+
+			if ( is_wp_error( $account ) ) {
+				return $account;
+			}
+
+			list( , $fence ) = $account;
+
+			if ( ! self::begin() ) {
+				return self::tx_error();
+			}
+
+			// Sum inside the transaction: once the UPDATE below has taken the
+			// row, no other writer can change the ledger behind our back.
+			// phpcs:ignore WordPress.DB.DirectDatabaseQuery.DirectQuery, WordPress.DB.DirectDatabaseQuery.NoCaching -- Summing the ledger is the authoritative recompute.
+			$sum = (int) $wpdb->get_var(
+				$wpdb->prepare( "SELECT COALESCE( SUM( amount ), 0 ) FROM {$wpdb->prefix}at8_mluc_points_ledger WHERE user_id = %d", $user_id )
+			);
+
+			// phpcs:ignore WordPress.DB.DirectDatabaseQuery.DirectQuery, WordPress.DB.DirectDatabaseQuery.NoCaching -- Repair write, guarded by the row version.
+			$moved = $wpdb->query(
+				$wpdb->prepare(
+					"UPDATE {$wpdb->prefix}at8_mluc_points_account SET balance = %d, fence = %d, updated_at = %d WHERE user_id = %d AND fence = %d",
+					$sum,
+					$fence + 1,
+					time(),
+					$user_id,
+					$fence
+				)
+			);
+
+			if ( 1 !== (int) $moved ) {
+				// A movement was applied while this repair was running: its
+				// snapshot is newer than ours, so start over instead of
+				// overwriting it.
+				self::rollback();
+				usleep( (int) ( self::RETRY_USLEEP * min( $attempt, 4 ) ) );
+				continue;
+			}
+
+			if ( ! self::commit() ) {
+				return self::tx_error();
+			}
+
+			self::sync_mirror( $user_id, $sum );
+
+			return $sum;
+		}
+
+		return new WP_Error(
+			'at8_mluc_points_busy',
+			__( 'The points account is busy. Please try again in a moment.', 'at8-moonlight-user-center' )
+		);
+	}
+
+	/**
+	 * Whether the stored balance still equals the sum of the movements.
+	 *
+	 * @param int $user_id User ID.
+	 * @return bool
+	 */
+	public static function verify_balance( $user_id ) {
+		global $wpdb;
+
+		$user_id = (int) $user_id;
+		$account = self::account( $user_id );
+
+		if ( is_wp_error( $account ) ) {
+			return false;
+		}
+
+		// phpcs:ignore WordPress.DB.DirectDatabaseQuery.DirectQuery, WordPress.DB.DirectDatabaseQuery.NoCaching -- Consistency check.
 		$sum = (int) $wpdb->get_var(
 			$wpdb->prepare( "SELECT COALESCE( SUM( amount ), 0 ) FROM {$wpdb->prefix}at8_mluc_points_ledger WHERE user_id = %d", $user_id )
 		);
 
-		// phpcs:ignore WordPress.DB.DirectDatabaseQuery.DirectQuery, WordPress.DB.DirectDatabaseQuery.NoCaching -- Reading the row this repair is about to rewrite.
-		$exists = $wpdb->get_var(
-			$wpdb->prepare( "SELECT user_id FROM {$wpdb->prefix}at8_mluc_points_account WHERE user_id = %d", $user_id )
-		);
-
-		if ( $exists ) {
-			// phpcs:ignore WordPress.DB.DirectDatabaseQuery.DirectQuery, WordPress.DB.DirectDatabaseQuery.NoCaching -- Repair write.
-			$wpdb->query(
-				$wpdb->prepare( "UPDATE {$wpdb->prefix}at8_mluc_points_account SET balance = %d, updated_at = %d WHERE user_id = %d", $sum, time(), $user_id )
-			);
-		} else {
-			// phpcs:ignore WordPress.DB.DirectDatabaseQuery.DirectQuery, WordPress.DB.DirectDatabaseQuery.NoCaching -- Repair write.
-			$wpdb->query(
-				$wpdb->prepare( "INSERT INTO {$wpdb->prefix}at8_mluc_points_account (user_id, balance, fence, updated_at) VALUES (%d, %d, 0, %d)", $user_id, $sum, time() )
-			);
-		}
-
-		self::sync_mirror( $user_id, $sum );
-
-		return $sum;
+		return (int) $account[0] === $sum;
 	}
 
 	/* ---------------------------------------------------------------------
@@ -264,6 +564,12 @@ class AT8_MLUC_Points {
 	 */
 	public static function balance( $user_id ) {
 		$account = self::account( (int) $user_id );
+
+		if ( is_wp_error( $account ) ) {
+			// The migration could not run (missing table, broken write). Show
+			// the legacy total rather than a wrong zero, and write nothing.
+			return max( 0, self::legacy_total( (int) $user_id ) );
+		}
 
 		return max( 0, (int) $account[0] );
 	}
@@ -282,7 +588,9 @@ class AT8_MLUC_Points {
 		$limit   = max( 1, (int) $limit );
 
 		// Make sure legacy meta was migrated before reading the table.
-		self::account( $user_id );
+		if ( is_wp_error( self::account( $user_id ) ) ) {
+			return array();
+		}
 
 		// phpcs:ignore WordPress.DB.DirectDatabaseQuery.DirectQuery, WordPress.DB.DirectDatabaseQuery.NoCaching -- Append-only table, read straight from the database.
 		$rows = $wpdb->get_results(
@@ -367,13 +675,25 @@ class AT8_MLUC_Points {
 			return self::balance( $user_id );
 		}
 
+		$ready = self::schema_ready();
+
+		if ( is_wp_error( $ready ) ) {
+			return $ready;
+		}
+
 		$reason    = sanitize_text_field( (string) $reason );
 		$source    = sanitize_key( (string) $source );
 		$by        = get_current_user_id();
 		$processed = time();
 
 		for ( $attempt = 1; $attempt <= self::MAX_ATTEMPTS; $attempt++ ) {
-			list( $balance, $fence ) = self::account( $user_id );
+			$account = self::account( $user_id );
+
+			if ( is_wp_error( $account ) ) {
+				return $account;
+			}
+
+			list( $balance, $fence ) = $account;
 
 			// Already applied — a duplicate callback, or a retry after a crash
 			// that happened after the commit. Nothing to write.
@@ -387,7 +707,11 @@ class AT8_MLUC_Points {
 
 			$next = $fence + 1;
 
-			self::begin();
+			// Without a transaction the balance and the ledger could drift
+			// apart, so a failed BEGIN means "do nothing at all".
+			if ( ! self::begin() ) {
+				return self::tx_error();
+			}
 
 			/*
 			 * The version is part of the WHERE clause, so ownership at write
@@ -411,7 +735,13 @@ class AT8_MLUC_Points {
 			if ( 1 !== (int) $moved ) {
 				self::rollback();
 
-				list( $now, $now_fence ) = self::account( $user_id );
+				$current = self::account( $user_id );
+
+				if ( is_wp_error( $current ) ) {
+					return $current;
+				}
+
+				list( $now, $now_fence ) = $current;
 
 				if ( $amount < 0 && $now + $amount < 0 ) {
 					return new WP_Error( 'at8_mluc_points_balance', __( 'That would take the balance below zero.', 'at8-moonlight-user-center' ) );
@@ -428,21 +758,28 @@ class AT8_MLUC_Points {
 				continue;
 			}
 
-			$entry_id = self::insert_movement( $user_id, $amount, $reason, $source, $by, $key, $next, $processed );
+			$db_error = '';
+			$entry_id = self::insert_movement( $user_id, $amount, $reason, $source, $by, $key, $next, $processed, $db_error );
 
 			if ( false === $entry_id ) {
 				// The ledger row did not land, so the balance change must not
 				// survive either: one transaction, one outcome.
 				self::rollback();
 
-				if ( '' !== $key && self::has_entry( $user_id, $key ) ) {
+				// A concurrent request with the same key won the race: report
+				// the balance it produced. Anything else is a real failure.
+				if ( self::is_duplicate_error( $user_id, $key, $db_error ) ) {
 					return self::balance( $user_id );
 				}
 
 				return self::save_error();
 			}
 
-			self::commit();
+			// A failed COMMIT means the movement is not durable: report an
+			// error and never fire the "balance changed" action for it.
+			if ( ! self::commit() ) {
+				return self::tx_error();
+			}
 
 			$new_balance = $balance + $amount;
 
@@ -571,7 +908,8 @@ class AT8_MLUC_Points {
 	 * Read a user's account row, migrating legacy meta the first time.
 	 *
 	 * @param int $user_id User ID.
-	 * @return array{0:int,1:int} Balance and version.
+	 * @return array{0:int,1:int}|WP_Error Balance and version, or an error when
+	 *                                         the account could not be created.
 	 */
 	private static function account( $user_id ) {
 		global $wpdb;
@@ -600,11 +938,23 @@ class AT8_MLUC_Points {
 	 * holds. Runs at most once per user; the PRIMARY KEY on user_id makes the
 	 * creation itself the mutual exclusion.
 	 *
+	 * The import is all-or-nothing: every movement is checked, and the account
+	 * balance is only written once all of them are in. Any failure — a real
+	 * database error, an unwritable movement, a refused balance update, a
+	 * failed COMMIT — rolls the whole thing back, so a half-migrated account
+	 * can never exist.
+	 *
 	 * @param int $user_id User ID.
-	 * @return array{0:int,1:int} Balance and version.
+	 * @return array{0:int,1:int}|WP_Error Balance and version, or an error.
 	 */
 	private static function migrate_user( $user_id ) {
 		global $wpdb;
+
+		$ready = self::schema_ready();
+
+		if ( is_wp_error( $ready ) ) {
+			return $ready;
+		}
 
 		$entries = self::legacy_entries( $user_id );
 		$total   = 0;
@@ -626,7 +976,9 @@ class AT8_MLUC_Points {
 
 		$balance = $total + $opening;
 
-		self::begin();
+		if ( ! self::begin() ) {
+			return self::tx_error();
+		}
 
 		$suppress = $wpdb->suppress_errors( true );
 
@@ -642,14 +994,17 @@ class AT8_MLUC_Points {
 			array( '%d', '%d', '%d', '%d' )
 		);
 
+		$create_error = (string) $wpdb->last_error;
+
 		$wpdb->suppress_errors( $suppress );
 
 		if ( ! $created ) {
-			// Another request created it first. Its transaction may still be
-			// in flight, so retry the read briefly before giving up.
+			// Another request may have created the row a moment ago and not
+			// committed it yet, so give it a short window before deciding
+			// that this is a real failure.
 			self::rollback();
 
-			for ( $i = 0; $i < 5; $i++ ) {
+			for ( $i = 0; $i < 10; $i++ ) {
 				// phpcs:ignore WordPress.DB.DirectDatabaseQuery.DirectQuery, WordPress.DB.DirectDatabaseQuery.NoCaching -- Reading the row the other request is committing.
 				$row = $wpdb->get_row(
 					$wpdb->prepare( "SELECT balance, fence FROM {$wpdb->prefix}at8_mluc_points_account WHERE user_id = %d", $user_id ),
@@ -663,82 +1018,111 @@ class AT8_MLUC_Points {
 				usleep( 20000 );
 			}
 
-			return array( $balance, 0 );
+			// Not a race: the row simply could not be created.
+			return new WP_Error(
+				'at8_mluc_points_schema',
+				sprintf(
+					/* translators: %s: database error message. */
+					__( 'The points account could not be created: %s', 'at8-moonlight-user-center' ),
+					self::clean_error( $create_error )
+				)
+			);
 		}
 
 		$when = time();
 
 		foreach ( $entries as $index => $entry ) {
-			/*
-			 * Keep the original idempotency key: an order that was already
-			 * awarded before the upgrade must stay awarded afterwards, so a
-			 * repeated payment callback does not pay out twice.
-			 */
-			$key = (string) $entry['key'];
+			if ( ! self::migrate_movement( $user_id, $entry, (int) $index, $when ) ) {
+				// One movement is missing, so the history would be incomplete:
+				// abandon the whole migration instead of committing a partial
+				// copy of it.
+				self::rollback();
 
-			if ( '' !== $key && self::insert_movement( $user_id, (int) $entry['amount'], (string) $entry['reason'], (string) $entry['source'], (int) $entry['by'], $key, 0, (int) $entry['time'] > 0 ? (int) $entry['time'] : $when ) ) {
-				continue;
+				return self::save_error();
 			}
-
-			if ( '' === $key ) {
-				self::insert_movement(
-					$user_id,
-					(int) $entry['amount'],
-					(string) $entry['reason'],
-					(string) $entry['source'],
-					(int) $entry['by'],
-					'',
-					0,
-					(int) $entry['time'] > 0 ? (int) $entry['time'] : $when
-				);
-
-				continue;
-			}
-
-			// The same key appears twice in the old data: keep both movements
-			// by giving the second one a unique key of its own.
-			$fingerprint = 'legacy:' . md5( $user_id . '|' . $index . '|' . (int) $entry['time'] . '|' . (string) $entry['u'] );
-
-			self::insert_movement(
-				$user_id,
-				(int) $entry['amount'],
-				(string) $entry['reason'],
-				(string) $entry['source'],
-				(int) $entry['by'],
-				$fingerprint,
-				0,
-				(int) $entry['time'] > 0 ? (int) $entry['time'] : $when
-			);
 		}
 
 		if ( 0 !== $opening ) {
-			self::insert_movement(
-				$user_id,
-				$opening,
-				__( 'Opening balance', 'at8-moonlight-user-center' ),
-				'migrate',
-				0,
-				'legacy:opening:' . $user_id,
-				0,
-				$when
+			$opening_entry = array(
+				'time'   => $when,
+				'amount' => $opening,
+				'reason' => __( 'Opening balance', 'at8-moonlight-user-center' ),
+				'source' => 'migrate',
+				'by'     => 0,
+				'key'    => 'legacy:opening:' . $user_id,
+				'u'      => 'opening',
 			);
+
+			if ( ! self::migrate_movement( $user_id, $opening_entry, -1, $when ) ) {
+				self::rollback();
+
+				return self::save_error();
+			}
 		}
 
+		// The balance is only written once every movement is in place.
 		// phpcs:ignore WordPress.DB.DirectDatabaseQuery.DirectQuery, WordPress.DB.DirectDatabaseQuery.NoCaching -- Setting the freshly created account row.
-		$wpdb->query(
+		$updated = $wpdb->query(
 			$wpdb->prepare(
-				"UPDATE {$wpdb->prefix}at8_mluc_points_account SET balance = %d, updated_at = %d WHERE user_id = %d",
+				"UPDATE {$wpdb->prefix}at8_mluc_points_account SET balance = %d, updated_at = %d WHERE user_id = %d AND fence = 0",
 				$balance,
 				$when,
 				$user_id
 			)
 		);
 
-		self::commit();
+		if ( 1 !== (int) $updated ) {
+			self::rollback();
+
+			return self::save_error();
+		}
+
+		if ( ! self::commit() ) {
+			// Nothing is reported as migrated unless the commit went through.
+			return self::tx_error();
+		}
 
 		self::sync_mirror( $user_id, $balance );
 
 		return array( $balance, 0 );
+	}
+
+	/**
+	 * Import one legacy movement.
+	 *
+	 * The original idempotency key is kept, so an order that was already
+	 * awarded before the upgrade stays awarded.
+	 *
+	 * The old data may use the same key twice, and the second movement then
+	 * needs a key of its own. That is decided by looking the key up first:
+	 * deliberately provoking a UNIQUE violation would abort the surrounding
+	 * transaction on drivers that roll back the whole transaction on any
+	 * statement error (the SQLite integration does), which would leave a
+	 * half-migrated account behind.
+	 *
+	 * @param int                 $user_id User ID.
+	 * @param array<string,mixed> $entry   Normalised legacy entry.
+	 * @param int                 $index   Position in the legacy list.
+	 * @param int                 $when    Fallback timestamp.
+	 * @return bool Whether the movement is stored.
+	 */
+	private static function migrate_movement( $user_id, $entry, $index, $when ) {
+		$amount = (int) $entry['amount'];
+		$reason = (string) $entry['reason'];
+		$source = (string) $entry['source'];
+		$by     = (int) $entry['by'];
+		$time   = (int) $entry['time'] > 0 ? (int) $entry['time'] : (int) $when;
+		$key    = (string) $entry['key'];
+
+		if ( '' !== $key && self::has_entry( $user_id, $key ) ) {
+			// The same key appears more than once in the old history: keep
+			// both movements by giving this one a unique key.
+			$key = 'legacy:' . md5( $user_id . '|' . (int) $index . '|' . $time . '|' . (string) $entry['u'] );
+		}
+
+		$error = '';
+
+		return (bool) self::insert_movement( $user_id, $amount, $reason, $source, $by, $key, 0, $time, $error );
 	}
 
 	/**
@@ -814,9 +1198,10 @@ class AT8_MLUC_Points {
 	 * @param string $key     Idempotency key ('' for none).
 	 * @param int    $fence   Account version this movement was applied at.
 	 * @param int    $when    Unix timestamp.
+	 * @param string $error   Filled with the database error when the write fails.
 	 * @return int|false Row ID, or false when nothing was written.
 	 */
-	private static function insert_movement( $user_id, $amount, $reason, $source, $by, $key, $fence, $when ) {
+	private static function insert_movement( $user_id, $amount, $reason, $source, $by, $key, $fence, $when, &$error = null ) {
 		global $wpdb;
 
 		$suppress = $wpdb->suppress_errors( true );
@@ -836,6 +1221,7 @@ class AT8_MLUC_Points {
 			)
 		);
 
+		$error  = (string) $wpdb->last_error;
 		$row_id = (int) $wpdb->insert_id;
 
 		$wpdb->suppress_errors( $suppress );
@@ -844,7 +1230,49 @@ class AT8_MLUC_Points {
 			return false;
 		}
 
+		$error = '';
+
 		return $row_id;
+	}
+
+	/**
+	 * Whether a failed INSERT lost against the UNIQUE (user_id, idem_key) index.
+	 *
+	 * Anything else — a missing table, a renamed column, a dropped connection
+	 * — is a real failure and must never be mistaken for "already recorded".
+	 *
+	 * @param int    $user_id User ID.
+	 * @param string $key     Idempotency key of the failed insert.
+	 * @param string $error   Raw driver error.
+	 * @return bool
+	 */
+	private static function is_duplicate_error( $user_id, $key, $error ) {
+		if ( '' === (string) $key ) {
+			return false;
+		}
+
+		$clean = self::clean_error( $error );
+
+		if ( preg_match( '/duplicate (entry|key)|unique constraint|errno:? ?1062/i', $clean ) ) {
+			return true;
+		}
+
+		// Some drivers describe it differently; a row with this exact key
+		// already present is proof that the INSERT collided on the index.
+		return self::has_entry( $user_id, $key );
+	}
+
+	/**
+	 * One-line, markup-free version of a driver error, safe to show.
+	 *
+	 * @param string $error Raw error.
+	 * @return string
+	 */
+	private static function clean_error( $error ) {
+		$clean = wp_strip_all_tags( (string) $error );
+		$clean = trim( preg_replace( '/\s+/', ' ', $clean ) );
+
+		return substr( $clean, 0, 200 );
 	}
 
 	/**
@@ -879,37 +1307,155 @@ class AT8_MLUC_Points {
 	/**
 	 * Open a transaction.
 	 *
-	 * @return void
+	 * If another plugin already has a transaction open, starting our own would
+	 * silently commit theirs, so a savepoint is used instead and only our own
+	 * statements are ever rolled back.
+	 *
+	 * @return bool Whether the scope was opened.
 	 */
 	private static function begin() {
-		global $wpdb;
+		if ( '' !== self::$tx_mode ) {
+			// Nested scope: never needed by this class, and silently joining
+			// an outer transaction would make the caller's rollback wrong.
+			return false;
+		}
 
-		// phpcs:ignore WordPress.DB.DirectDatabaseQuery.DirectQuery, WordPress.DB.DirectDatabaseQuery.NoCaching -- Transaction control is not part of the query API.
-		$wpdb->query( 'START TRANSACTION' );
+		$mode = self::has_open_transaction() ? 'savepoint' : 'own';
+		$sql  = 'savepoint' === $mode ? 'SAVEPOINT at8_mluc_points_tx' : 'START TRANSACTION';
+
+		if ( ! self::run_sql( $sql ) ) {
+			return false;
+		}
+
+		self::$tx_mode = $mode;
+
+		return true;
 	}
 
 	/**
-	 * Commit the current transaction.
+	 * Commit the current scope. The result decides whether the caller may
+	 * report success.
 	 *
-	 * @return void
+	 * @return bool Whether the work is durable.
 	 */
 	private static function commit() {
-		global $wpdb;
+		if ( '' === self::$tx_mode ) {
+			return false;
+		}
 
-		// phpcs:ignore WordPress.DB.DirectDatabaseQuery.DirectQuery, WordPress.DB.DirectDatabaseQuery.NoCaching -- Transaction control is not part of the query API.
-		$wpdb->query( 'COMMIT' );
+		$mode          = self::$tx_mode;
+		self::$tx_mode = '';
+
+		$committed = self::run_sql( 'savepoint' === $mode ? 'RELEASE SAVEPOINT at8_mluc_points_tx' : 'COMMIT' );
+
+		if ( ! $committed && 'own' === $mode ) {
+			// A refused COMMIT can leave the transaction open; close it so the
+			// rest of the request is not writing inside a phantom transaction.
+			self::run_sql( 'ROLLBACK' );
+		}
+
+		return $committed;
 	}
 
 	/**
-	 * Roll the current transaction back.
+	 * Undo the current scope.
 	 *
-	 * @return void
+	 * @return bool Whether the rollback was accepted.
 	 */
 	private static function rollback() {
+		if ( '' === self::$tx_mode ) {
+			return false;
+		}
+
+		$mode          = self::$tx_mode;
+		self::$tx_mode = '';
+
+		return self::run_sql( 'savepoint' === $mode ? 'ROLLBACK TO SAVEPOINT at8_mluc_points_tx' : 'ROLLBACK' );
+	}
+
+	/**
+	 * Run a statement and tell success from failure using what the driver
+	 * actually did, not just PHP's return value.
+	 *
+	 * A transaction statement legitimately affects zero rows, so `false` and a
+	 * non-empty driver error are the failure signals — checked against the
+	 * cleaned error text, because some drivers append markup to it.
+	 *
+	 * @param string $sql Statement.
+	 * @return bool
+	 */
+	private static function run_sql( $sql ) {
 		global $wpdb;
 
-		// phpcs:ignore WordPress.DB.DirectDatabaseQuery.DirectQuery, WordPress.DB.DirectDatabaseQuery.NoCaching -- Transaction control is not part of the query API.
-		$wpdb->query( 'ROLLBACK' );
+		$suppress = $wpdb->suppress_errors( true );
+		// phpcs:ignore WordPress.DB.DirectDatabaseQuery.DirectQuery, WordPress.DB.DirectDatabaseQuery.NoCaching, WordPress.DB.PreparedSQL.NotPrepared, PluginCheck.Security.DirectDB.UnescapedDBParameter -- Only the fixed transaction statements built inside this class reach this call.
+		$result = $wpdb->query( $sql );
+		$error  = self::clean_error( (string) $wpdb->last_error );
+
+		$wpdb->suppress_errors( $suppress );
+
+		return false !== $result && '' === $error;
+	}
+
+	/**
+	 * Whether somebody else already has a transaction open on this connection.
+	 *
+	 * MySQL 5.7.36+ and MariaDB 10.3+ answer `@@in_transaction`; older servers
+	 * (and drivers that do not support it) return null, which is treated as
+	 * "no transaction".
+	 *
+	 * @return bool
+	 */
+	private static function has_open_transaction() {
+		global $wpdb;
+
+		$suppress = $wpdb->suppress_errors( true );
+		// phpcs:ignore WordPress.DB.DirectDatabaseQuery.DirectQuery, WordPress.DB.DirectDatabaseQuery.NoCaching, WordPress.DB.PreparedSQL.NotPrepared -- Server variable, no user input.
+		$value = $wpdb->get_var( 'SELECT @@in_transaction' );
+		$wpdb->suppress_errors( $suppress );
+
+		return null !== $value && 1 === (int) $value;
+	}
+
+	/**
+	 * Error returned when the transaction could not be opened or committed.
+	 *
+	 * @return WP_Error
+	 */
+	private static function tx_error() {
+		return new WP_Error(
+			'at8_mluc_points_tx',
+			__( 'The points update could not be committed. Please try again.', 'at8-moonlight-user-center' )
+		);
+	}
+
+	/**
+	 * Legacy balance of a user, computed without touching the tables.
+	 *
+	 * Used only when the account could not be read or migrated: showing the
+	 * number the old meta describes is better than showing zero, and it writes
+	 * nothing.
+	 *
+	 * @param int $user_id User ID.
+	 * @return int
+	 */
+	private static function legacy_total( $user_id ) {
+		$entries = self::legacy_entries( $user_id );
+		$total   = 0;
+
+		foreach ( $entries as $entry ) {
+			$total += (int) $entry['amount'];
+		}
+
+		if ( empty( $entries ) ) {
+			$mirror = get_user_meta( $user_id, self::BALANCE_META, true );
+
+			if ( is_numeric( $mirror ) && (int) $mirror > 0 ) {
+				$total = (int) $mirror;
+			}
+		}
+
+		return $total;
 	}
 
 	/* ---------------------------------------------------------------------

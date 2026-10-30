@@ -3,7 +3,7 @@ Contributors: x361611074
 Tags: user profile, login, registration, avatar, user center
 Requires at least: 5.8
 Tested up to: 7.1
-Stable tag: 2.6.0
+Stable tag: 2.6.1
 Requires PHP: 7.4
 License: GPL-2.0-or-later
 License URI: https://www.gnu.org/licenses/gpl-2.0.html
@@ -154,6 +154,12 @@ No access tokens, authorization codes or provider API responses are written to l
 4. The front-end login form.
 
 == Changelog ==
+
+= 2.6.1 =
+* Points: the legacy import is all-or-nothing now. Every movement is checked, the account row is only written once all of them are in, and a database error, a refused balance update or a failed COMMIT rolls the whole migration back instead of leaving a half-migrated account. While the tables are unavailable, reads fall back to the old meta total, so points never look lost.
+* Points: transaction control is checked instead of assumed. A failed BEGIN or COMMIT returns an error and never fires the "balance changed" action, and when another plugin already has a transaction open a savepoint is used so committing cannot destroy its work.
+* Points: the table structure is verified before the first write — both tables exist, both are InnoDB, the UNIQUE (user_id, idem_key) index and the account primary key are present, and the column types match what the writer expects. The schema option is only stored when that verification passes, and a broken schema returns a clear error instead of silently writing nothing.
+* Points: reconcile() now uses the same versioned update as a normal movement, so a repair running next to live traffic can never overwrite a newer balance.
 
 = 2.6.0 =
 * Points: balances and movements moved out of user meta into two dedicated database tables. A movement is one transaction: a versioned UPDATE of the account row (the version is part of the WHERE clause, so a request whose snapshot is stale writes nothing) plus the ledger INSERT, which carries a UNIQUE (user_id, idem_key) idempotency key. The previous per-user lock and its TTL are gone with it — there is no lock to expire, no stale owner to take over, and no ledger row that is ever deleted after the fact.
