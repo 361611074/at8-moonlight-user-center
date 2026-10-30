@@ -146,6 +146,33 @@ class AT8_MLUC_Privacy {
 			);
 		}
 
+		// Since 2.6.0 the points ledger lives in its own table, so it is not
+		// covered by the meta loop above.
+		if ( class_exists( 'AT8_MLUC_Points' ) ) {
+			$movements = array();
+
+			foreach ( AT8_MLUC_Points::ledger( $user->ID, 100 ) as $entry ) {
+				$movements[] = array(
+					'name'  => __( 'Points movement', 'at8-moonlight-user-center' ),
+					'value' => sprintf(
+						'%1$+d (%2$s, %3$s)',
+						(int) $entry['amount'],
+						(string) $entry['reason'],
+						date_i18n( (string) get_option( 'date_format' ), (int) $entry['time'] )
+					),
+				);
+			}
+
+			if ( $movements ) {
+				$data[] = array(
+					'group_id'    => 'at8-moonlight-user-center-points',
+					'group_label' => __( 'Point history', 'at8-moonlight-user-center' ),
+					'item_id'     => 'at8-moonlight-user-center-points-' . $user->ID,
+					'data'        => $movements,
+				);
+			}
+		}
+
 		return array(
 			'data' => $data,
 			'done' => $done,
@@ -185,6 +212,23 @@ class AT8_MLUC_Privacy {
 			}
 
 			delete_user_meta( $user->ID, $meta_key );
+		}
+
+		// The ledger and the account row are this user's data too.
+		global $wpdb;
+
+		// phpcs:ignore WordPress.DB.DirectDatabaseQuery.DirectQuery, WordPress.DB.DirectDatabaseQuery.NoCaching -- Erasing one user's rows on request.
+		$moved = $wpdb->query(
+			$wpdb->prepare( "DELETE FROM {$wpdb->prefix}at8_mluc_points_ledger WHERE user_id = %d", $user->ID )
+		);
+
+		// phpcs:ignore WordPress.DB.DirectDatabaseQuery.DirectQuery, WordPress.DB.DirectDatabaseQuery.NoCaching -- Erasing one user's row on request.
+		$wpdb->query(
+			$wpdb->prepare( "DELETE FROM {$wpdb->prefix}at8_mluc_points_account WHERE user_id = %d", $user->ID )
+		);
+
+		if ( (int) $moved > 0 ) {
+			$response['items_removed'] = true;
 		}
 
 		return $response;

@@ -75,6 +75,14 @@ function at8_mluc_uninstall_site() {
 		)
 	);
 
+	// The points ledger and account tables belong to this plugin only.
+	// phpcs:ignore WordPress.DB.DirectDatabaseQuery.DirectQuery, WordPress.DB.DirectDatabaseQuery.NoCaching, WordPress.DB.DirectDatabaseQuery.SchemaChange -- Dropping the plugin's own tables on uninstall was explicitly requested by the site owner.
+	$wpdb->query( "DROP TABLE IF EXISTS {$wpdb->prefix}at8_mluc_points_ledger" );
+	// phpcs:ignore WordPress.DB.DirectDatabaseQuery.DirectQuery, WordPress.DB.DirectDatabaseQuery.NoCaching, WordPress.DB.DirectDatabaseQuery.SchemaChange -- Dropping the plugin's own tables on uninstall was explicitly requested by the site owner.
+	$wpdb->query( "DROP TABLE IF EXISTS {$wpdb->prefix}at8_mluc_points_account" );
+
+	delete_option( 'at8_mluc_points_db' );
+
 	// Avatars published by an administrator are plugin content: remove them
 	// together with their meta, but never touch other post types.
 	$avatar_posts = get_posts(

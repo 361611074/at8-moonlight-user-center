@@ -3,7 +3,7 @@ Contributors: x361611074
 Tags: user profile, login, registration, avatar, user center
 Requires at least: 5.8
 Tested up to: 7.1
-Stable tag: 2.5.9
+Stable tag: 2.6.0
 Requires PHP: 7.4
 License: GPL-2.0-or-later
 License URI: https://www.gnu.org/licenses/gpl-2.0.html
@@ -154,6 +154,13 @@ No access tokens, authorization codes or provider API responses are written to l
 4. The front-end login form.
 
 == Changelog ==
+
+= 2.6.0 =
+* Points: balances and movements moved out of user meta into two dedicated database tables. A movement is one transaction: a versioned UPDATE of the account row (the version is part of the WHERE clause, so a request whose snapshot is stale writes nothing) plus the ledger INSERT, which carries a UNIQUE (user_id, idem_key) idempotency key. The previous per-user lock and its TTL are gone with it — there is no lock to expire, no stale owner to take over, and no ledger row that is ever deleted after the fact.
+* Points: every movement is recorded with the account version it was applied at, and reconcile() can rebuild an account row from the ledger if one is ever damaged.
+* Upgrade: existing points, including the very old balance-only meta, are migrated lazily on the first read of each account. Legacy meta is kept, never deleted, and the migrated balance is identical to the previous one.
+* Privacy: the personal-data exporter now includes point movements, and the eraser also removes the account and ledger rows.
+* Uninstall: with "Delete data on uninstall" enabled, the two tables are dropped together with the rest of the plugin's data.
 
 = 2.5.9 =
 * Points: the per-user lease is now fenced. Every critical write is preceded by an atomic renewal whose compare-and-swap expects this request's exact lock value (token|expiry|fence), so a request that lost the lease — taken over after the TTL by another process, or swept while a slow third-party hook was running — is rejected with a WP_Error and writes nothing. The fence counter only moves forward, a stale owner can never release the new owner's lock, and a failed balance write rolls the ledger row back precisely.

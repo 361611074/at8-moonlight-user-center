@@ -1,89 +1,151 @@
-# 积分并发锁 P1 最终整改 — 测试报告（2.5.9）
+# 积分并发一致性整改 — 测试报告（2.6.0）
 
 - 日期：2026-10-30
-- 任务书：《AT8 Moonlight User Center 2.5.8｜P1 积分并发锁最终整改任务》
-- 修复版本：**2.5.9**
-- 环境：本地隔离 WordPress 7.1.3 / PHP 8.3 / SQLite drop-in（多进程测试用真实独立 PHP 进程）
-- 交付 ZIP：`at8-moonlight-user-center-2.5.9.zip`（50 文件 / 165,073 B / SHA-256 `68cf0dd22a2ac8d126eb907ee3adc52e2262b3ed35cf792d5e69d26272878ccc`）
+- 任务书：《AT8 Moonlight User Center 2.5.9 → 2.6.0 积分并发一致性整改》
+- 修复版本：**2.6.0**
+- 环境：本地隔离 WordPress 7.1.3 / PHP 8.3 / SQLite drop-in；并发测试使用 **10 个真实独立 PHP 进程**（`proc_open`，各自完整 bootstrap）
+- 交付 ZIP：`at8-moonlight-user-center-2.6.0.zip`（50 文件 / 165,177 B / SHA-256 `0f579e15ff2d4e1b533f0e3895bb57c3ad2d19ee7025a534768cba3b49c926b0`）
 
-## 一、修复内容（对应任务书 P0/P1 第 1、2 条）
+## 一、任务书所指缺陷的确认
 
-### 1. 锁过期后旧请求继续执行 → **fencing + 写入前复核**
+任务书 P1 描述的场景：
 
-| 改动 | 位置 | 说明 |
-|---|---|---|
-| 锁值加 fence 序号 | `lock()` | 锁值格式 `token|expiry|fence`；首次获取 fence=1，每次接管 fence+1 |
-| `renew_lock()`（新增） | `class-points.php` | **CAS 续租 = 所有权验证**：`swap_row(name, 我当前的值, 新 expiry + fence+1)`。只有锁行仍持有本请求**精确值**时才成功；被接管/被删除则失败 |
-| 三处写入前复核 | `apply_locked()` | ① replay 前 ② 写流水前 ③ 写余额前——每次先 `renew_lock`。任一失败 → **WP_Error(`at8_mluc_points_lock`)** 且**零写入**（不留半写流水） |
-| 锁失效不误删他人锁 | `unlock()` | 仍为 CAS 删除（期望本请求的精确值）；新增句柄有效性守卫——租约已失时不做任何删除 |
-| 余额写入失败检测 | `store_balance()` | 改为返回 bool（读回校验，因 `update_user_meta` 值相同时也返回 false）；失败 → **精确回滚本次流水行** + 恢复余额 + WP_Error |
-| 旧持有者（过期未接管） | — | 语义明确：**过期但未被接管 = 租约可续**（renew 成功即恢复）；**被接管 = 永久失去**（fence 前进，旧值 CAS 必然失败） |
-| 第三方钩子耗时 | `at8_mluc_points_lock_acquired` | 钩子在 `lock()` 内触发；钩子期间锁被接管/过期 → 后续第一次 renew 失败 → 请求中止，**不会写入** |
+1. A 写入积分流水
+2. A 暂停超过 `LOCK_TTL`
+3. B 接管锁并读取流水
+4. B 更新余额
+5. A 恢复，发现锁失效，删除自己的流水
+6. B 的余额仍包含 A 已删除的流水
 
-**没有通过改大 `LOCK_TTL` 或加注释"修复"**：TTL 仍为 10s（`LOCK_TTL`），正确性由 fence + CAS 复核保证。
+**缺陷成立**。2.5.9 的防线是"每次写入前 `renew_lock()` 复核所有权 + 失败则删除自己刚写的流水行"。问题有两处结构性弱点：
 
-### 2. 半写与回滚
+- 复核与写入之间仍有窗口（复核通过 → 写入前进程被挂起）；
+- 第 5 步"删除自己的行"本身就是对已提交数据的二次修改，而第 4 步已经把这行算进余额快照——余额缓存与流水因此可能永久不一致。
 
-- 流水行 = 原子 INSERT（`add_user_meta`），行内含 `u` 唯一令牌；
-- `add_entry()` 返回**实际存储的完整行**（含 `u`），回滚按该精确值删除 → 只可能删掉本次新增的那一行；
-- 余额镜像失败 → 删本次行 → replay 恢复余额 → 返回 `WP_Error('at8_mluc_points_save')`。
+按任务书要求（"不允许在锁失效后直接删除流水，却不重新保证余额缓存正确"），本轮**没有**再加大 TTL、也没有再加一次 `renew_lock()`，而是**取消了"锁 + 事后补偿"这一整个模型**。
 
-## 二、真实多进程并发测试（任务书第 3 条）
+## 二、新模型：单事务 + 版本号写在 UPDATE 语句里
 
-测试代码：`_tools/concurrency_test.php`（父进程调度）+ `_tools/conc_worker.php`（独立子进程，各自完整 bootstrap WordPress）。
-观测由**独立 observer 进程**完成（模拟生产"每请求独立进程"，避免父进程对象缓存干扰）。
+### 2.1 存储
 
-```
-wp eval-file concurrency_test.php        →  17 passed, 0 failed
-```
-
-| # | 场景 | 期望 | 实测 |
-|---|---|---|---|
-| 1 | 8 进程同时为同一用户 **+10** | 8/8 成功；流水 8 条；合计 80；余额 80 | **PASS**（8/8、8 条、80、80） |
-| 2 | 8 进程同时 **-5**（初值 100） | 8/8 成功；9 条流水；合计 60；余额 60 | **PASS** |
-| 2b | 8 进程同时 -5（初值 7） | 仅 1 笔成功；余额 2；不破零 | **PASS**（1/8、2、2） |
-| 3 | **8 个不同订单**并发发放 | 8/8；8 条；合计 160 | **PASS**（无漏发） |
-| 4 | **同一订单 8 次并发回调** | 恰好 1 条流水；20 分 | **PASS**（1 条、20） |
-
-## 三、锁语义测试（任务书第 3 条 5–8、10）
-
-测试代码：`_tools/lock_semantics_test.php`（单进程内用 SQL 直接模拟竞争进程对锁行的操作）
-
-```
-wp eval-file lock_semantics_test.php     →  15 passed, 0 failed
-```
-
-| 用例 | 期望 | 实测 |
-|---|---|---|
-| T1 锁被接管后原持有者写入 | 拒绝（`at8_mluc_points_lock`）、无流水、余额不动 | **PASS** |
-| T1 旧持有者释放锁 | 不能删除新持有者的锁 | **PASS** |
-| T2 钩子耗时期间锁被接管（`lock_acquired` 内接管） | 请求中止、零半写（流水 0、余额 0） | **PASS** |
-| T3 进程异常退出（锁残留、未解锁） | 过期后新请求 CAS 接管 → 正常发放 20 分 → 锁释放 | **PASS** |
-| T4 fence 单调性 | 每次续租 +1（1→2→3） | **PASS** |
-| T4 持有者释放自己的锁 | 可以释放 | **PASS** |
-| T5 进程退出后的 claim 接管 | CAS 接管成功 | **PASS** |
-
-## 四、其余发布检查（任务书第 4、5 条）
-
-| 检查 | 结果 |
+| 表 | 用途 |
 |---|---|
-| 全部 PHP 文件 `php -l` | **PASS**（0 失败） |
-| Plugin Check（2.1.0，扫描最终代码） | **PASS**：0 ERROR / 25 WARNING（均为已归档的结构性项） |
-| 版本一致（头 / 常量 / Stable tag / README / CHANGELOG） | **PASS**（全部 2.5.9） |
-| 安装（ZIP） | **PASS** |
-| **升级 2.5.8 → 2.5.9** | **PASS**：余额 42、流水 1 条、rate 1.5、订单、幂等键 `upgrade:demo` 全部保留；升级后发放正常（42 + 15 = 57） |
-| 停用 / 重新启用 | **PASS**（数据无变化） |
-| 卸载（`delete_data=1`） | **PASS**：核心数据不变（users 23→23 / posts 22→22 / comments 1→1）；插件残留清零（`claim=0`、`lock=0`、`usermeta=0`） |
-| 默认卸载（保留数据） | **PASS**（沿用既有逻辑：`delete_data` 默认 0） |
-| 兼容性（任务书第 4 条） | 未删除历史流水（旧 `at8_mluc_points_log` 仍参与 replay 与展示）；未改数据结构；`at8_mluc_payment_completed` 钩子签名不变（3 参数）；`Points::adjust()` 前 4 参数签名不变，第 5 参数 `$key` 为可选新增 |
+| `{prefix}at8_mluc_points_ledger` | 只追加的流水，一次变动一行。`UNIQUE KEY idem_key (user_id, idem_key)` 由数据库保证"同一订单只发一次" |
+| `{prefix}at8_mluc_points_account` | 每用户一行：`balance`（余额）+ `fence`（版本号） |
 
-## 五、已知限制（如实记录）
+两张表都显式 `ENGINE=InnoDB`（`AT8_MLUC_Points::install()`），因此账户行与流水行可以处在同一个事务里。
 
-1. **SQLite drop-in 环境的观测限制**：父进程在 spawn 多个子进程后直接读取自己的对象缓存会看到过期数据；测试因此统一用独立 observer 进程观测（等同于生产每请求独立进程）。生产 MySQL 环境不受此限。
-2. **真实高并发压测规模**：8 进程 × 多个场景，未做 100+ 并发的长时间 soak 测试（本地 SQLite 不支持高并发写压测）。
-3. **数据库层并发语义**：`insert_row/swap_row/delete_row` 依赖 `option_name` 的 UNIQUE 索引（WordPress 标准 schema）；MySQL `InnoDB` 行锁保证 CAS 原子性。SQLite 下为库级写锁，语义等价但吞吐不同。
-4. 未在 PHP 7.4 实机验证（代码语法与 7.4 兼容，运行环境为 8.3）。
+### 2.2 一次变动 = 一个事务、两条语句
 
-## 六、结论
+```sql
+START TRANSACTION;
 
-任务书要求的"失去锁的请求不能继续执行关键积分写入""不能让旧锁持有者删除新请求的锁""续租失败不能继续写入""失败不留半写流水""真实并发测试"均已实现并有可复现的测试证据（并发 17/0、锁语义 15/0、矩阵 50/0、Free 独立 76/0、Pro 联合 64/0、PCP 0 ERROR）。
+UPDATE {prefix}at8_mluc_points_account
+   SET balance = balance + :amount,
+       fence   = :next
+ WHERE user_id = :user
+   AND fence   = :seen        -- 版本号就在写入语句的 WHERE 里
+   AND balance + :amount >= 0; -- 透支守卫也是全有或全无
+
+INSERT INTO {prefix}at8_mluc_points_ledger (..., fence, idem_key) VALUES (...);
+
+COMMIT;
+```
+
+- **版本号在写入语句内部校验**（任务书第 4 条）。请求读到的 `fence` 与行上的 `fence` 不一致时，MySQL/InnoDB 在行锁释放后重新求值 WHERE，命中 0 行——旧请求**在数据库层**被拒绝，不存在"复核通过但写入仍发生"的窗口。
+- **没有锁，也没有 TTL**（任务书第 5 条不适用：不是靠改大 TTL 解决，而是不再需要租约）。请求被挂起多久都不会持有任何可过期的东西。
+- **不透支**：`balance + :amount >= 0` 是同一语句内的条件，8/10 个并发扣款只会有能装下的那一个成功。
+- **不删流水**（任务书第 6 条）：失败即 `ROLLBACK`，账户行与流水行一起回退，**从不**先写后删。
+- **失败回滚**（任务书第 8 条）：任何一条语句失败都 `ROLLBACK`，不留半成品。
+- **幂等**：`UNIQUE (user_id, idem_key)`，重复回调的 INSERT 失败 → 回滚自己的余额变更 → 返回赢家写入的余额。
+
+### 2.3 关于"事务是否真的生效"
+
+任务书要求"不能只把 PHP 代码包在 START TRANSACTION 和 COMMIT 之间就声称已经解决"。本轮逐项验证：
+
+| 验证项 | 方法 | 结果 |
+|---|---|---|
+| 表引擎 | `CREATE TABLE ... ENGINE=InnoDB`（`install()`）；生产环境 MySQL 默认 InnoDB | 代码层强制 |
+| 事务是否真的回滚 | 事务内插入一行后 `ROLLBACK`，再查行数 | 0 行（`atomicity_test.php` 断言） |
+| 语句失败是否连带回滚 | 用 `query` 过滤器把流水 INSERT 改成必失败 SQL，检查账户余额与版本号 | 余额、版本号均回退；无孤立流水（矩阵 + 并发套件各有一组断言） |
+| 隔离级别下的旧版本写入 | 直接执行带旧 `fence` 的 UPDATE | 影响 0 行，新余额不变 |
+| 崩溃中断 | 子进程在事务中途 `exit(0)`（真实进程死亡） | 余额不变、无流水行，重试恰好一次 |
+
+**已知限制（如实记录）**：本地测试站的数据库是 SQLite drop-in（无真实 InnoDB 行锁/隔离级别），并发语义由"整库写锁 + 唯一索引 + 版本 CAS"共同保证。InnoDB 下的表现需在 MySQL 环境复核，标记为 **NOT RUN**（见第六节）。
+
+## 三、任务书要求的 10 项并发测试（真实多进程）
+
+测试脚本：`docs/tests/concurrency_test.php` + `docs/tests/conc_worker.php`（父进程只调度，每个写入/观测都在独立 PHP 进程中完成）。
+
+| # | 场景 | 断言 | 结果 |
+|---|---|---|---|
+| 1 | 同一用户 10 个请求同时 +10 | 10/10 成功；10 行；合计 100；余额 100 | **PASS** |
+| 2 | 同一用户 10 个请求同时 -5（初始 100） | 10/10 成功；11 行；合计 50；余额 50 | **PASS** |
+| 2b | 余额 7，10 个并发 -5 | 仅 1 笔成功；余额 2；不为负 | **PASS** |
+| 3 | 两笔不同订单同时发放（rate 2.0，各 10.00） | 2/2 成功；2 行；合计 40 | **PASS** |
+| 4 | 同一订单 10 次并发回调 | 恰好 1 行；只记 20 分 | **PASS** |
+| 5 | 写入者把事务持有 3 秒（远超任何 TTL），期间 3 个请求尝试写 | 持有者正常结束；余额 = 流水合计；不为负 | **PASS**（rollback / commit 各一轮） |
+| 6 | 持有者"写完流水后暂停"，另一请求完成写入，持有者恢复 | 回滚轮：持有者的行完全消失（15 = 5×3）；提交轮：持有者只计一次（25 = 10 + 5×3） | **PASS** |
+| 7 | 过期写者用旧版本号写余额 | UPDATE 影响 0 行；新余额不变（25） | **PASS** |
+| 8 | 数据库拒绝写入（流水 INSERT 被改成必失败） | 报错；余额不变；无流水残留；重试成功 | **PASS** |
+| 9 | 请求进程在事务中被杀（`exit(0)`） | 余额不变；无流水行；重试恰好一次 | **PASS** |
+| 10 | 提交后崩溃（订单标记未写），回调重试 | 只发一次（20）；订单键只有 1 行 | **PASS** |
+
+**总计 54 条断言 / 0 失败**（`==== 54 passed, 0 failed ====`）。
+
+附加：每个场景结束都会核对两条不变量——`balance == SUM(ledger.amount)`、`balance >= 0`。
+
+## 四、存储层套件（`docs/tests/atomicity_test.php`）
+
+| 断言组 | 结果 |
+|---|---|
+| 两张表存在；`UNIQUE (user_id, idem_key)` 索引存在 | PASS |
+| 版本号 0→1→2 单调；每行流水记录落到当时的版本 | PASS |
+| 旧版本号写入影响 0 行、新余额不变 | PASS |
+| 流水插入失败 → 余额与版本号一起回滚、无孤立行 | PASS |
+| 键幂等：重复调用不写第二行；裸 INSERT 被唯一索引拒绝 | PASS |
+| 旧数据迁移：余额与条数完全一致；重复读取不重复写入；迁移后账户从版本 0 开始；迁移后仍可正常变动 | PASS |
+| `reconcile()` 能从流水重建被手工篡改的账户行 | PASS |
+| 零金额为 no-op；透支被拒且零残留；恰好花完允许 | PASS |
+
+**32 条断言 / 0 失败**。
+
+## 五、旧数据迁移（不丢失历史积分）
+
+- 首次读取某用户时按需迁移（`migrate_user()`），迁移本身在事务内完成，账户行 `PRIMARY KEY` 即互斥：并发首读只会有一个成功，其余等它提交后读同一行。
+- 迁移后余额与 2.5.9 的 `balance()` **逐用户相等**：本次对 23 个老用户实测 `users_with_entries_same=23 mismatched=0 total_before=2669 total_after=2669`。
+- 只有 `at8_mluc_points` 余额、没有任何流水行的极老账户：导入为一条 `Opening balance`（source=`migrate`），余额不丢。
+- **旧 meta 一律保留不删**（`at8_mluc_points_entry` / `at8_mluc_points_log` / `at8_mluc_points`）。
+- **迁移保留原始幂等键**：已发放过的订单迁移后 `has_entry('purchase:<id>')` 仍为真，重复回调不会再发一次（升级实测 70 → 70）。
+- 升级实测（2.5.9 → 2.6.0）：余额 70 → 70，流水 2 → 2 行，`key_kept=true`，重发不变，升级后新增变动正常（→ 75）。
+- **过程记录**：本轮第一次升级测试发现迁移把原始键改写成了 `legacy:<hash>`，导致升级后同一订单可再发一次 —— 已修复（保留原键；若旧数据里同键重复，第二条回退到 `legacy:` 指纹键以免丢历史），并补了 2 条回归断言。
+
+## 六、其它验收项
+
+| 项 | 结果 |
+|---|---|
+| `php -l` 全量（40 个 PHP 文件） | **0 失败** |
+| Plugin Check 2.1.0（对 ZIP 解压目录扫描） | **0 ERROR / 25 WARNING**（余下均为插件既有项：`$_POST` 读取、payments 直连查询、`meta_query`） |
+| Free 独立回归 | **76 / 0** |
+| Free + Pro 联合回归 | **64 / 0** |
+| 后端矩阵（含积分/P0 项） | **50 / 0** |
+| 并发套件 | **54 / 0** |
+| 存储层套件 | **32 / 0** |
+| 卸载（delete_data=1） | 两张表被 DROP、`at8_mluc_%` usermeta 归零、`at8_mluc_points_db` 删除；核心数据不变（users 26→26、posts 30→30、comments 1→1） |
+| 卸载（默认保留） | 两张表与数据保留，仅清运行态 |
+| 隐私导出/擦除 | 导出含积分流水分组；擦除同时删除该用户的流水与账户行 |
+| PHP 7.4 实机 | **NOT RUN**（无 7.4 环境；代码未使用 7.4 以上语法） |
+| MySQL/InnoDB 实机并发 | **NOT RUN**（本地为 SQLite drop-in；见 2.3 的限制说明） |
+| 多站点 | **NOT RUN** |
+
+## 七、改动清单
+
+| 文件 | 改动 |
+|---|---|
+| `includes/class-points.php` | 存储层重写：两张表、事务、版本 CAS、唯一幂等键、懒迁移、`reconcile()`；删除 per-user 锁 / claim 行 / TTL / fence 租约 / 事后删行补偿 |
+| `includes/class-activator.php` | 激活时建表；文件头说明同步更新 |
+| `at8-moonlight-user-center.php` | bootstrap 在 `plugins_loaded` 调 `maybe_install()`，插件原地升级也能建表 |
+| `includes/class-privacy.php` | 导出增加积分流水分组；擦除同时删流水与账户行 |
+| `uninstall.php` | `delete_data=1` 时 DROP 两张表并删 `at8_mluc_points_db` |
+| `readme.txt` / `README.md` | 版本 2.6.0 + changelog |
+| `docs/tests/*` | 新增 `concurrency_test.php`（10 场景）、`atomicity_test.php`；移除已无意义的 `lock_semantics_test.php` |

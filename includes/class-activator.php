@@ -2,8 +2,9 @@
 /**
  * Activation and deactivation routines.
  *
- * The plugin stores no custom database tables. All persistent state lives in
- * the `at8_mluc_options` option and in user meta owned by the plugin.
+ * Persistent state lives in the `at8_mluc_options` option, in user meta owned
+ * by the plugin, and — since 2.6.0 — in the points ledger and account tables
+ * created here.
  *
  * @package AT8_Moonlight_User_Center
  */
@@ -64,6 +65,9 @@ class AT8_MLUC_Activator {
 		}
 
 		update_option( 'at8_mluc_options', array_merge( self::defaults(), $existing ), false );
+
+		// Create the points ledger and account tables.
+		AT8_MLUC_Points::install();
 
 		// Record the plugin version so upgrades can run migrations later.
 		update_option( 'at8_mluc_version', AT8_MLUC_VERSION, false );

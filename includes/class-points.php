@@ -1,36 +1,41 @@
 <?php
 /**
- * Points ledger.
+ * Point balances and the points ledger.
  *
- * Points are the free plugin's single upgrade path: a member spends points to
- * redeem a membership level, and nothing else moves a level. The add-on unlocks
- * the remaining paths (direct purchase, tiered upgrades) without changing how
- * the ledger works.
+ * Storage model
+ * -------------
+ * Two dedicated tables hold the whole system:
  *
- * The ledger rows are the single source of truth and the stored balance is
- * only a mirror that is derived from them. Three mechanisms keep the rows and
- * the mirror consistent under concurrency, and none of them is a
- * "read, then write" pair that two requests could interleave:
+ * - `{prefix}at8_mluc_points_ledger` — append-only movements, one row per
+ *   change, with a UNIQUE (user_id, idem_key) index that makes "award this
+ *   order once" a database guarantee instead of an application promise.
+ * - `{prefix}at8_mluc_points_account` — one row per user holding the running
+ *   balance and a version number (`fence`).
  *
- * 1. Every movement is its own row, appended with add_user_meta(), which is a
- *    single INSERT — two awards for the same user can never overwrite or lose
- *    each other.
- * 2. A movement that carries an idempotency key first creates a claim row with
- *    a plain INSERT into the options table. option_name is UNIQUE in the
- *    WordPress schema, so the database — not a PHP check — decides which
- *    request owns the key. A retry finds the claim and replays instead of
- *    awarding twice.
- * 3. Balance changes for one user are serialised by a mutex row in the same
- *    table, taken over only through a compare-and-swap on its exact value, so
- *    the read-compute-write sequence inside it cannot be split by another
- *    writer. The mutex has a TTL so a crashed request cannot block the account
- *    forever, and it is released only by its owner.
+ * Every movement is a single transaction with two statements:
  *
- * The balance is recomputed from the rows inside the mutex before every
- * movement and again after it, which is what makes an interrupted award
- * resumable: whatever step a request died at, the next one replays to the same
- * state. The stored balance is never read to decide anything — it is a mirror
- * for inspection, written last and verified.
+ *   1. UPDATE account
+ *        SET balance = balance + :amount, fence = :next
+ *      WHERE user_id = :user
+ *        AND fence = :seen            <-- the version this request read
+ *        AND balance + :amount >= 0   <-- all-or-nothing overdraft guard
+ *   2. INSERT INTO ledger (...)
+ *
+ * The version check lives inside the UPDATE. A request that read the account
+ * and then stalled cannot write after somebody else moved it: the database
+ * compares the stored version itself and affects zero rows, so the caller
+ * re-reads and retries. This is why there is no lease, no TTL and no lock to
+ * expire any more — the failure mode where a stale owner keeps writing after
+ * its lock was taken over no longer exists in this design, because there is
+ * no lock to take over.
+ *
+ * The ledger and the account can never disagree: they are written in the same
+ * transaction, so a crash at any point rolls both back, and a movement is
+ * never "undone afterwards" by deleting a row (the older implementation could
+ * delete a ledger row that another request had already counted).
+ *
+ * Legacy data (2.5.x and older) lives in user meta and is migrated lazily,
+ * once per user, on first use; nothing is deleted.
  *
  * @package AT8_Moonlight_User_Center
  */
@@ -43,72 +48,55 @@ defined( 'ABSPATH' ) || exit;
 class AT8_MLUC_Points {
 
 	/**
-	 * User meta holding the cached balance (derived from the ledger rows).
+	 * Legacy balance mirror. Still written for older integrations and for the
+	 * privacy exporter, but never read as the source of truth.
 	 *
 	 * @var string
 	 */
 	const BALANCE_META = 'at8_mluc_points';
 
 	/**
-	 * Legacy single-meta ledger kept for reading history written by older
-	 * versions; new entries always go to ENTRY_META.
+	 * Legacy single-meta ledger (an array) written before 2.5.7.
 	 *
 	 * @var string
 	 */
 	const LEDGER_META = 'at8_mluc_points_log';
 
 	/**
-	 * Per-entry ledger storage: one row per movement. Appends are atomic
-	 * INSERTs, so concurrent awards for the same user can never lose an entry.
+	 * Legacy per-row ledger entries written by 2.5.7 – 2.5.9.
 	 *
 	 * @var string
 	 */
 	const ENTRY_META = 'at8_mluc_points_entry';
 
 	/**
-	 * Prefix of the per-user mutex row in the options table.
+	 * Option holding the installed storage version.
 	 *
 	 * @var string
 	 */
-	const LOCK_PREFIX = 'at8_mluc_points_lock_';
+	const DB_OPTION = 'at8_mluc_points_db';
 
 	/**
-	 * Prefix of the per-movement idempotency claim row in the options table.
-	 *
-	 * @var string
-	 */
-	const CLAIM_PREFIX = 'at8_mluc_points_claim_';
-
-	/**
-	 * Seconds a mutex row may live before another request may take it over.
-	 * The critical section is a handful of queries, so this only has to cover
-	 * a slow database, not a slow page.
+	 * Current storage version. Bump when the schema changes.
 	 *
 	 * @var int
 	 */
-	const LOCK_TTL = 10;
+	const DB_VERSION = 1;
 
 	/**
-	 * Seconds to wait for the per-user mutex before reporting "busy".
+	 * How often a movement retries when another request moved the account
+	 * between its read and its write.
 	 *
 	 * @var int
 	 */
-	const LOCK_WAIT = 5;
+	const MAX_ATTEMPTS = 40;
 
 	/**
-	 * Seconds an in-flight claim may live before it is treated as abandoned
-	 * (the request that created it died before writing anything).
+	 * Base back-off between attempts, in microseconds.
 	 *
 	 * @var int
 	 */
-	const CLAIM_TTL = 60;
-
-	/**
-	 * Seconds to wait for the request that owns the same claim to finish.
-	 *
-	 * @var int
-	 */
-	const CLAIM_WAIT = 2;
+	const RETRY_USLEEP = 15000;
 
 	/**
 	 * Singleton instance.
@@ -116,6 +104,13 @@ class AT8_MLUC_Points {
 	 * @var AT8_MLUC_Points|null
 	 */
 	private static $instance = null;
+
+	/**
+	 * Whether the tables were confirmed during this request.
+	 *
+	 * @var bool
+	 */
+	private static $schema_ok = false;
 
 	/**
 	 * Retrieve the singleton.
@@ -143,15 +138,354 @@ class AT8_MLUC_Points {
 		add_action( 'at8_mluc_payment_completed', array( $this, 'grant_for_order' ), 10, 3 );
 	}
 
+	/* ---------------------------------------------------------------------
+	 * Schema
+	 * ------------------------------------------------------------------ */
+
+	/**
+	 * Create or upgrade the two tables.
+	 *
+	 * Both are InnoDB so the account update and the ledger insert belong to
+	 * one transaction. dbDelta is idempotent, so this is safe to call on
+	 * activation and again whenever DB_VERSION moves.
+	 *
+	 * @return void
+	 */
+	public static function install() {
+		global $wpdb;
+
+		require_once ABSPATH . 'wp-admin/includes/upgrade.php';
+
+		$charset = $wpdb->get_charset_collate();
+		$ledger  = $wpdb->prefix . 'at8_mluc_points_ledger';
+		$account = $wpdb->prefix . 'at8_mluc_points_account';
+
+		dbDelta(
+			"CREATE TABLE {$ledger} (
+  id bigint(20) unsigned NOT NULL AUTO_INCREMENT,
+  user_id bigint(20) unsigned NOT NULL,
+  amount int(11) NOT NULL DEFAULT 0,
+  reason varchar(191) NOT NULL DEFAULT '',
+  source varchar(32) NOT NULL DEFAULT '',
+  by_user bigint(20) unsigned NOT NULL DEFAULT 0,
+  idem_key varchar(150) DEFAULT NULL,
+  fence bigint(20) unsigned NOT NULL DEFAULT 0,
+  created_at bigint(20) unsigned NOT NULL DEFAULT 0,
+  PRIMARY KEY  (id),
+  UNIQUE KEY idem_key (user_id,idem_key),
+  KEY user_id (user_id,id)
+) ENGINE=InnoDB {$charset};"
+		);
+
+		dbDelta(
+			"CREATE TABLE {$account} (
+  user_id bigint(20) unsigned NOT NULL,
+  balance bigint(20) unsigned NOT NULL DEFAULT 0,
+  fence bigint(20) unsigned NOT NULL DEFAULT 0,
+  updated_at bigint(20) unsigned NOT NULL DEFAULT 0,
+  PRIMARY KEY  (user_id)
+) ENGINE=InnoDB {$charset};"
+		);
+
+		self::$schema_ok = true;
+
+		update_option( self::DB_OPTION, self::DB_VERSION, false );
+	}
+
+	/**
+	 * Install the tables when the stored schema version is behind.
+	 *
+	 * Runs on `plugins_loaded` before anything can touch a balance, so an
+	 * in-place plugin update gets its tables without re-activation.
+	 *
+	 * @return void
+	 */
+	public static function maybe_install() {
+		if ( (int) get_option( self::DB_OPTION, 0 ) === self::DB_VERSION ) {
+			self::$schema_ok = true;
+
+			return;
+		}
+
+		self::install();
+	}
+
+	/**
+	 * Rebuild a user's account row from their ledger rows.
+	 *
+	 * The account row moves only through the versioned UPDATE, so it cannot
+	 * drift on its own. This exists for recovery (a row deleted by hand, a
+	 * database restored without the account table) and for the test suite.
+	 *
+	 * @param int $user_id User ID.
+	 * @return int Rebuilt balance.
+	 */
+	public static function reconcile( $user_id ) {
+		global $wpdb;
+
+		$user_id = (int) $user_id;
+
+		// phpcs:ignore WordPress.DB.DirectDatabaseQuery.DirectQuery, WordPress.DB.DirectDatabaseQuery.NoCaching -- Summing the ledger is the authoritative recompute.
+		$sum = (int) $wpdb->get_var(
+			$wpdb->prepare( "SELECT COALESCE( SUM( amount ), 0 ) FROM {$wpdb->prefix}at8_mluc_points_ledger WHERE user_id = %d", $user_id )
+		);
+
+		// phpcs:ignore WordPress.DB.DirectDatabaseQuery.DirectQuery, WordPress.DB.DirectDatabaseQuery.NoCaching -- Reading the row this repair is about to rewrite.
+		$exists = $wpdb->get_var(
+			$wpdb->prepare( "SELECT user_id FROM {$wpdb->prefix}at8_mluc_points_account WHERE user_id = %d", $user_id )
+		);
+
+		if ( $exists ) {
+			// phpcs:ignore WordPress.DB.DirectDatabaseQuery.DirectQuery, WordPress.DB.DirectDatabaseQuery.NoCaching -- Repair write.
+			$wpdb->query(
+				$wpdb->prepare( "UPDATE {$wpdb->prefix}at8_mluc_points_account SET balance = %d, updated_at = %d WHERE user_id = %d", $sum, time(), $user_id )
+			);
+		} else {
+			// phpcs:ignore WordPress.DB.DirectDatabaseQuery.DirectQuery, WordPress.DB.DirectDatabaseQuery.NoCaching -- Repair write.
+			$wpdb->query(
+				$wpdb->prepare( "INSERT INTO {$wpdb->prefix}at8_mluc_points_account (user_id, balance, fence, updated_at) VALUES (%d, %d, 0, %d)", $user_id, $sum, time() )
+			);
+		}
+
+		self::sync_mirror( $user_id, $sum );
+
+		return $sum;
+	}
+
+	/* ---------------------------------------------------------------------
+	 * Reading
+	 * ------------------------------------------------------------------ */
+
+	/**
+	 * Balance for a user.
+	 *
+	 * @param int $user_id User ID.
+	 * @return int
+	 */
+	public static function balance( $user_id ) {
+		$account = self::account( (int) $user_id );
+
+		return max( 0, (int) $account[0] );
+	}
+
+	/**
+	 * Ledger entries, newest first.
+	 *
+	 * @param int $user_id User ID.
+	 * @param int $limit  Maximum entries to return.
+	 * @return array<int, array<string, mixed>>
+	 */
+	public static function ledger( $user_id, $limit = 20 ) {
+		global $wpdb;
+
+		$user_id = (int) $user_id;
+		$limit   = max( 1, (int) $limit );
+
+		// Make sure legacy meta was migrated before reading the table.
+		self::account( $user_id );
+
+		// phpcs:ignore WordPress.DB.DirectDatabaseQuery.DirectQuery, WordPress.DB.DirectDatabaseQuery.NoCaching -- Append-only table, read straight from the database.
+		$rows = $wpdb->get_results(
+			$wpdb->prepare(
+				"SELECT id, amount, reason, source, by_user, idem_key, created_at FROM {$wpdb->prefix}at8_mluc_points_ledger WHERE user_id = %d ORDER BY id DESC LIMIT %d",
+				$user_id,
+				$limit
+			),
+			ARRAY_A
+		);
+
+		$entries = array();
+
+		foreach ( (array) $rows as $row ) {
+			$entries[] = array(
+				'time'   => (int) $row['created_at'],
+				'amount' => (int) $row['amount'],
+				'reason' => (string) $row['reason'],
+				'source' => (string) $row['source'],
+				'by'     => (int) $row['by_user'],
+				'key'    => (string) $row['idem_key'],
+				'u'      => (string) $row['id'],
+			);
+		}
+
+		return $entries;
+	}
+
+	/**
+	 * Whether a movement with the given idempotency key was recorded.
+	 *
+	 * @param int    $user_id User ID.
+	 * @param string $key     Idempotency key.
+	 * @return bool
+	 */
+	public static function has_entry( $user_id, $key ) {
+		global $wpdb;
+
+		$key = (string) $key;
+
+		if ( '' === $key ) {
+			return false;
+		}
+
+		// phpcs:ignore WordPress.DB.DirectDatabaseQuery.DirectQuery, WordPress.DB.DirectDatabaseQuery.NoCaching -- The UNIQUE index answers this in the database; a cached answer could be stale.
+		return (bool) $wpdb->get_var(
+			$wpdb->prepare( "SELECT id FROM {$wpdb->prefix}at8_mluc_points_ledger WHERE user_id = %d AND idem_key = %s LIMIT 1", (int) $user_id, $key )
+		);
+	}
+
+	/* ---------------------------------------------------------------------
+	 * Writing
+	 * ------------------------------------------------------------------ */
+
+	/**
+	 * Add or remove points.
+	 *
+	 * With a key the movement happens at most once per user, enforced by the
+	 * UNIQUE (user_id, idem_key) index: a duplicate callback loses the INSERT,
+	 * rolls back its own balance change and reports the balance that the
+	 * winning request produced.
+	 *
+	 * @param int    $user_id User ID.
+	 * @param int    $amount  Signed amount.
+	 * @param string $reason  Human-readable reason.
+	 * @param string $source  Machine-readable source key.
+	 * @param string $key     Optional idempotency key for this movement.
+	 * @return int|WP_Error New balance, or an error when nothing was recorded.
+	 */
+	public static function adjust( $user_id, $amount, $reason = '', $source = 'manual', $key = '' ) {
+		global $wpdb;
+
+		$user_id = (int) $user_id;
+		$amount  = (int) $amount;
+		$key     = (string) $key;
+
+		if ( $user_id <= 0 ) {
+			return new WP_Error( 'at8_mluc_points_user', __( 'Unknown user.', 'at8-moonlight-user-center' ) );
+		}
+
+		if ( 0 === $amount ) {
+			return self::balance( $user_id );
+		}
+
+		$reason    = sanitize_text_field( (string) $reason );
+		$source    = sanitize_key( (string) $source );
+		$by        = get_current_user_id();
+		$processed = time();
+
+		for ( $attempt = 1; $attempt <= self::MAX_ATTEMPTS; $attempt++ ) {
+			list( $balance, $fence ) = self::account( $user_id );
+
+			// Already applied — a duplicate callback, or a retry after a crash
+			// that happened after the commit. Nothing to write.
+			if ( '' !== $key && self::has_entry( $user_id, $key ) ) {
+				return $balance;
+			}
+
+			if ( $amount < 0 && $balance + $amount < 0 ) {
+				return new WP_Error( 'at8_mluc_points_balance', __( 'That would take the balance below zero.', 'at8-moonlight-user-center' ) );
+			}
+
+			$next = $fence + 1;
+
+			self::begin();
+
+			/*
+			 * The version is part of the WHERE clause, so ownership at write
+			 * time is decided by the database, not by a check this request
+			 * did a moment earlier. A request whose account snapshot is stale
+			 * affects zero rows here — it cannot overwrite a newer balance.
+			 */
+			// phpcs:ignore WordPress.DB.DirectDatabaseQuery.DirectQuery, WordPress.DB.DirectDatabaseQuery.NoCaching -- Conditional account update; the meta API cannot express compare-and-swap plus an overdraft guard.
+			$moved = $wpdb->query(
+				$wpdb->prepare(
+					"UPDATE {$wpdb->prefix}at8_mluc_points_account SET balance = balance + %d, fence = %d, updated_at = %d WHERE user_id = %d AND fence = %d AND balance + %d >= 0",
+					$amount,
+					$next,
+					$processed,
+					$user_id,
+					$fence,
+					$amount
+				)
+			);
+
+			if ( 1 !== (int) $moved ) {
+				self::rollback();
+
+				list( $now, $now_fence ) = self::account( $user_id );
+
+				if ( $amount < 0 && $now + $amount < 0 ) {
+					return new WP_Error( 'at8_mluc_points_balance', __( 'That would take the balance below zero.', 'at8-moonlight-user-center' ) );
+				}
+
+				if ( $now_fence === $fence ) {
+					// Nothing moved yet the statement matched nothing: the
+					// storage layer refused the write.
+					return self::save_error();
+				}
+
+				// Somebody else moved the account in between: read again.
+				usleep( (int) ( self::RETRY_USLEEP * min( $attempt, 4 ) ) );
+				continue;
+			}
+
+			$entry_id = self::insert_movement( $user_id, $amount, $reason, $source, $by, $key, $next, $processed );
+
+			if ( false === $entry_id ) {
+				// The ledger row did not land, so the balance change must not
+				// survive either: one transaction, one outcome.
+				self::rollback();
+
+				if ( '' !== $key && self::has_entry( $user_id, $key ) ) {
+					return self::balance( $user_id );
+				}
+
+				return self::save_error();
+			}
+
+			self::commit();
+
+			$new_balance = $balance + $amount;
+
+			self::sync_mirror( $user_id, $new_balance );
+
+			$entry = array(
+				'time'   => $processed,
+				'amount' => $amount,
+				'reason' => $reason,
+				'source' => $source,
+				'by'     => $by,
+				'key'    => $key,
+				'u'      => (string) $entry_id,
+			);
+
+			/**
+			 * Fires after a balance changed.
+			 *
+			 * @since 2.4.0
+			 *
+			 * @param int   $user_id User ID.
+			 * @param int   $amount  Signed amount applied.
+			 * @param int   $balance New balance.
+			 * @param array $entry   Ledger entry.
+			 */
+			do_action( 'at8_mluc_points_adjusted', $user_id, $amount, $new_balance, $entry );
+
+			return $new_balance;
+		}
+
+		return new WP_Error(
+			'at8_mluc_points_busy',
+			__( 'The points account is busy. Please try again in a moment.', 'at8-moonlight-user-center' )
+		);
+	}
+
 	/**
 	 * Award points for a completed order, based on the configured
 	 * points-per-currency rate.
 	 *
-	 * The order key is claimed in the database before anything is written, so
-	 * concurrent callbacks for the same order produce exactly one ledger row:
-	 * whichever request creates the claim row writes the movement, and the
-	 * others observe that row and return the same balance. Whatever point an
-	 * earlier attempt was interrupted at, a retry replays to the same state.
+	 * The order key is the idempotency key, so concurrent callbacks for the
+	 * same order produce exactly one ledger row — the UNIQUE index decides,
+	 * not the application.
 	 *
 	 * @param int    $order_id Completed order ID.
 	 * @param int    $user_id  Buyer user ID.
@@ -178,11 +512,9 @@ class AT8_MLUC_Points {
 			return;
 		}
 
-		/*
-		 * Compute first: an invalid amount or a zero result returns without
-		 * touching any state, so a corrected order can be awarded later.
-		 * The price comes from the order record; client input is never trusted.
-		 */
+		// Compute first: an invalid amount or a zero result returns without
+		// touching any state, so a corrected order can be awarded later.
+		// The price comes from the order record; client input is never trusted.
 		$price = (float) get_post_meta( $order_id, '_at8_mluc_pay_price', true );
 
 		if ( $price <= 0 ) {
@@ -203,9 +535,6 @@ class AT8_MLUC_Points {
 			$subject
 		);
 
-		// The claim on the order key is what makes this exactly-once: the
-		// database admits one writer for 'purchase:<order>', every other
-		// caller waits for that row to land and then reads the same balance.
 		$result = self::adjust( $user_id, $points, $reason, 'purchase', 'purchase:' . $order_id );
 
 		if ( is_wp_error( $result ) ) {
@@ -213,7 +542,7 @@ class AT8_MLUC_Points {
 		}
 
 		// Fast-path marker for later triggers. It is only an optimisation: the
-		// claim row and the ledger row are what actually prevent a re-award.
+		// idempotency key and the account version are what prevent a re-award.
 		add_post_meta( $order_id, '_at8_mluc_points_awarded', 1, true );
 	}
 
@@ -224,14 +553,368 @@ class AT8_MLUC_Points {
 	 * @return void
 	 */
 	public function grant_signup_bonus( $user_id ) {
-		$bonus = self::signup_bonus();
+		$user_id = (int) $user_id;
+		$bonus   = self::signup_bonus();
 
-		if ( $bonus <= 0 ) {
+		if ( $bonus <= 0 || $user_id <= 0 ) {
 			return;
 		}
 
-		self::adjust( $user_id, $bonus, __( 'Welcome bonus', 'at8-moonlight-user-center' ), 'signup' );
+		self::adjust( $user_id, $bonus, __( 'Welcome bonus', 'at8-moonlight-user-center' ), 'signup', 'signup:' . $user_id );
 	}
+
+	/* ---------------------------------------------------------------------
+	 * Account row
+	 * ------------------------------------------------------------------ */
+
+	/**
+	 * Read a user's account row, migrating legacy meta the first time.
+	 *
+	 * @param int $user_id User ID.
+	 * @return array{0:int,1:int} Balance and version.
+	 */
+	private static function account( $user_id ) {
+		global $wpdb;
+
+		$user_id = (int) $user_id;
+
+		if ( $user_id <= 0 ) {
+			return array( 0, 0 );
+		}
+
+		// phpcs:ignore WordPress.DB.DirectDatabaseQuery.DirectQuery, WordPress.DB.DirectDatabaseQuery.NoCaching -- Must observe the row another process just committed.
+		$row = $wpdb->get_row(
+			$wpdb->prepare( "SELECT balance, fence FROM {$wpdb->prefix}at8_mluc_points_account WHERE user_id = %d", $user_id ),
+			ARRAY_A
+		);
+
+		if ( is_array( $row ) ) {
+			return array( (int) $row['balance'], (int) $row['fence'] );
+		}
+
+		return self::migrate_user( $user_id );
+	}
+
+	/**
+	 * Create the account row for a user and import whatever the legacy meta
+	 * holds. Runs at most once per user; the PRIMARY KEY on user_id makes the
+	 * creation itself the mutual exclusion.
+	 *
+	 * @param int $user_id User ID.
+	 * @return array{0:int,1:int} Balance and version.
+	 */
+	private static function migrate_user( $user_id ) {
+		global $wpdb;
+
+		$entries = self::legacy_entries( $user_id );
+		$total   = 0;
+
+		foreach ( $entries as $entry ) {
+			$total += (int) $entry['amount'];
+		}
+
+		$mirror  = get_user_meta( $user_id, self::BALANCE_META, true );
+		$opening = 0;
+
+		/*
+		 * Very old installs only stored a balance. Import it as an opening
+		 * movement so the ledger still explains the number.
+		 */
+		if ( empty( $entries ) && is_numeric( $mirror ) && (int) $mirror > 0 ) {
+			$opening = (int) $mirror;
+		}
+
+		$balance = $total + $opening;
+
+		self::begin();
+
+		$suppress = $wpdb->suppress_errors( true );
+
+		// phpcs:ignore WordPress.DB.DirectDatabaseQuery.DirectQuery, WordPress.DB.DirectDatabaseQuery.NoCaching -- Creating the account row is the migration's mutual exclusion; a cached API cannot express it.
+		$created = $wpdb->insert(
+			$wpdb->prefix . 'at8_mluc_points_account',
+			array(
+				'user_id'    => $user_id,
+				'balance'    => 0,
+				'fence'      => 0,
+				'updated_at' => time(),
+			),
+			array( '%d', '%d', '%d', '%d' )
+		);
+
+		$wpdb->suppress_errors( $suppress );
+
+		if ( ! $created ) {
+			// Another request created it first. Its transaction may still be
+			// in flight, so retry the read briefly before giving up.
+			self::rollback();
+
+			for ( $i = 0; $i < 5; $i++ ) {
+				// phpcs:ignore WordPress.DB.DirectDatabaseQuery.DirectQuery, WordPress.DB.DirectDatabaseQuery.NoCaching -- Reading the row the other request is committing.
+				$row = $wpdb->get_row(
+					$wpdb->prepare( "SELECT balance, fence FROM {$wpdb->prefix}at8_mluc_points_account WHERE user_id = %d", $user_id ),
+					ARRAY_A
+				);
+
+				if ( is_array( $row ) ) {
+					return array( (int) $row['balance'], (int) $row['fence'] );
+				}
+
+				usleep( 20000 );
+			}
+
+			return array( $balance, 0 );
+		}
+
+		$when = time();
+
+		foreach ( $entries as $index => $entry ) {
+			/*
+			 * Keep the original idempotency key: an order that was already
+			 * awarded before the upgrade must stay awarded afterwards, so a
+			 * repeated payment callback does not pay out twice.
+			 */
+			$key = (string) $entry['key'];
+
+			if ( '' !== $key && self::insert_movement( $user_id, (int) $entry['amount'], (string) $entry['reason'], (string) $entry['source'], (int) $entry['by'], $key, 0, (int) $entry['time'] > 0 ? (int) $entry['time'] : $when ) ) {
+				continue;
+			}
+
+			if ( '' === $key ) {
+				self::insert_movement(
+					$user_id,
+					(int) $entry['amount'],
+					(string) $entry['reason'],
+					(string) $entry['source'],
+					(int) $entry['by'],
+					'',
+					0,
+					(int) $entry['time'] > 0 ? (int) $entry['time'] : $when
+				);
+
+				continue;
+			}
+
+			// The same key appears twice in the old data: keep both movements
+			// by giving the second one a unique key of its own.
+			$fingerprint = 'legacy:' . md5( $user_id . '|' . $index . '|' . (int) $entry['time'] . '|' . (string) $entry['u'] );
+
+			self::insert_movement(
+				$user_id,
+				(int) $entry['amount'],
+				(string) $entry['reason'],
+				(string) $entry['source'],
+				(int) $entry['by'],
+				$fingerprint,
+				0,
+				(int) $entry['time'] > 0 ? (int) $entry['time'] : $when
+			);
+		}
+
+		if ( 0 !== $opening ) {
+			self::insert_movement(
+				$user_id,
+				$opening,
+				__( 'Opening balance', 'at8-moonlight-user-center' ),
+				'migrate',
+				0,
+				'legacy:opening:' . $user_id,
+				0,
+				$when
+			);
+		}
+
+		// phpcs:ignore WordPress.DB.DirectDatabaseQuery.DirectQuery, WordPress.DB.DirectDatabaseQuery.NoCaching -- Setting the freshly created account row.
+		$wpdb->query(
+			$wpdb->prepare(
+				"UPDATE {$wpdb->prefix}at8_mluc_points_account SET balance = %d, updated_at = %d WHERE user_id = %d",
+				$balance,
+				$when,
+				$user_id
+			)
+		);
+
+		self::commit();
+
+		self::sync_mirror( $user_id, $balance );
+
+		return array( $balance, 0 );
+	}
+
+	/**
+	 * Legacy movements from the pre-2.6 user meta, oldest first.
+	 *
+	 * @param int $user_id User ID.
+	 * @return array<int, array<string, mixed>>
+	 */
+	private static function legacy_entries( $user_id ) {
+		$entries = array();
+
+		$legacy = get_user_meta( $user_id, self::LEDGER_META, true );
+
+		if ( is_array( $legacy ) ) {
+			foreach ( $legacy as $row ) {
+				if ( is_array( $row ) && isset( $row['amount'] ) ) {
+					$entries[] = self::normalise_entry( $row );
+				}
+			}
+		}
+
+		$rows = get_user_meta( $user_id, self::ENTRY_META, false );
+
+		if ( is_array( $rows ) ) {
+			foreach ( $rows as $row ) {
+				if ( is_array( $row ) && isset( $row['amount'] ) ) {
+					$entries[] = self::normalise_entry( $row );
+				}
+			}
+		}
+
+		usort(
+			$entries,
+			function ( $a, $b ) {
+				return (int) $a['time'] <=> (int) $b['time'];
+			}
+		);
+
+		return $entries;
+	}
+
+	/**
+	 * Fill the gaps in a legacy row.
+	 *
+	 * @param array<string, mixed> $row Legacy row.
+	 * @return array<string, mixed>
+	 */
+	private static function normalise_entry( $row ) {
+		return array(
+			'time'   => isset( $row['time'] ) ? (int) $row['time'] : 0,
+			'amount' => (int) $row['amount'],
+			'reason' => isset( $row['reason'] ) ? (string) $row['reason'] : '',
+			'source' => isset( $row['source'] ) ? sanitize_key( (string) $row['source'] ) : 'legacy',
+			'by'     => isset( $row['by'] ) ? (int) $row['by'] : 0,
+			'key'    => isset( $row['key'] ) ? (string) $row['key'] : '',
+			'u'      => isset( $row['u'] ) ? (string) $row['u'] : '',
+		);
+	}
+
+	/**
+	 * Append one movement to the ledger.
+	 *
+	 * A UNIQUE (user_id, idem_key) index turns "this already happened" into a
+	 * database error instead of a race between two PHP requests. Rows without
+	 * a key store NULL, which the index treats as distinct in both MySQL and
+	 * SQLite.
+	 *
+	 * @param int    $user_id User ID.
+	 * @param int    $amount  Signed amount.
+	 * @param string $reason  Reason.
+	 * @param string $source  Source key.
+	 * @param int    $by      Acting user ID.
+	 * @param string $key     Idempotency key ('' for none).
+	 * @param int    $fence   Account version this movement was applied at.
+	 * @param int    $when    Unix timestamp.
+	 * @return int|false Row ID, or false when nothing was written.
+	 */
+	private static function insert_movement( $user_id, $amount, $reason, $source, $by, $key, $fence, $when ) {
+		global $wpdb;
+
+		$suppress = $wpdb->suppress_errors( true );
+
+		// phpcs:ignore WordPress.DB.DirectDatabaseQuery.DirectQuery, WordPress.DB.DirectDatabaseQuery.NoCaching -- Append-only insert; the UNIQUE index is the idempotency guard.
+		$inserted = $wpdb->query(
+			$wpdb->prepare(
+				"INSERT INTO {$wpdb->prefix}at8_mluc_points_ledger (user_id, amount, reason, source, by_user, idem_key, fence, created_at) VALUES (%d, %d, %s, %s, %d, NULLIF(%s, ''), %d, %d)",
+				(int) $user_id,
+				(int) $amount,
+				(string) $reason,
+				(string) $source,
+				(int) $by,
+				(string) $key,
+				(int) $fence,
+				(int) $when
+			)
+		);
+
+		$row_id = (int) $wpdb->insert_id;
+
+		$wpdb->suppress_errors( $suppress );
+
+		if ( false === $inserted || $inserted < 1 ) {
+			return false;
+		}
+
+		return $row_id;
+	}
+
+	/**
+	 * Error returned when a movement could not be stored.
+	 *
+	 * @return WP_Error
+	 */
+	private static function save_error() {
+		return new WP_Error( 'at8_mluc_points_save', __( 'The points update could not be saved, please retry.', 'at8-moonlight-user-center' ) );
+	}
+
+	/**
+	 * Keep the legacy balance meta roughly in step.
+	 *
+	 * Nothing reads it as the truth any more — the account row is the truth —
+	 * but older integrations and the privacy exporter still expect it, so it
+	 * is refreshed after every committed movement. A failure here is not an
+	 * error: the movement itself is already durable.
+	 *
+	 * @param int $user_id User ID.
+	 * @param int $balance Balance to mirror.
+	 * @return void
+	 */
+	private static function sync_mirror( $user_id, $balance ) {
+		update_user_meta( $user_id, self::BALANCE_META, (int) $balance );
+	}
+
+	/* ---------------------------------------------------------------------
+	 * Transactions
+	 * ------------------------------------------------------------------ */
+
+	/**
+	 * Open a transaction.
+	 *
+	 * @return void
+	 */
+	private static function begin() {
+		global $wpdb;
+
+		// phpcs:ignore WordPress.DB.DirectDatabaseQuery.DirectQuery, WordPress.DB.DirectDatabaseQuery.NoCaching -- Transaction control is not part of the query API.
+		$wpdb->query( 'START TRANSACTION' );
+	}
+
+	/**
+	 * Commit the current transaction.
+	 *
+	 * @return void
+	 */
+	private static function commit() {
+		global $wpdb;
+
+		// phpcs:ignore WordPress.DB.DirectDatabaseQuery.DirectQuery, WordPress.DB.DirectDatabaseQuery.NoCaching -- Transaction control is not part of the query API.
+		$wpdb->query( 'COMMIT' );
+	}
+
+	/**
+	 * Roll the current transaction back.
+	 *
+	 * @return void
+	 */
+	private static function rollback() {
+		global $wpdb;
+
+		// phpcs:ignore WordPress.DB.DirectDatabaseQuery.DirectQuery, WordPress.DB.DirectDatabaseQuery.NoCaching -- Transaction control is not part of the query API.
+		$wpdb->query( 'ROLLBACK' );
+	}
+
+	/* ---------------------------------------------------------------------
+	 * Presentation helpers
+	 * ------------------------------------------------------------------ */
 
 	/**
 	 * Enqueue the profile-screen script through the standard script API.
@@ -272,736 +955,6 @@ class AT8_MLUC_Points {
 		$label = (string) at8_mluc_get_option( 'points_label', 'points' );
 
 		return '' !== $label ? $label : 'points';
-	}
-
-	/**
-	 * Balance for a user, replayed from the ledger rows.
-	 *
-	 * The stored mirror is deliberately not read here: it can only ever be as
-	 * fresh as the last completed movement, so a page rendered during someone
-	 * else's award would show a stale number. Summing the rows costs one meta
-	 * query and is always right.
-	 *
-	 * @param int $user_id User ID.
-	 * @return int
-	 */
-	public static function balance( $user_id ) {
-		return max( 0, self::replay( (int) $user_id ) );
-	}
-
-	/**
-	 * Ledger entries, newest first.
-	 *
-	 * @param int $user_id User ID.
-	 * @param int $limit  Maximum entries to return.
-	 * @return array<int, array<string, mixed>>
-	 */
-	public static function ledger( $user_id, $limit = 20 ) {
-		$entries = self::entries( $user_id );
-		$entries = array_reverse( $entries );
-
-		return array_slice( $entries, 0, max( 1, (int) $limit ) );
-	}
-
-	/**
-	 * Add or remove points.
-	 *
-	 * With a key the whole operation is idempotent at database level: the key
-	 * is claimed with an atomic INSERT into the options table, whose
-	 * option_name column is UNIQUE, so two requests can never both decide that
-	 * they are the one that should write the movement. The loser waits for the
-	 * winner to finish and then replays the resulting balance.
-	 *
-	 * Without a key the movement still runs inside the per-user mutex, so a
-	 * deduction can never pass the overdraft check at the same time as another
-	 * deduction, and the balance written afterwards always includes every row
-	 * that was committed before it.
-	 *
-	 * @param int    $user_id User ID.
-	 * @param int    $amount  Signed amount.
-	 * @param string $reason  Human-readable reason.
-	 * @param string $source  Machine-readable source key.
-	 * @param string $key     Optional idempotency key for this movement.
-	 * @return int|WP_Error New balance, or an error when the movement could not be recorded.
-	 */
-	public static function adjust( $user_id, $amount, $reason = '', $source = 'manual', $key = '' ) {
-		$user_id = (int) $user_id;
-		$amount  = (int) $amount;
-		$key     = (string) $key;
-
-		if ( $user_id <= 0 ) {
-			return new WP_Error( 'at8_mluc_points_user', __( 'Unknown user.', 'at8-moonlight-user-center' ) );
-		}
-
-		/*
-		 * Step 1 — claim the idempotency key. The INSERT either creates the
-		 * row (this request owns the movement) or fails because the row is
-		 * already there (another request owns it, or it was already done).
-		 */
-		$claim = array();
-
-		if ( '' !== $key ) {
-			$claim = self::claim( $user_id, $key );
-
-			if ( is_wp_error( $claim ) ) {
-				return self::settle_claimed( $user_id, $key, $claim );
-			}
-		}
-
-		/*
-		 * Step 2 — take the per-user mutex. Everything that reads the ledger
-		 * and writes it back happens inside it, so the sequence cannot be
-		 * interleaved with another writer for the same account.
-		 */
-		$lock = self::lock( $user_id );
-
-		if ( false === $lock ) {
-			self::drop_claim( $claim );
-
-			return new WP_Error(
-				'at8_mluc_points_busy',
-				__( 'Another points update is in progress. Please try again in a moment.', 'at8-moonlight-user-center' )
-			);
-		}
-
-		$applied = self::apply_locked( $user_id, $amount, $reason, $source, $key, $lock );
-
-		self::unlock( $lock );
-
-		if ( is_wp_error( $applied ) ) {
-			// Every failure path above leaves no ledger row behind, so the
-			// claim must be dropped to let a corrected retry through.
-			self::drop_claim( $claim );
-
-			return $applied;
-		}
-
-		/**
-		 * Fires after a balance changed.
-		 *
-		 * @since 2.4.0
-		 *
-		 * @param int        $user_id User ID.
-		 * @param int        $amount  Signed amount applied.
-		 * @param int        $balance New balance.
-		 * @param array|bool $entry   Ledger entry, or false when a previous
-		 *                            attempt had already written it.
-		 */
-		do_action( 'at8_mluc_points_adjusted', $user_id, $amount, $applied['balance'], $applied['entry'] );
-
-		return $applied['balance'];
-	}
-
-	/**
-	 * The mutation itself, always called while holding the per-user mutex.
-	 *
-	 * @param int    $user_id User ID.
-	 * @param int    $amount  Signed amount.
-	 * @param string $reason  Human-readable reason.
-	 * @param string $source  Machine-readable source key.
-	 * @param string $key     Idempotency key ('' for none).
-	 * @return array|WP_Error array( balance, entry ) or an error.
-	 */
-	private static function apply_locked( $user_id, $amount, $reason, $source, $key, &$lock ) {
-		/*
-		 * Ownership re-check before touching anything. renew_lock() is an
-		 * atomic compare-and-swap on this request's exact lock value, so it
-		 * both extends the lease and proves the lock was neither taken over
-		 * nor swept while a hook (at8_mluc_points_lock_acquired) was running.
-		 * A stale owner fails here and writes nothing at all.
-		 */
-		$lock = self::renew_lock( $lock );
-
-		if ( false === $lock ) {
-			return self::lock_lost_error();
-		}
-
-		/*
-		 * A previous attempt was interrupted after recording the row: the
-		 * award already happened, so replay the balance and stop. This is the
-		 * resume path, and it runs under the mutex so it cannot race with the
-		 * request that is writing that row.
-		 */
-		if ( '' !== $key && self::has_entry( $user_id, $key ) ) {
-			return array(
-				'balance' => self::balance( $user_id ),
-				'entry'   => false,
-			);
-		}
-
-		$current = self::replay( $user_id );
-
-		if ( $amount < 0 && abs( $amount ) > $current ) {
-			return new WP_Error( 'at8_mluc_points_balance', __( 'That would take the balance below zero.', 'at8-moonlight-user-center' ) );
-		}
-
-		// Re-verify immediately before the ledger write: the replay above may
-		// have taken long enough for the lease to lapse.
-		$lock = self::renew_lock( $lock );
-
-		if ( false === $lock ) {
-			return self::lock_lost_error();
-		}
-
-		$entry = self::add_entry( $user_id, $amount, $reason, $source, $key );
-
-		if ( false === $entry ) {
-			return new WP_Error( 'at8_mluc_points_save', __( 'The points update could not be saved, please retry.', 'at8-moonlight-user-center' ) );
-		}
-
-		$new_balance = $current + $amount;
-
-		if ( $new_balance < 0 ) {
-			// Defence in depth: the check above already rejects this. If a
-			// ledger edited outside this API ever replayed below zero, undo
-			// exactly this row instead of storing a negative balance.
-			self::remove_entry( $user_id, $entry );
-
-			return new WP_Error( 'at8_mluc_points_balance', __( 'That would take the balance below zero.', 'at8-moonlight-user-center' ) );
-		}
-
-		/*
-		 * Final ownership check before the balance mirror. If the lease was
-		 * lost, the new owner will replay this ledger row and store the
-		 * correct balance itself — this request must not overwrite that with
-		 * its older snapshot, and it must not leave its row unbacked either,
-		 * so the row it just added is rolled back precisely.
-		 */
-		$lock = self::renew_lock( $lock );
-
-		if ( false === $lock ) {
-			self::remove_entry( $user_id, $entry );
-
-			return self::lock_lost_error();
-		}
-
-		if ( ! self::store_balance( $user_id, $new_balance ) ) {
-			self::remove_entry( $user_id, $entry );
-			self::store_balance( $user_id, self::replay( $user_id ) );
-
-			return new WP_Error( 'at8_mluc_points_save', __( 'The points update could not be saved, please retry.', 'at8-moonlight-user-center' ) );
-		}
-
-		return array(
-			'balance' => $new_balance,
-			'entry'   => $entry,
-		);
-	}
-
-	/**
-	 * Extend the lease and prove ownership in one atomic step.
-	 *
-	 * The compare-and-swap expects this request's exact current lock value, so
-	 * it only succeeds while the row still belongs to this request. The fence
-	 * counter stored in the lock moves forward on every renewal, which means a
-	 * stale owner can never renew again — and because every critical write is
-	 * preceded by a renewal, a stale owner can never write either.
-	 *
-	 * @param array|false $lock Lock handle.
-	 * @return array|false Updated handle, or false when the lease was lost.
-	 */
-	private static function renew_lock( $lock ) {
-		if ( ! is_array( $lock ) || ! isset( $lock['name'], $lock['value'] ) ) {
-			return false;
-		}
-
-		$fence = self::fence_of( $lock['value'] ) + 1;
-		$value = self::owner_of( $lock['value'] ) . '|' . ( time() + self::LOCK_TTL ) . '|' . $fence;
-
-		if ( ! self::swap_row( $lock['name'], $lock['value'], $value ) ) {
-			return false;
-		}
-
-		return array(
-			'name'  => $lock['name'],
-			'value' => $value,
-		);
-	}
-
-	/**
-	 * Error returned when the per-user lease was lost mid-operation.
-	 *
-	 * @return WP_Error
-	 */
-	private static function lock_lost_error() {
-		return new WP_Error(
-			'at8_mluc_points_lock',
-			__( 'The points update lock expired before the write completed. Please retry.', 'at8-moonlight-user-center' )
-		);
-	}
-
-	/**
-	 * Wait for the request that owns an idempotency key to finish, then report
-	 * the balance it produced.
-	 *
-	 * Concurrent callbacks for the same order land here: one of them writes
-	 * the movement, the others observe the resulting ledger row and return the
-	 * same balance without touching anything.
-	 *
-	 * @param int      $user_id User ID.
-	 * @param string   $key     Idempotency key.
-	 * @param WP_Error $busy    Error to return when the owner does not finish in time.
-	 * @return int|WP_Error
-	 */
-	private static function settle_claimed( $user_id, $key, $busy ) {
-		$deadline = microtime( true ) + self::CLAIM_WAIT;
-
-		do {
-			if ( self::has_entry( $user_id, $key ) ) {
-				return self::balance( $user_id );
-			}
-
-			usleep( 50000 );
-		} while ( microtime( true ) < $deadline );
-
-		return $busy;
-	}
-
-	/**
-	 * Append one ledger row. add_user_meta is an atomic INSERT, so rows from
-	 * concurrent adjustments for the same user interleave safely instead of
-	 * overwriting each other.
-	 *
-	 * Returns the row exactly as stored (including the unique u token), so a
-	 * caller that needs to undo this movement can delete precisely that row.
-	 *
-	 * @param int    $user_id User ID.
-	 * @param int    $amount  Signed amount.
-	 * @param string $reason  Human-readable reason.
-	 * @param string $source  Machine-readable source key.
-	 * @param string $key     Idempotency key ('' for none).
-	 * @return array|false The stored entry, or false when the write failed.
-	 */
-	private static function add_entry( $user_id, $amount, $reason, $source, $key = '' ) {
-		$entry = array(
-			'time'   => time(),
-			'amount' => (int) $amount,
-			'reason' => sanitize_text_field( $reason ),
-			'source' => sanitize_key( $source ),
-			'by'     => get_current_user_id(),
-			'key'    => (string) $key,
-			'u'      => uniqid( '', true ),
-		);
-
-		if ( ! add_user_meta( $user_id, self::ENTRY_META, $entry ) ) {
-			return false;
-		}
-
-		return $entry;
-	}
-
-	/**
-	 * Remove exactly one ledger row (the one this call added).
-	 *
-	 * @param int   $user_id User ID.
-	 * @param array $entry   The stored entry as returned by add_entry().
-	 * @return void
-	 */
-	private static function remove_entry( $user_id, $entry ) {
-		delete_user_meta( $user_id, self::ENTRY_META, $entry );
-	}
-
-	/**
-	 * Whether a ledger row carrying the given idempotency key exists.
-	 *
-	 * @param int    $user_id User ID.
-	 * @param string $key     Idempotency key.
-	 * @return bool
-	 */
-	public static function has_entry( $user_id, $key ) {
-		foreach ( self::entries( $user_id ) as $entry ) {
-			if ( isset( $entry['key'] ) && '' !== $entry['key'] && $entry['key'] === $key ) {
-				return true;
-			}
-		}
-
-		return false;
-	}
-
-	/**
-	 * All ledger rows, oldest first. Rows written by this version are merged
-	 * with any legacy single-meta history so nothing already recorded is lost.
-	 *
-	 * @param int $user_id User ID.
-	 * @return array<int, array<string, mixed>>
-	 */
-	private static function entries( $user_id ) {
-		$entries = get_user_meta( $user_id, self::ENTRY_META, false );
-		$entries = is_array( $entries ) ? array_values( array_filter( $entries, 'is_array' ) ) : array();
-
-		$legacy = get_user_meta( $user_id, self::LEDGER_META, true );
-		if ( is_array( $legacy ) ) {
-			$entries = array_merge( array_values( array_filter( $legacy, 'is_array' ) ), $entries );
-		}
-
-		usort( $entries, function ( $a, $b ) {
-			return (int) $a['time'] <=> (int) $b['time'];
-		} );
-
-		return $entries;
-	}
-
-	/**
-	 * Sum every ledger row. This is the authoritative balance; it is not
-	 * clamped, so an overdraft check can see that the rows went negative
-	 * instead of being hidden behind a zero.
-	 *
-	 * @param int $user_id User ID.
-	 * @return int
-	 */
-	private static function replay( $user_id ) {
-		$sum = 0;
-
-		foreach ( self::entries( $user_id ) as $entry ) {
-			$sum += (int) $entry['amount'];
-		}
-
-		return $sum;
-	}
-
-	/**
-	 * Write the balance mirror.
-	 *
-	 * Only called while holding the mutex, after the rows were read. The value
-	 * is verified by reading it back, because update_user_meta() also returns
-	 * false when the stored value is already identical.
-	 *
-	 * @param int $user_id User ID.
-	 * @param int $balance Balance to mirror.
-	 * @return void
-	 */
-	private static function store_balance( $user_id, $balance ) {
-		update_user_meta( $user_id, self::BALANCE_META, (int) $balance );
-
-		if ( (int) get_user_meta( $user_id, self::BALANCE_META, true ) !== (int) $balance ) {
-			update_user_meta( $user_id, self::BALANCE_META, (int) $balance );
-		}
-
-		// Verify by reading back: update_user_meta() also returns false when
-		// the stored value is already identical, so its return value alone
-		// cannot tell a successful write from a failed one.
-		return (int) get_user_meta( $user_id, self::BALANCE_META, true ) === (int) $balance;
-	}
-
-	/**
-	 * Claim an idempotency key.
-	 *
-	 * @param int    $user_id User ID.
-	 * @param string $key     Idempotency key.
-	 * @return array|WP_Error array( name, value ) when this request owns the
-	 *                        key, or an error when another request does.
-	 */
-	private static function claim( $user_id, $key ) {
-		$name  = self::CLAIM_PREFIX . md5( (int) $user_id . '|' . $key );
-		$value = self::token() . '|' . ( time() + self::CLAIM_TTL );
-
-		if ( self::insert_row( $name, $value ) ) {
-			return array(
-				'name'  => $name,
-				'value' => $value,
-			);
-		}
-
-		$current = self::read_row( $name );
-
-		if ( null === $current ) {
-			// The row vanished between the INSERT and the read (its owner
-			// finished and cleaned up). One more attempt settles it.
-			return self::insert_row( $name, $value )
-				? array(
-					'name'  => $name,
-					'value' => $value,
-				)
-				: new WP_Error( 'at8_mluc_points_busy', __( 'This points update is already being processed.', 'at8-moonlight-user-center' ) );
-		}
-
-		if ( self::expiry_of( $current ) >= time() ) {
-			// Another request is working on this exact key right now.
-			return new WP_Error( 'at8_mluc_points_busy', __( 'This points update is already being processed.', 'at8-moonlight-user-center' ) );
-		}
-
-		/*
-		 * The owner died before writing anything. Take the claim over with the
-		 * same compare-and-swap the mutex uses: only the request whose UPDATE
-		 * still matches the value it read wins.
-		 */
-		return self::swap_row( $name, $current, $value )
-			? array(
-				'name'  => $name,
-				'value' => $value,
-			)
-			: new WP_Error( 'at8_mluc_points_busy', __( 'This points update is already being processed.', 'at8-moonlight-user-center' ) );
-	}
-
-	/**
-	 * Delete a claim this request owns, so a corrected retry can claim again.
-	 *
-	 * @param array $claim Claim handle from claim().
-	 * @return void
-	 */
-	private static function drop_claim( $claim ) {
-		if ( ! isset( $claim['name'], $claim['value'] ) ) {
-			return;
-		}
-
-		self::delete_row( $claim['name'], $claim['value'] );
-	}
-
-	/**
-	 * Take the per-user mutex.
-	 *
-	 * @param int $user_id User ID.
-	 * @return array|false array( name, value ) or false when the wait timed out.
-	 */
-	private static function lock( $user_id ) {
-		$name     = self::LOCK_PREFIX . (int) $user_id;
-		$token    = self::token();
-		$deadline = microtime( true ) + self::LOCK_WAIT;
-
-		do {
-			// First acquisition starts the fence at 1; takeovers continue from
-			// the previous owner's fence so the counter only ever moves forward.
-			$value = $token . '|' . ( time() + self::LOCK_TTL ) . '|1';
-
-			if ( self::insert_row( $name, $value ) ) {
-				/**
-				 * Fires when a request starts its critical section for a user.
-				 *
-				 * @since 2.5.8
-				 *
-				 * @param int $user_id User ID.
-				 */
-				do_action( 'at8_mluc_points_lock_acquired', (int) $user_id );
-
-				return array(
-					'name'  => $name,
-					'value' => $value,
-				);
-			}
-
-			$current = self::read_row( $name );
-
-			if ( null !== $current && self::expiry_of( $current ) < time() ) {
-				// Expired owner: take over only if the row still holds the
-				// exact value that was just read. Two requests racing here
-				// cannot both win, which is what the blind delete of an older
-				// implementation got wrong. The fence increments, so the old
-				// owner's next renewal (and therefore its next write) fails.
-				$takeover = $token . '|' . ( time() + self::LOCK_TTL ) . '|' . ( self::fence_of( $current ) + 1 );
-
-				if ( self::swap_row( $name, $current, $takeover ) ) {
-					/** This action is documented above. */
-					do_action( 'at8_mluc_points_lock_acquired', (int) $user_id );
-
-					return array(
-						'name'  => $name,
-						'value' => $takeover,
-					);
-				}
-			}
-
-			usleep( 20000 );
-		} while ( microtime( true ) < $deadline );
-
-		return false;
-	}
-
-	/**
-	 * Release the mutex, but only if this request still owns it.
-	 *
-	 * @param array $lock Lock handle from lock().
-	 * @return void
-	 */
-	private static function unlock( $lock ) {
-		if ( ! is_array( $lock ) || ! isset( $lock['name'], $lock['value'] ) ) {
-			// The lease was lost, so there is nothing this request may release.
-			return;
-		}
-
-		self::delete_row( $lock['name'], $lock['value'] );
-
-		/**
-		 * Fires when a request leaves its critical section for a user.
-		 *
-		 * @since 2.5.8
-		 *
-		 * @param int $user_id User ID.
-		 */
-		do_action( 'at8_mluc_points_lock_released', (int) substr( $lock['name'], strlen( self::LOCK_PREFIX ) ) );
-	}
-
-	/**
-	 * Drop every cached view of a row written outside the options API.
-	 *
-	 * The "notoptions" cache is the one that matters: without clearing it a
-	 * later get_option() for the same name would answer "does not exist" from
-	 * the cache even though the row is in the database.
-	 *
-	 * @param string $name option_name.
-	 * @return void
-	 */
-	private static function flush_row_cache( $name ) {
-		wp_cache_delete( $name, 'options' );
-
-		$notoptions = wp_cache_get( 'notoptions', 'options' );
-
-		if ( is_array( $notoptions ) && isset( $notoptions[ $name ] ) ) {
-			unset( $notoptions[ $name ] );
-			wp_cache_set( 'notoptions', $notoptions, 'options' );
-		}
-	}
-
-	/**
-	 * Create a row only if its name is still free.
-	 *
-	 * A plain INSERT is the atomic test-and-set: option_name carries a UNIQUE
-	 * index in the WordPress schema, so the database decides the winner even
-	 * when two PHP processes run at the same instant.
-	 *
-	 * @param string $name  option_name.
-	 * @param string $value option_value.
-	 * @return bool Whether this call created the row.
-	 */
-	private static function insert_row( $name, $value ) {
-		global $wpdb;
-
-		$suppress = $wpdb->suppress_errors( true );
-
-		// phpcs:ignore WordPress.DB.DirectDatabaseQuery.DirectQuery, WordPress.DB.DirectDatabaseQuery.NoCaching -- A cached API cannot express test-and-set; the UNIQUE index on option_name is the whole point.
-		$result = $wpdb->query(
-			$wpdb->prepare(
-				"INSERT INTO {$wpdb->options} (option_name, option_value, autoload) VALUES (%s, %s, 'no')",
-				$name,
-				$value
-			)
-		);
-
-		$wpdb->suppress_errors( $suppress );
-		self::flush_row_cache( $name );
-
-		return false !== $result && $result > 0;
-	}
-
-	/**
-	 * Read a row without going through the options cache.
-	 *
-	 * @param string $name option_name.
-	 * @return string|null
-	 */
-	private static function read_row( $name ) {
-		global $wpdb;
-
-		// phpcs:ignore WordPress.DB.DirectDatabaseQuery.DirectQuery, WordPress.DB.DirectDatabaseQuery.NoCaching -- Must observe the row another process just wrote, not a cached copy.
-		$value = $wpdb->get_var(
-			$wpdb->prepare( "SELECT option_value FROM {$wpdb->options} WHERE option_name = %s", $name )
-		);
-
-		return null === $value ? null : (string) $value;
-	}
-
-	/**
-	 * Replace a row only while it still holds the expected value.
-	 *
-	 * @param string $name     option_name.
-	 * @param string $expected Value that must still be stored.
-	 * @param string $value    New value.
-	 * @return bool Whether this call won the swap.
-	 */
-	private static function swap_row( $name, $expected, $value ) {
-		global $wpdb;
-
-		$suppress = $wpdb->suppress_errors( true );
-
-		// phpcs:ignore WordPress.DB.DirectDatabaseQuery.DirectQuery, WordPress.DB.DirectDatabaseQuery.NoCaching -- Compare-and-swap; the WHERE clause on the old value is the correctness guarantee.
-		$result = $wpdb->query(
-			$wpdb->prepare(
-				"UPDATE {$wpdb->options} SET option_value = %s WHERE option_name = %s AND option_value = %s",
-				$value,
-				$name,
-				$expected
-			)
-		);
-
-		$wpdb->suppress_errors( $suppress );
-		self::flush_row_cache( $name );
-
-		return false !== $result && $result > 0;
-	}
-
-	/**
-	 * Delete a row only while it still holds the expected value.
-	 *
-	 * @param string $name     option_name.
-	 * @param string $expected Value that must still be stored.
-	 * @return bool Whether a row was deleted.
-	 */
-	private static function delete_row( $name, $expected ) {
-		global $wpdb;
-
-		$suppress = $wpdb->suppress_errors( true );
-
-		// phpcs:ignore WordPress.DB.DirectDatabaseQuery.DirectQuery, WordPress.DB.DirectDatabaseQuery.NoCaching -- Conditional delete: a stale owner must never remove the row a newer owner created.
-		$result = $wpdb->query(
-			$wpdb->prepare(
-				"DELETE FROM {$wpdb->options} WHERE option_name = %s AND option_value = %s",
-				$name,
-				$expected
-			)
-		);
-
-		$wpdb->suppress_errors( $suppress );
-		self::flush_row_cache( $name );
-
-		return false !== $result && $result > 0;
-	}
-
-	/**
-	 * Opaque token that never contains the "|" separator.
-	 *
-	 * @return string
-	 */
-	private static function token() {
-		return str_replace( '.', '', uniqid( '', true ) ) . wp_rand( 1000, 9999 );
-	}
-
-	/**
-	 * Expiry timestamp stored in a lock or claim row.
-	 *
-	 * @param string $value Stored value, "token|expiry".
-	 * @return int
-	 */
-	private static function expiry_of( $value ) {
-		$parts = explode( '|', (string) $value );
-
-		return isset( $parts[1] ) ? (int) $parts[1] : 0;
-	}
-
-	/**
-	 * Owner token stored in a lock row.
-	 *
-	 * @param string $value Stored value, "token|expiry|fence".
-	 * @return string
-	 */
-	private static function owner_of( $value ) {
-		$parts = explode( '|', (string) $value );
-
-		return isset( $parts[0] ) ? (string) $parts[0] : '';
-	}
-
-	/**
-	 * Fencing counter stored in a lock row.
-	 *
-	 * The counter only ever moves forward: first acquisition is 1, every
-	 * takeover or renewal adds one. A stale owner's renewal expects an older
-	 * value that no longer exists, so it can never succeed.
-	 *
-	 * @param string $value Stored value, "token|expiry|fence".
-	 * @return int
-	 */
-	private static function fence_of( $value ) {
-		$parts = explode( '|', (string) $value );
-
-		return isset( $parts[2] ) ? (int) $parts[2] : 0;
 	}
 
 	/**
