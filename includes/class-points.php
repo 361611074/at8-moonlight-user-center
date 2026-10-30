@@ -364,7 +364,7 @@ class AT8_MLUC_Points {
 			);
 		}
 
-		$applied = self::apply_locked( $user_id, $amount, $reason, $source, $key );
+		$applied = self::apply_locked( $user_id, $amount, $reason, $source, $key, $lock );
 
 		self::unlock( $lock );
 
@@ -402,7 +402,20 @@ class AT8_MLUC_Points {
 	 * @param string $key     Idempotency key ('' for none).
 	 * @return array|WP_Error array( balance, entry ) or an error.
 	 */
-	private static function apply_locked( $user_id, $amount, $reason, $source, $key ) {
+	private static function apply_locked( $user_id, $amount, $reason, $source, $key, &$lock ) {
+		/*
+		 * Ownership re-check before touching anything. renew_lock() is an
+		 * atomic compare-and-swap on this request's exact lock value, so it
+		 * both extends the lease and proves the lock was neither taken over
+		 * nor swept while a hook (at8_mluc_points_lock_acquired) was running.
+		 * A stale owner fails here and writes nothing at all.
+		 */
+		$lock = self::renew_lock( $lock );
+
+		if ( false === $lock ) {
+			return self::lock_lost_error();
+		}
+
 		/*
 		 * A previous attempt was interrupted after recording the row: the
 		 * award already happened, so replay the balance and stop. This is the
@@ -422,6 +435,14 @@ class AT8_MLUC_Points {
 			return new WP_Error( 'at8_mluc_points_balance', __( 'That would take the balance below zero.', 'at8-moonlight-user-center' ) );
 		}
 
+		// Re-verify immediately before the ledger write: the replay above may
+		// have taken long enough for the lease to lapse.
+		$lock = self::renew_lock( $lock );
+
+		if ( false === $lock ) {
+			return self::lock_lost_error();
+		}
+
 		$entry = self::add_entry( $user_id, $amount, $reason, $source, $key );
 
 		if ( false === $entry ) {
@@ -439,11 +460,73 @@ class AT8_MLUC_Points {
 			return new WP_Error( 'at8_mluc_points_balance', __( 'That would take the balance below zero.', 'at8-moonlight-user-center' ) );
 		}
 
-		self::store_balance( $user_id, $new_balance );
+		/*
+		 * Final ownership check before the balance mirror. If the lease was
+		 * lost, the new owner will replay this ledger row and store the
+		 * correct balance itself — this request must not overwrite that with
+		 * its older snapshot, and it must not leave its row unbacked either,
+		 * so the row it just added is rolled back precisely.
+		 */
+		$lock = self::renew_lock( $lock );
+
+		if ( false === $lock ) {
+			self::remove_entry( $user_id, $entry );
+
+			return self::lock_lost_error();
+		}
+
+		if ( ! self::store_balance( $user_id, $new_balance ) ) {
+			self::remove_entry( $user_id, $entry );
+			self::store_balance( $user_id, self::replay( $user_id ) );
+
+			return new WP_Error( 'at8_mluc_points_save', __( 'The points update could not be saved, please retry.', 'at8-moonlight-user-center' ) );
+		}
 
 		return array(
 			'balance' => $new_balance,
 			'entry'   => $entry,
+		);
+	}
+
+	/**
+	 * Extend the lease and prove ownership in one atomic step.
+	 *
+	 * The compare-and-swap expects this request's exact current lock value, so
+	 * it only succeeds while the row still belongs to this request. The fence
+	 * counter stored in the lock moves forward on every renewal, which means a
+	 * stale owner can never renew again — and because every critical write is
+	 * preceded by a renewal, a stale owner can never write either.
+	 *
+	 * @param array|false $lock Lock handle.
+	 * @return array|false Updated handle, or false when the lease was lost.
+	 */
+	private static function renew_lock( $lock ) {
+		if ( ! is_array( $lock ) || ! isset( $lock['name'], $lock['value'] ) ) {
+			return false;
+		}
+
+		$fence = self::fence_of( $lock['value'] ) + 1;
+		$value = self::owner_of( $lock['value'] ) . '|' . ( time() + self::LOCK_TTL ) . '|' . $fence;
+
+		if ( ! self::swap_row( $lock['name'], $lock['value'], $value ) ) {
+			return false;
+		}
+
+		return array(
+			'name'  => $lock['name'],
+			'value' => $value,
+		);
+	}
+
+	/**
+	 * Error returned when the per-user lease was lost mid-operation.
+	 *
+	 * @return WP_Error
+	 */
+	private static function lock_lost_error() {
+		return new WP_Error(
+			'at8_mluc_points_lock',
+			__( 'The points update lock expired before the write completed. Please retry.', 'at8-moonlight-user-center' )
 		);
 	}
 
@@ -593,6 +676,11 @@ class AT8_MLUC_Points {
 		if ( (int) get_user_meta( $user_id, self::BALANCE_META, true ) !== (int) $balance ) {
 			update_user_meta( $user_id, self::BALANCE_META, (int) $balance );
 		}
+
+		// Verify by reading back: update_user_meta() also returns false when
+		// the stored value is already identical, so its return value alone
+		// cannot tell a successful write from a failed one.
+		return (int) get_user_meta( $user_id, self::BALANCE_META, true ) === (int) $balance;
 	}
 
 	/**
@@ -671,7 +759,9 @@ class AT8_MLUC_Points {
 		$deadline = microtime( true ) + self::LOCK_WAIT;
 
 		do {
-			$value = $token . '|' . ( time() + self::LOCK_TTL );
+			// First acquisition starts the fence at 1; takeovers continue from
+			// the previous owner's fence so the counter only ever moves forward.
+			$value = $token . '|' . ( time() + self::LOCK_TTL ) . '|1';
 
 			if ( self::insert_row( $name, $value ) ) {
 				/**
@@ -695,14 +785,17 @@ class AT8_MLUC_Points {
 				// Expired owner: take over only if the row still holds the
 				// exact value that was just read. Two requests racing here
 				// cannot both win, which is what the blind delete of an older
-				// implementation got wrong.
-				if ( self::swap_row( $name, $current, $value ) ) {
+				// implementation got wrong. The fence increments, so the old
+				// owner's next renewal (and therefore its next write) fails.
+				$takeover = $token . '|' . ( time() + self::LOCK_TTL ) . '|' . ( self::fence_of( $current ) + 1 );
+
+				if ( self::swap_row( $name, $current, $takeover ) ) {
 					/** This action is documented above. */
 					do_action( 'at8_mluc_points_lock_acquired', (int) $user_id );
 
 					return array(
 						'name'  => $name,
-						'value' => $value,
+						'value' => $takeover,
 					);
 				}
 			}
@@ -720,6 +813,11 @@ class AT8_MLUC_Points {
 	 * @return void
 	 */
 	private static function unlock( $lock ) {
+		if ( ! is_array( $lock ) || ! isset( $lock['name'], $lock['value'] ) ) {
+			// The lease was lost, so there is nothing this request may release.
+			return;
+		}
+
 		self::delete_row( $lock['name'], $lock['value'] );
 
 		/**
@@ -876,6 +974,34 @@ class AT8_MLUC_Points {
 		$parts = explode( '|', (string) $value );
 
 		return isset( $parts[1] ) ? (int) $parts[1] : 0;
+	}
+
+	/**
+	 * Owner token stored in a lock row.
+	 *
+	 * @param string $value Stored value, "token|expiry|fence".
+	 * @return string
+	 */
+	private static function owner_of( $value ) {
+		$parts = explode( '|', (string) $value );
+
+		return isset( $parts[0] ) ? (string) $parts[0] : '';
+	}
+
+	/**
+	 * Fencing counter stored in a lock row.
+	 *
+	 * The counter only ever moves forward: first acquisition is 1, every
+	 * takeover or renewal adds one. A stale owner's renewal expects an older
+	 * value that no longer exists, so it can never succeed.
+	 *
+	 * @param string $value Stored value, "token|expiry|fence".
+	 * @return int
+	 */
+	private static function fence_of( $value ) {
+		$parts = explode( '|', (string) $value );
+
+		return isset( $parts[2] ) ? (int) $parts[2] : 0;
 	}
 
 	/**

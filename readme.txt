@@ -3,7 +3,7 @@ Contributors: x361611074
 Tags: user profile, login, registration, avatar, user center
 Requires at least: 5.8
 Tested up to: 7.1
-Stable tag: 2.5.8
+Stable tag: 2.5.9
 Requires PHP: 7.4
 License: GPL-2.0-or-later
 License URI: https://www.gnu.org/licenses/gpl-2.0.html
@@ -154,6 +154,10 @@ No access tokens, authorization codes or provider API responses are written to l
 4. The front-end login form.
 
 == Changelog ==
+
+= 2.5.9 =
+* Points: the per-user lease is now fenced. Every critical write is preceded by an atomic renewal whose compare-and-swap expects this request's exact lock value (token|expiry|fence), so a request that lost the lease — taken over after the TTL by another process, or swept while a slow third-party hook was running — is rejected with a WP_Error and writes nothing. The fence counter only moves forward, a stale owner can never release the new owner's lock, and a failed balance write rolls the ledger row back precisely.
+* Verified with a real multi-process suite (8 concurrent awards, 8 concurrent deductions, overdraft contention, 8 different orders, 8 callbacks for one order) and a lease-semantics suite (takeover, stale writer, hook overrun, crash recovery, fence monotonicity).
 
 = 2.5.8 =
 * Points: exactly-once awarding is now enforced by the database instead of a read-then-write check. A movement with an idempotency key first creates a claim row in the options table, whose option_name column is UNIQUE, so two concurrent callbacks for the same order cannot both decide to write it: one wins, the others wait for the resulting ledger row and report the same balance. Previously two simultaneous callbacks could each pass the "no entry yet" check and both award points.
