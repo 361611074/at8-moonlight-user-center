@@ -3,7 +3,7 @@ Contributors: x361611074
 Tags: user profile, login, registration, avatar, user center
 Requires at least: 5.8
 Tested up to: 7.1
-Stable tag: 2.6.3
+Stable tag: 2.6.4
 Requires PHP: 7.4
 License: GPL-2.0-or-later
 License URI: https://www.gnu.org/licenses/gpl-2.0.html
@@ -154,6 +154,12 @@ No access tokens, authorization codes or provider API responses are written to l
 4. The front-end login form.
 
 == Changelog ==
+
+= 2.6.4 =
+* Points: an undeterminable transaction state is now an error instead of an assumption. The savepoint probe only accepts the documented "that savepoint does not exist" answer (1305 / SQLSTATE 3B001) as proof that no transaction is open; a savepoint that cannot be created, or one that cannot be rewound for any other reason, aborts the movement before anything is written.
+* Points: committing a savepoint checks its own cleanup. When releasing it fails the movement is undone inside the enclosing transaction, and if that undo fails too the error says so plainly - the enclosing transaction must not be treated as if the movement were gone. Either way no success action fires and no balance mirror is written.
+* Points: a repair that cannot write no longer looks like a busy account. reconcile() tells a refused statement (a database error, reported as such and never retried) from a version mismatch (a real conflict, retried a bounded number of times), and reports a failed rollback instead of continuing.
+* Removed the obsolete has_open_transaction() helper that reported "no transaction" whenever the probe failed.
 
 = 2.6.3 =
 * Points: transaction ownership is decided instead of assumed. The plugin asks the database whether a transaction is already open, and when that answer is unavailable it probes with a throwaway savepoint; if neither tells it, the movement is refused rather than risking a START TRANSACTION that would silently commit another plugin's work.

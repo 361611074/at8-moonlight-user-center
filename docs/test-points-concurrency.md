@@ -387,3 +387,102 @@ COMMIT;
 | `php -l` 全量（40 文件） | 0 失败 |
 | Plugin Check 2.1.0（ZIP 解压扫描） | **0 ERROR / 25 WARNING**（与基线一致） |
 | MySQL/InnoDB 实机、PHP 7.4 实机、多站点 | **NOT RUN** |
+
+---
+
+# 2.6.4 补充：事务状态未知即拒绝、SAVEPOINT 清理校验、reconcile 错误分类
+
+- 日期：2026-10-31
+- 任务书：《AT8 Moonlight User Center 2.6.3 → 2.6.4 事务边界最终整改》
+- 交付 ZIP：`at8-moonlight-user-center-2.6.4.zip`（50 文件 / 174,946 B / SHA-256 `1e52171f58596619c72f39e92b27dcbc95ae8818d649941af7c29df2b1af02b3`）
+- 测试脚本：`docs/tests/tx_boundary_test.php`（58 断言）
+
+## 一、先记录本次实测到的驱动行为（方案依据）
+
+在本项目测试站的 SQLite 集成（MySQL 语义兼容层）上实测：
+
+| 语句 | 事务外 | 事务内 |
+|---|---|---|
+| `SELECT @@in_transaction` | `NULL`，无错误（不支持该变量） | `NULL`，无错误 |
+| `SAVEPOINT x` | 返回 0，无错误（空操作） | 返回 0，无错误 |
+| `ROLLBACK TO SAVEPOINT x` | `false` + `SQLSTATE[42000] … 1305 SAVEPOINT x does not exist` | 返回 0，无错误 |
+| `RELEASE SAVEPOINT x` | `false` + 1305 | 返回 0，无错误 |
+| `UPDATE …` 未命中行 | 返回 0，无错误 | 返回 0，无错误 |
+
+`1305 / SQLSTATE 3B001` 是 MySQL 官方对"该 SAVEPOINT 不存在"的答案，而事务外 `SAVEPOINT` 恰恰是空操作——所以这个**特定错误**是"当前没有事务"的确定性证据；其他任何错误都不能这样解释。2.6.4 的实现与判定都建立在这一点上。
+
+## 二、P1-01：`probe_transaction_state()`
+
+| 任务书要求 | 2.6.3 行为 | 2.6.4 实现 |
+|---|---|---|
+| 区分"查询失败"与"状态为 0" | 失败 → 落到 SAVEPOINT 探测 | 失败只当失败；只有 `'0'` / `'1'` 且无错误才采信 |
+| 无法解释的数据库错误返回 WP_Error | — | 新增 `unknown_transaction_state()`，统一返回 `at8_mluc_points_tx`，消息含 "could not be determined" 与原始驱动错误 |
+| SAVEPOINT 创建失败不得假定无事务 | 已返回 WP_Error | 保持，并在消息中带上驱动原文或 "the database refused to create a savepoint" |
+| **SAVEPOINT 回滚失败不得返回 own** | **返回 `own`（缺陷）** | 仅当错误是 1305 / 3B001 / "savepoint … does not exist" 时返回 `own`；其余一律 WP_Error |
+| 无法确定时禁止 START TRANSACTION | 部分 | `begin()` 拿到 WP_Error 立即返回，零写入 |
+| 不误提交调用方事务 | 是 | 是（`own` 只可能来自确定性证据） |
+| 删除/修正误导性的 `has_open_transaction()` | 仍存在（探测失败即 false） | **已删除**；断言用 `get_class_methods()` 确认不再存在 |
+
+探测失败且无法判定时，会先 `RELEASE SAVEPOINT at8_mluc_points_probe` 清掉探针（结果忽略，因为它没有携带任何数据变更），再返回错误，避免在调用方事务里留下残留标记。
+
+## 三、P1-02：`commit()` 的 SAVEPOINT 清理
+
+| 要求 | 实现 |
+|---|---|
+| RELEASE 失败时执行 ROLLBACK TO | 是 |
+| 检查 ROLLBACK TO 的结果 | 是（`run_sql()` 判定，含 `last_error` 检查） |
+| 回滚失败调用 `report_tx_error()` | 是（两条分支都走） |
+| 明确告知外层事务可能仍含未确认变动 | 消息原文：`… undoing the movement inside the enclosing transaction failed as well (…). That transaction may still carry the unconfirmed points movement, so it must not be treated as if the movement were gone.` |
+| 不得伪装成普通积分失败 | 错误码固定 `at8_mluc_points_tx`，并触发 `at8_mluc_points_transaction_error` |
+| 不得触发成功钩子 | 调用方在 `commit()` 返回错误后立即返回，不触发 `at8_mluc_points_adjusted`（测试断言 confirmed 未触发） |
+| 不得同步 usermeta 镜像 | 同上（测试断言镜像值未变） |
+
+`rollback()` 侧保持原有严格性（ROLLBACK TO / ROLLBACK 失败都 `report_tx_error()`）。
+
+## 四、P2-01：`reconcile()` 的 CAS 结果分类
+
+| UPDATE 返回 | 2.6.3 | 2.6.4 |
+|---|---|---|
+| `false`（驱动拒绝） | 当并发冲突 → 重试 40 次 → 报 `at8_mluc_points_busy` | **回滚后返回 `at8_mluc_points_db`**，只执行一次，不重试 |
+| `0`（CAS 不匹配） | 回滚后重试 | 回滚后重试（检查回滚结果，失败即返回） |
+| `1` | 成功 | 成功 |
+| 其他（>1） | 归入"非 1"重试 | 回滚后返回 `at8_mluc_points_db`（"touched N rows instead of one"） |
+
+重试上限沿用 `MAX_ATTEMPTS = 40`（配 `RETRY_USLEEP = 15ms`，递增至 4 倍），有界、不无限。
+
+## 五、任务书要求的 12 项测试
+
+| # | 场景 | 结果 |
+|---|---|---|
+| 1 | `@@in_transaction` 返回 0 | **PASS**（加分成功、走 own 路径、**未发起 SAVEPOINT 探测**、镜像写入） |
+| 2 | `@@in_transaction` 返回 1 | **PASS**（外层事务内加分、只触发 deferred、镜像不写、外层 COMMIT 后持久） |
+| 3 | `@@in_transaction` 查询失败 | **PASS**（回落到 SAVEPOINT 探测并正确加分；两级都失败时返回 `at8_mluc_points_tx` 且零写入） |
+| 4 | SAVEPOINT 创建失败 | **PASS**（返回事务错误、余额不变、无新增流水） |
+| 5 | SAVEPOINT 创建成功但 ROLLBACK TO 失败（非 1305 的"表不存在"错误） | **PASS**（返回事务错误、消息含"could not be determined"、余额不变、无新增流水） |
+| 6 | RELEASE SAVEPOINT 失败 | **PASS**（返回未确认错误、消息含"undone inside the enclosing transaction"、transaction_error 触发 1 次、无成功钩子、镜像未写、外层 COMMIT 后余额仍为 10） |
+| 7 | RELEASE 与 ROLLBACK TO 均失败 | **PASS**（错误消息含"may still carry the unconfirmed points movement"、transaction_error 触发 1 次） |
+| 8 | 外部事务最终 COMMIT | **PASS** |
+| 9 | 外部事务最终 ROLLBACK | **PASS**（变动消失、无 confirmed 钩子、账目仍一致） |
+| 10 | reconcile 的 UPDATE 返回 false | **PASS**（`at8_mluc_points_db`，**不是** `at8_mluc_points_busy`；UPDATE 只执行 1 次） |
+| 11 | reconcile 的 UPDATE 返回 0 | **PASS**（确定性地造出过期版本 → 重试 → 返回流水合计 100，账户被读取 2 次） |
+| 12 | reconcile 的 UPDATE 返回 1 | **PASS**（返回 100、UPDATE 恰好 1 次、`verify_balance` 通过、镜像刷新） |
+
+附加断言：`is_missing_savepoint_error()` 的分类（1305 ✅ / 3B001 ✅ / "表不存在" ✅否 / 空错误 ✅否 / 锁超时 ✅否）；`has_open_transaction()` 已从类中移除。
+
+## 六、回归
+
+| 套件 | 结果 |
+|---|---|
+| `tx_boundary_test.php`（本轮新增） | 58 / 0 |
+| `transaction_test.php` | 45 / 0 |
+| `db_safety_test.php` | 47 / 0 |
+| `migration_test.php` | 41 / 0 |
+| `atomicity_test.php` | 32 / 0 |
+| `concurrency_test.php`（10 场景，真实 10 进程） | 54 / 0 |
+| `v4_matrix_test.php` | 50 / 0 |
+| Free 独立 `reg_test.php` | 76 / 0 |
+| Free + Pro `pro_test.php` | 64 / 0 |
+| `php -l` 全量（40 文件） | 0 失败 |
+| Plugin Check 2.1.0（ZIP 解压扫描） | **0 ERROR / 25 WARNING**（与基线一致） |
+| 升级 2.6.3 → 2.6.4 | 余额 65→65、流水 2→2、`verify_balance` 通过、升级后新增变动 70、`reconcile` 70 且一致 |
+| MySQL/InnoDB 实机（`@@in_transaction` 主路径、真实死锁）、PHP 7.4 实机、多站点 | **NOT RUN** |

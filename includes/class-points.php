@@ -91,6 +91,13 @@ class AT8_MLUC_Points {
 	const SAVEPOINT = 'at8_mluc_points_tx';
 
 	/**
+	 * Savepoint used to find out whether somebody else owns a transaction.
+	 *
+	 * @since 2.6.4
+	 */
+	const PROBE_SAVEPOINT = 'at8_mluc_points_probe';
+
+	/**
 	 * How often a movement retries when another request moved the account
 	 * between its read and its write.
 	 *
@@ -559,13 +566,62 @@ class AT8_MLUC_Points {
 				)
 			);
 
-			if ( 1 !== (int) $moved ) {
+			$moved_error = self::clean_error( (string) $wpdb->last_error );
+
+			/*
+			 * Three outcomes with three meanings. `false` is the driver
+			 * refusing the statement, `0` is the version guard not matching
+			 * (a movement landed while this repair held its snapshot) and `1`
+			 * is the repair itself. Only the middle one is worth retrying;
+			 * reporting a broken table as "busy" would hide it behind forty
+			 * pointless attempts.
+			 */
+			if ( false === $moved || '' !== $moved_error ) {
+				$undone = self::rollback();
+
+				if ( is_wp_error( $undone ) ) {
+					return $undone;
+				}
+
+				return new WP_Error(
+					'at8_mluc_points_db',
+					sprintf(
+						/* translators: %s: database error message. */
+						__( 'The points balance could not be rewritten: %s', 'at8-moonlight-user-center' ),
+						'' !== $moved_error ? $moved_error : self::last_error_text()
+					)
+				);
+			}
+
+			if ( 0 === (int) $moved ) {
 				// A movement was applied while this repair was running: its
 				// snapshot is newer than ours, so start over instead of
 				// overwriting it.
-				self::rollback();
+				$undone = self::rollback();
+
+				if ( is_wp_error( $undone ) ) {
+					return $undone;
+				}
+
 				usleep( (int) ( self::RETRY_USLEEP * min( $attempt, 4 ) ) );
 				continue;
+			}
+
+			if ( 1 !== (int) $moved ) {
+				$undone = self::rollback();
+
+				if ( is_wp_error( $undone ) ) {
+					return $undone;
+				}
+
+				return new WP_Error(
+					'at8_mluc_points_db',
+					sprintf(
+						/* translators: %d: number of rows. */
+						__( 'The points balance rewrite touched %d rows instead of one.', 'at8-moonlight-user-center' ),
+						(int) $moved
+					)
+				);
 			}
 
 			$deferred  = ( 'savepoint' === self::$tx_mode );
@@ -1613,8 +1669,6 @@ class AT8_MLUC_Points {
 	 * @return true|WP_Error
 	 */
 	private static function commit() {
-		global $wpdb;
-
 		if ( '' === self::$tx_mode ) {
 			return new WP_Error(
 				'at8_mluc_points_tx',
@@ -1627,18 +1681,38 @@ class AT8_MLUC_Points {
 
 		if ( 'savepoint' === $mode ) {
 			if ( ! self::run_sql( 'RELEASE SAVEPOINT ' . self::SAVEPOINT ) ) {
-				$error = new WP_Error(
-					'at8_mluc_points_tx',
-					/* translators: %s: database error message. */
-					sprintf( __( 'The points savepoint could not be released, so the movement is not confirmed: %s', 'at8-moonlight-user-center' ), self::last_error_text() )
-				);
+				$release_error = self::last_error_text();
 
 				// The savepoint still exists: undo the movement inside the
 				// caller's transaction instead of leaving it half applied.
-				// phpcs:ignore WordPress.DB.DirectDatabaseQuery.DirectQuery, WordPress.DB.DirectDatabaseQuery.NoCaching, WordPress.DB.PreparedSQL.NotPrepared, PluginCheck.Security.DirectDB.UnescapedDBParameter -- Fixed identifier built in this class.
-				$wpdb->query( 'ROLLBACK TO SAVEPOINT ' . self::SAVEPOINT );
+				if ( ! self::run_sql( 'ROLLBACK TO SAVEPOINT ' . self::SAVEPOINT ) ) {
+					return self::report_tx_error(
+						new WP_Error(
+							'at8_mluc_points_tx',
+							sprintf(
+								/* translators: 1: release error, 2: rollback error. */
+								__( 'The points savepoint could not be released (%1$s) and undoing the movement inside the enclosing transaction failed as well (%2$s). That transaction may still carry the unconfirmed points movement, so it must not be treated as if the movement were gone.', 'at8-moonlight-user-center' ),
+								$release_error,
+								self::last_error_text()
+							)
+						)
+					);
+				}
 
-				return self::report_tx_error( $error );
+				// The movement is gone; drop the savepoint rather than leaving
+				// a marker behind in somebody else's transaction.
+				self::run_sql( 'RELEASE SAVEPOINT ' . self::SAVEPOINT );
+
+				return self::report_tx_error(
+					new WP_Error(
+						'at8_mluc_points_tx',
+						sprintf(
+							/* translators: %s: database error message. */
+							__( 'The points savepoint could not be released (%s), so the movement is not confirmed; it was undone inside the enclosing transaction.', 'at8-moonlight-user-center' ),
+							$release_error
+						)
+					)
+				);
 			}
 
 			return true;
@@ -1742,15 +1816,21 @@ class AT8_MLUC_Points {
 	/**
 	 * Decide whether somebody else already owns a transaction.
 	 *
-	 * Two probes, both harmless:
+	 * The answer is either known or it is an error — it is never guessed.
+	 * START TRANSACTION implicitly commits whatever the caller already has
+	 * open, so "I could not tell" must never turn into "there is nothing to
+	 * worry about".
 	 *
-	 * 1. `SELECT @@in_transaction` — exact on MySQL 5.7.36+ and MariaDB 10.3+.
-	 * 2. A throwaway savepoint — outside a transaction creating it is a no-op
-	 *    and `ROLLBACK TO` is refused, inside one both succeed. It never
-	 *    touches data because nothing was written after the savepoint.
+	 * 1. `SELECT @@in_transaction` — exact on MySQL 5.7.36+ / MariaDB 10.3+.
+	 *    A failed query is a failed query; it is not a zero.
+	 * 2. A throwaway savepoint. Outside a transaction SAVEPOINT is a no-op and
+	 *    the matching ROLLBACK TO answers 1305 "does not exist"; inside one
+	 *    both succeed. Nothing is written between the two statements, so
+	 *    neither outcome changes data.
 	 *
-	 * Anything that cannot be decided is an error: starting our own
-	 * transaction blindly would commit somebody else's work.
+	 * Only that specific 1305 answer proves there is no transaction. Any other
+	 * failure — a create that is refused, a rollback refused for a reason the
+	 * probe cannot explain — leaves the state unknown and returns an error.
 	 *
 	 * @return string|WP_Error 'own' or 'savepoint'.
 	 */
@@ -1760,8 +1840,8 @@ class AT8_MLUC_Points {
 		$suppress = $wpdb->suppress_errors( true );
 
 		// phpcs:ignore WordPress.DB.DirectDatabaseQuery.DirectQuery, WordPress.DB.DirectDatabaseQuery.NoCaching, WordPress.DB.PreparedSQL.NotPrepared -- Server variable, no user input.
-		$value      = $wpdb->get_var( 'SELECT @@in_transaction' );
-		$value_err  = self::clean_error( (string) $wpdb->last_error );
+		$value     = $wpdb->get_var( 'SELECT @@in_transaction' );
+		$value_err = self::clean_error( (string) $wpdb->last_error );
 
 		if ( '' === $value_err && in_array( (string) $value, array( '0', '1' ), true ) ) {
 			$wpdb->suppress_errors( $suppress );
@@ -1769,7 +1849,7 @@ class AT8_MLUC_Points {
 			return '1' === (string) $value ? 'savepoint' : 'own';
 		}
 
-		$probe = 'at8_mluc_points_probe';
+		$probe = self::PROBE_SAVEPOINT;
 
 		// phpcs:ignore WordPress.DB.DirectDatabaseQuery.DirectQuery, WordPress.DB.DirectDatabaseQuery.NoCaching, WordPress.DB.PreparedSQL.NotPrepared, PluginCheck.Security.DirectDB.UnescapedDBParameter -- Fixed identifier built in this class.
 		$created       = $wpdb->query( 'SAVEPOINT ' . $probe );
@@ -1778,13 +1858,13 @@ class AT8_MLUC_Points {
 		if ( false === $created || '' !== $created_error ) {
 			$wpdb->suppress_errors( $suppress );
 
-			return new WP_Error(
-				'at8_mluc_points_tx',
-				sprintf(
-					/* translators: %s: database error message. */
-					__( 'The database transaction state could not be determined: %s', 'at8-moonlight-user-center' ),
-					'' !== $created_error ? $created_error : __( 'savepoints are not available', 'at8-moonlight-user-center' )
-				)
+			// No savepoint means no probe, which means no answer. Assuming
+			// "no transaction" here would be exactly the guess that commits
+			// somebody else's work.
+			return self::unknown_transaction_state(
+				'' !== $created_error
+					? $created_error
+					: __( 'the database refused to create a savepoint', 'at8-moonlight-user-center' )
 			);
 		}
 
@@ -1793,8 +1873,9 @@ class AT8_MLUC_Points {
 		$rewound_error = self::clean_error( (string) $wpdb->last_error );
 
 		if ( false !== $rewound && '' === $rewound_error ) {
-			// A transaction was open. Nothing was written since the savepoint,
-			// so this only removes the probe itself.
+			// A transaction is open. The probe held no changes, so releasing it
+			// only removes the marker; a failure here is harmless because the
+			// outer owner discards leftover savepoints on commit anyway.
 			// phpcs:ignore WordPress.DB.DirectDatabaseQuery.DirectQuery, WordPress.DB.DirectDatabaseQuery.NoCaching, WordPress.DB.PreparedSQL.NotPrepared, PluginCheck.Security.DirectDB.UnescapedDBParameter -- Fixed identifier built in this class.
 			$wpdb->query( 'RELEASE SAVEPOINT ' . $probe );
 			$wpdb->suppress_errors( $suppress );
@@ -1802,16 +1883,71 @@ class AT8_MLUC_Points {
 			return 'savepoint';
 		}
 
-		/*
-		 * The savepoint could not be rolled back to, which is exactly what a
-		 * server without an open transaction answers: the SAVEPOINT was a
-		 * no-op and nothing was changed. A driver that fails this way for
-		 * another reason still lands on "no transaction", so the movement then
-		 * opens its own and stays atomic.
-		 */
+		if ( self::is_missing_savepoint_error( $rewound_error ) ) {
+			// Definitive: outside a transaction the SAVEPOINT was a no-op, so
+			// the rewind cannot find it. Nothing was written either way.
+			$wpdb->suppress_errors( $suppress );
+
+			return 'own';
+		}
+
+		// Unknown: the probe exists and could not be rewound. Drop it so it
+		// does not linger in the caller's transaction, then refuse to write.
+		// phpcs:ignore WordPress.DB.DirectDatabaseQuery.DirectQuery, WordPress.DB.DirectDatabaseQuery.NoCaching, WordPress.DB.PreparedSQL.NotPrepared, PluginCheck.Security.DirectDB.UnescapedDBParameter -- Fixed identifier built in this class.
+		$wpdb->query( 'RELEASE SAVEPOINT ' . $probe );
 		$wpdb->suppress_errors( $suppress );
 
-		return 'own';
+		return self::unknown_transaction_state(
+			'' !== $rewound_error
+				? $rewound_error
+				: __( 'the savepoint probe could not be rolled back', 'at8-moonlight-user-center' )
+		);
+	}
+
+	/**
+	 * Whether a driver error is the documented "that savepoint does not exist"
+	 * answer.
+	 *
+	 * MySQL reports 1305 / SQLSTATE 3B001 for a savepoint that was never
+	 * created, and that is precisely what an out-of-transaction SAVEPOINT
+	 * leaves behind. Every other error means the probe learnt nothing.
+	 *
+	 * @param string $error Cleaned driver error.
+	 * @return bool
+	 */
+	private static function is_missing_savepoint_error( $error ) {
+		$error = (string) $error;
+
+		if ( '' === $error ) {
+			return false;
+		}
+
+		if ( preg_match( '/\b1305\b/', $error ) ) {
+			return true;
+		}
+
+		if ( preg_match( '/\b3B001\b/i', $error ) ) {
+			return true;
+		}
+
+		return false !== stripos( $error, 'savepoint' ) && false !== stripos( $error, 'does not exist' );
+	}
+
+	/**
+	 * Build the "this cannot be decided" error.
+	 *
+	 * @param string $detail Driver error or explanation.
+	 * @return WP_Error
+	 */
+	private static function unknown_transaction_state( $detail ) {
+		return new WP_Error(
+			'at8_mluc_points_tx',
+			sprintf(
+				/* translators: %s: database error message. */
+				__( 'The database transaction state could not be determined, so nothing was written: %s', 'at8-moonlight-user-center' ),
+				$detail
+			)
+		);
 	}
 
 	/**
@@ -1849,26 +1985,6 @@ class AT8_MLUC_Points {
 		$wpdb->suppress_errors( $suppress );
 
 		return false !== $result && '' === $error;
-	}
-
-	/**
-	 * Whether somebody else already has a transaction open on this connection.
-	 *
-	 * MySQL 5.7.36+ and MariaDB 10.3+ answer `@@in_transaction`; older servers
-	 * (and drivers that do not support it) return null, which is treated as
-	 * "no transaction".
-	 *
-	 * @return bool
-	 */
-	private static function has_open_transaction() {
-		global $wpdb;
-
-		$suppress = $wpdb->suppress_errors( true );
-		// phpcs:ignore WordPress.DB.DirectDatabaseQuery.DirectQuery, WordPress.DB.DirectDatabaseQuery.NoCaching, WordPress.DB.PreparedSQL.NotPrepared -- Server variable, no user input.
-		$value = $wpdb->get_var( 'SELECT @@in_transaction' );
-		$wpdb->suppress_errors( $suppress );
-
-		return null !== $value && 1 === (int) $value;
 	}
 
 	/**
