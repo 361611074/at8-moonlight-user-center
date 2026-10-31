@@ -230,3 +230,76 @@ COMMIT;
 | Plugin Check 2.1.0（ZIP 解压扫描） | **0 ERROR / 25 WARNING**（与 2.5.x 基线相同，均为既有项） |
 | 升级 2.6.0 → 2.6.1 | 余额 40→40、流水 1→1、`verify_balance` 通过、升级后变动正常（42） |
 | MySQL/InnoDB 实机并发、PHP 7.4 实机、多站点 | **NOT RUN** |
+
+---
+
+# 2.6.2 补充：数据库读取错误不再被当成"零/不存在"
+
+- 日期：2026-10-31
+- 任务书：《AT8 Moonlight User Center 2.6.1 → 2.6.2 最终数据库安全整改》
+- 交付 ZIP：`at8-moonlight-user-center-2.6.2.zip`（50 文件 / 170,860 B / SHA-256 `0fbbfd0d4440cac93666b2d22b7777d2c9f9f92148a935c3bc10994efc4e7265`）
+- 测试脚本：`docs/tests/db_safety_test.php`（47 断言）
+
+## 一、P1-01：reconcile() 查询失败会把余额写零
+
+`get_var()` 在**查询失败**和**没有行**时都返回 null，而 `SUM` 外面套了 `COALESCE` 后本来必定返回一行，所以 null 只可能是失败——原代码 `(int) $wpdb->get_var(...)` 把这两种情况压成了 0，一旦读失败就会把真实余额覆盖成 0。
+
+修复：新增 `ledger_sum()`，`null === $sum || last_error 非空` 时返回 `WP_Error('at8_mluc_points_read')`；`reconcile()` 拿到错误先 `ROLLBACK` 再返回，**不更新账户余额、不写 meta 镜像**；`verify_balance()` 在同样情况下返回 false（"无法校验"而不是"一致"）。
+
+## 二、P1-02：引擎验证不再"查不到就放行"
+
+| 情况 | 2.6.1 | 2.6.2 |
+|---|---|---|
+| `SHOW TABLE STATUS` 报错 | 跳过检查 | schema 不合格（并指出表名） |
+| 返回空结果 | 跳过检查 | schema 不合格 |
+| 无 `Engine` 字段 | 跳过检查 | schema 不合格（no Engine field） |
+| `Engine != InnoDB` | 不合格 | 不合格 |
+| `Engine = InnoDB` | 通过 | 通过 |
+
+`column_problems()` 同样处理：`SHOW COLUMNS` 报错或返回空 → 直接判定"该表的列无法读取"，不再当成"没有列问题"。
+
+## 三、P1-03：所有读取都区分"没有记录"与"查询失败"
+
+| 方法 | 2.6.1 | 2.6.2 |
+|---|---|---|
+| `account()` | `get_row()` 返回 null 就当作"没有账户"→ 触发迁移 | 先看 `last_error`，失败返回 `WP_Error`，**不触发迁移**（避免重复导入） |
+| `has_entry()` | 返回 bool，失败即 false（会让第二次发放通过） | 返回 `bool|WP_Error`；调用方 `adjust()`/`migrate_movement()`/`is_duplicate_error()` 分别处理，失败时拒绝写入 |
+| `legacy_entries()` | 返回数组，读失败当作空历史 | 先清 `last_error` 再读（缓存命中不会带旧错误），失败返回 `WP_Error`；`migrate_user()` 直接终止 |
+| `reconcile()` / `verify_balance()` | 失败当 0 | 见 P1-01 |
+| `schema_problems()` / `column_problems()` | 失败跳过 | 见 P1-02 |
+
+`balance()` 作为展示用 API 仍是 int：账户读失败时回落到旧 meta 合计（只读、不写）；双重失败才返回 0，且绝不触发任何写入。
+
+## 四、任务书要求的 10 项测试
+
+| # | 场景 | 结果 |
+|---|---|---|
+| 1 | reconcile 正常修复余额 | **PASS**（4 → 42，读回一致） |
+| 2 | reconcile 查询失败 | **PASS**（`at8_mluc_points_read`；余额 25 未被清零；meta 镜像未动；流水条数不变；`verify_balance` 返回 false） |
+| 3 | reconcile 与 adjust 同时执行 | **PASS**（5 轮修复穿插 5 次变动，0 错误，150 = 流水合计） |
+| 4 | SHOW TABLE STATUS 查询失败 | **PASS**（写入被拒、错误码 `at8_mluc_points_schema`、余额与流水均未变） |
+| 5 | Engine 字段缺失 | **PASS**（同上） |
+| 6 | 表不是 InnoDB | **PASS**（伪造 Engine=MyISAM，写入被拒） |
+| 7 | 表缺少唯一索引 | **PASS**（把 SHOW INDEX 指向无该索引的表，写入被拒） |
+| 8 | migrate_user 中途写入失败 | **PASS**（已写入的前一条一并回滚、无账户行、读取回落 13；重试两条都迁入） |
+| 9 | COMMIT 失败 | **PASS**（返回错误、**不触发成功回调**、余额不变） |
+| 10 | 相同订单重复回调 | **PASS**（连发 6 次只发 20 分、1 条流水） |
+| 附加 | `has_entry()` 查询失败 | **PASS**（返回 WP_Error；带幂等的加分被拒且不写行，余额不变） |
+
+四次 schema 失败的用例都验证了同一件事：**不只是报错，而且确实没有写入**（余额不变 + 流水条数不变）。
+
+## 五、回归
+
+| 套件 | 结果 |
+|---|---|
+| `db_safety_test.php`（本轮新增） | 47 / 0 |
+| `migration_test.php` | 41 / 0 |
+| `atomicity_test.php` | 32 / 0 |
+| `concurrency_test.php`（10 场景） | 54 / 0 |
+| `v4_matrix_test.php` | 50 / 0 |
+| Free 独立 `reg_test.php` | 76 / 0 |
+| Free + Pro `pro_test.php` | 64 / 0 |
+| `php -l` 全量（40 文件） | 0 失败 |
+| Plugin Check 2.1.0（ZIP 解压扫描） | **0 ERROR / 25 WARNING**（与基线一致） |
+| 升级 2.6.1 → 2.6.2 | 覆盖安装后版本 2.6.2，全部套件重跑通过 |
+| MySQL/InnoDB 实机、PHP 7.4 实机、多站点 | **NOT RUN** |

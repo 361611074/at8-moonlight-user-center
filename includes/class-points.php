@@ -244,10 +244,29 @@ class AT8_MLUC_Points {
 				continue;
 			}
 
+			/*
+			 * The engine decides whether the account update and the ledger
+			 * insert can share a transaction at all, so "cannot tell" is a
+			 * failure: an unverifiable table is treated exactly like a wrong
+			 * engine instead of being waved through.
+			 */
 			// phpcs:ignore WordPress.DB.DirectDatabaseQuery.DirectQuery, WordPress.DB.DirectDatabaseQuery.NoCaching -- Engine check.
 			$status = $wpdb->get_results( $wpdb->prepare( 'SHOW TABLE STATUS LIKE %s', $table ), ARRAY_A );
+			$error  = self::clean_error( (string) $wpdb->last_error );
 
-			if ( is_array( $status ) && isset( $status[0]['Engine'] ) && '' !== $status[0]['Engine'] && 0 !== strcasecmp( 'InnoDB', (string) $status[0]['Engine'] ) ) {
+			if ( '' !== $error || ! is_array( $status ) || array() === $status ) {
+				/* translators: %s: table name. */
+				$problems[] = sprintf( __( 'the storage engine of %s could not be verified', 'at8-moonlight-user-center' ), $table );
+				continue;
+			}
+
+			if ( ! isset( $status[0]['Engine'] ) || '' === (string) $status[0]['Engine'] ) {
+				/* translators: %s: table name. */
+				$problems[] = sprintf( __( 'the storage engine of %s is unknown (no Engine field)', 'at8-moonlight-user-center' ), $table );
+				continue;
+			}
+
+			if ( 0 !== strcasecmp( 'InnoDB', (string) $status[0]['Engine'] ) ) {
 				/* translators: 1: table name, 2: storage engine. */
 				$problems[] = sprintf( __( 'table %1$s uses %2$s instead of InnoDB', 'at8-moonlight-user-center' ), $table, (string) $status[0]['Engine'] );
 			}
@@ -368,6 +387,18 @@ class AT8_MLUC_Points {
 			$rows = $wpdb->get_results( "SHOW COLUMNS FROM {$wpdb->prefix}at8_mluc_points_account", ARRAY_A );
 		}
 
+		$error = self::clean_error( (string) $wpdb->last_error );
+
+		if ( '' !== $error || ! is_array( $rows ) || array() === $rows ) {
+			return array(
+				sprintf(
+					/* translators: %s: table name. */
+					__( 'the columns of %s could not be read', 'at8-moonlight-user-center' ),
+					$table
+				),
+			);
+		}
+
 		$actual   = array();
 		$problems = array();
 
@@ -485,12 +516,19 @@ class AT8_MLUC_Points {
 				return self::tx_error();
 			}
 
-			// Sum inside the transaction: once the UPDATE below has taken the
-			// row, no other writer can change the ledger behind our back.
-			// phpcs:ignore WordPress.DB.DirectDatabaseQuery.DirectQuery, WordPress.DB.DirectDatabaseQuery.NoCaching -- Summing the ledger is the authoritative recompute.
-			$sum = (int) $wpdb->get_var(
-				$wpdb->prepare( "SELECT COALESCE( SUM( amount ), 0 ) FROM {$wpdb->prefix}at8_mluc_points_ledger WHERE user_id = %d", $user_id )
-			);
+			/*
+			 * The sum decides what the balance becomes, so a failed read must
+			 * never be mistaken for "no movements": an empty ledger and an
+			 * unreadable one both used to look like 0, which silently zeroed
+			 * real balances.
+			 */
+			$sum = self::ledger_sum( $user_id );
+
+			if ( is_wp_error( $sum ) ) {
+				self::rollback();
+
+				return $sum;
+			}
 
 			// phpcs:ignore WordPress.DB.DirectDatabaseQuery.DirectQuery, WordPress.DB.DirectDatabaseQuery.NoCaching -- Repair write, guarded by the row version.
 			$moved = $wpdb->query(
@@ -529,14 +567,46 @@ class AT8_MLUC_Points {
 	}
 
 	/**
+	 * Sum of a user's movements.
+	 *
+	 * The query always returns exactly one row thanks to COALESCE, so a null
+	 * result means the read failed rather than "no movements" — the two must
+	 * never be conflated.
+	 *
+	 * @param int $user_id User ID.
+	 * @return int|WP_Error
+	 */
+	private static function ledger_sum( $user_id ) {
+		global $wpdb;
+
+		// phpcs:ignore WordPress.DB.DirectDatabaseQuery.DirectQuery, WordPress.DB.DirectDatabaseQuery.NoCaching -- Summing the ledger is the authoritative read.
+		$sum = $wpdb->get_var(
+			$wpdb->prepare( "SELECT COALESCE( SUM( amount ), 0 ) FROM {$wpdb->prefix}at8_mluc_points_ledger WHERE user_id = %d", (int) $user_id )
+		);
+
+		$error = self::clean_error( (string) $wpdb->last_error );
+
+		if ( null === $sum || '' !== $error ) {
+			return new WP_Error(
+				'at8_mluc_points_read',
+				sprintf(
+					/* translators: %s: database error message. */
+					__( 'The points ledger could not be read: %s', 'at8-moonlight-user-center' ),
+					'' !== $error ? $error : __( 'unknown database error', 'at8-moonlight-user-center' )
+				)
+			);
+		}
+
+		return (int) $sum;
+	}
+
+	/**
 	 * Whether the stored balance still equals the sum of the movements.
 	 *
 	 * @param int $user_id User ID.
 	 * @return bool
 	 */
 	public static function verify_balance( $user_id ) {
-		global $wpdb;
-
 		$user_id = (int) $user_id;
 		$account = self::account( $user_id );
 
@@ -544,10 +614,11 @@ class AT8_MLUC_Points {
 			return false;
 		}
 
-		// phpcs:ignore WordPress.DB.DirectDatabaseQuery.DirectQuery, WordPress.DB.DirectDatabaseQuery.NoCaching -- Consistency check.
-		$sum = (int) $wpdb->get_var(
-			$wpdb->prepare( "SELECT COALESCE( SUM( amount ), 0 ) FROM {$wpdb->prefix}at8_mluc_points_ledger WHERE user_id = %d", $user_id )
-		);
+		$sum = self::ledger_sum( $user_id );
+
+		if ( is_wp_error( $sum ) ) {
+			return false;
+		}
 
 		return (int) $account[0] === $sum;
 	}
@@ -624,7 +695,8 @@ class AT8_MLUC_Points {
 	 *
 	 * @param int    $user_id User ID.
 	 * @param string $key     Idempotency key.
-	 * @return bool
+	 * @return bool|WP_Error Whether a movement with this key exists, or an error
+	 *                       when the lookup itself failed.
 	 */
 	public static function has_entry( $user_id, $key ) {
 		global $wpdb;
@@ -636,9 +708,25 @@ class AT8_MLUC_Points {
 		}
 
 		// phpcs:ignore WordPress.DB.DirectDatabaseQuery.DirectQuery, WordPress.DB.DirectDatabaseQuery.NoCaching -- The UNIQUE index answers this in the database; a cached answer could be stale.
-		return (bool) $wpdb->get_var(
+		$found = $wpdb->get_var(
 			$wpdb->prepare( "SELECT id FROM {$wpdb->prefix}at8_mluc_points_ledger WHERE user_id = %d AND idem_key = %s LIMIT 1", (int) $user_id, $key )
 		);
+
+		$error = self::clean_error( (string) $wpdb->last_error );
+
+		if ( '' !== $error ) {
+			// Reporting "not found" here would let a second award through.
+			return new WP_Error(
+				'at8_mluc_points_read',
+				sprintf(
+					/* translators: %s: database error message. */
+					__( 'The points ledger could not be read: %s', 'at8-moonlight-user-center' ),
+					$error
+				)
+			);
+		}
+
+		return null !== $found;
 	}
 
 	/* ---------------------------------------------------------------------
@@ -697,8 +785,16 @@ class AT8_MLUC_Points {
 
 			// Already applied — a duplicate callback, or a retry after a crash
 			// that happened after the commit. Nothing to write.
-			if ( '' !== $key && self::has_entry( $user_id, $key ) ) {
-				return $balance;
+			if ( '' !== $key ) {
+				$seen = self::has_entry( $user_id, $key );
+
+				if ( is_wp_error( $seen ) ) {
+					return $seen;
+				}
+
+				if ( $seen ) {
+					return $balance;
+				}
 			}
 
 			if ( $amount < 0 && $balance + $amount < 0 ) {
@@ -926,6 +1022,21 @@ class AT8_MLUC_Points {
 			ARRAY_A
 		);
 
+		$error = self::clean_error( (string) $wpdb->last_error );
+
+		if ( '' !== $error ) {
+			// A failed read is not an empty account: migrating here would
+			// import the same history a second time.
+			return new WP_Error(
+				'at8_mluc_points_read',
+				sprintf(
+					/* translators: %s: database error message. */
+					__( 'The points account could not be read: %s', 'at8-moonlight-user-center' ),
+					$error
+				)
+			);
+		}
+
 		if ( is_array( $row ) ) {
 			return array( (int) $row['balance'], (int) $row['fence'] );
 		}
@@ -957,7 +1068,12 @@ class AT8_MLUC_Points {
 		}
 
 		$entries = self::legacy_entries( $user_id );
-		$total   = 0;
+
+		if ( is_wp_error( $entries ) ) {
+			return $entries;
+		}
+
+		$total = 0;
 
 		foreach ( $entries as $entry ) {
 			$total += (int) $entry['amount'];
@@ -1114,10 +1230,18 @@ class AT8_MLUC_Points {
 		$time   = (int) $entry['time'] > 0 ? (int) $entry['time'] : (int) $when;
 		$key    = (string) $entry['key'];
 
-		if ( '' !== $key && self::has_entry( $user_id, $key ) ) {
-			// The same key appears more than once in the old history: keep
-			// both movements by giving this one a unique key.
-			$key = 'legacy:' . md5( $user_id . '|' . (int) $index . '|' . $time . '|' . (string) $entry['u'] );
+		if ( '' !== $key ) {
+			$seen = self::has_entry( $user_id, $key );
+
+			if ( is_wp_error( $seen ) ) {
+				return false;
+			}
+
+			if ( $seen ) {
+				// The same key appears more than once in the old history: keep
+				// both movements by giving this one a unique key.
+				$key = 'legacy:' . md5( $user_id . '|' . (int) $index . '|' . $time . '|' . (string) $entry['u'] );
+			}
 		}
 
 		$error = '';
@@ -1129,10 +1253,16 @@ class AT8_MLUC_Points {
 	 * Legacy movements from the pre-2.6 user meta, oldest first.
 	 *
 	 * @param int $user_id User ID.
-	 * @return array<int, array<string, mixed>>
+	 * @return array<int, array<string, mixed>>|WP_Error
 	 */
 	private static function legacy_entries( $user_id ) {
+		global $wpdb;
+
 		$entries = array();
+
+		// Clear the driver state first: a cached read never touches the
+		// database and would otherwise inherit an earlier query's error.
+		$wpdb->last_error = '';
 
 		$legacy = get_user_meta( $user_id, self::LEDGER_META, true );
 
@@ -1152,6 +1282,21 @@ class AT8_MLUC_Points {
 					$entries[] = self::normalise_entry( $row );
 				}
 			}
+		}
+
+		$error = self::clean_error( (string) $wpdb->last_error );
+
+		if ( '' !== $error ) {
+			// An unreadable history must not look like "no history": that
+			// would migrate nothing and report a zero balance as truth.
+			return new WP_Error(
+				'at8_mluc_points_read',
+				sprintf(
+					/* translators: %s: database error message. */
+					__( 'The legacy points history could not be read: %s', 'at8-moonlight-user-center' ),
+					$error
+				)
+			);
 		}
 
 		usort(
@@ -1259,7 +1404,9 @@ class AT8_MLUC_Points {
 
 		// Some drivers describe it differently; a row with this exact key
 		// already present is proof that the INSERT collided on the index.
-		return self::has_entry( $user_id, $key );
+		$seen = self::has_entry( $user_id, $key );
+
+		return ! is_wp_error( $seen ) && (bool) $seen;
 	}
 
 	/**
@@ -1441,7 +1588,12 @@ class AT8_MLUC_Points {
 	 */
 	private static function legacy_total( $user_id ) {
 		$entries = self::legacy_entries( $user_id );
-		$total   = 0;
+
+		if ( is_wp_error( $entries ) ) {
+			return 0;
+		}
+
+		$total = 0;
 
 		foreach ( $entries as $entry ) {
 			$total += (int) $entry['amount'];

@@ -3,7 +3,7 @@ Contributors: x361611074
 Tags: user profile, login, registration, avatar, user center
 Requires at least: 5.8
 Tested up to: 7.1
-Stable tag: 2.6.1
+Stable tag: 2.6.2
 Requires PHP: 7.4
 License: GPL-2.0-or-later
 License URI: https://www.gnu.org/licenses/gpl-2.0.html
@@ -154,6 +154,11 @@ No access tokens, authorization codes or provider API responses are written to l
 4. The front-end login form.
 
 == Changelog ==
+
+= 2.6.2 =
+* Points: a failed ledger read can no longer be mistaken for "this account has no points". Balancing up against the ledger now aborts with an error, rolls back and leaves both the account row and the meta mirror untouched, instead of writing a zero over a real balance.
+* Points: every read that can fail now tells "no such row" apart from "the query failed". The account lookup, the idempotency key lookup and the legacy history import return an explicit error rather than pretending the data does not exist, so a temporary database problem cannot trigger a second migration or a second award.
+* Points: the schema check no longer waves a table through when the engine cannot be read. A failed or empty SHOW TABLE STATUS, a missing Engine field, and anything other than InnoDB all count as a broken schema, and the message names the table that could not be verified.
 
 = 2.6.1 =
 * Points: the legacy import is all-or-nothing now. Every movement is checked, the account row is only written once all of them are in, and a database error, a refused balance update or a failed COMMIT rolls the whole migration back instead of leaving a half-migrated account. While the tables are unavailable, reads fall back to the old meta total, so points never look lost.
