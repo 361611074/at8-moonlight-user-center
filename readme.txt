@@ -3,7 +3,7 @@ Contributors: x361611074
 Tags: user profile, login, registration, avatar, user center
 Requires at least: 5.8
 Tested up to: 7.1
-Stable tag: 2.6.2
+Stable tag: 2.6.3
 Requires PHP: 7.4
 License: GPL-2.0-or-later
 License URI: https://www.gnu.org/licenses/gpl-2.0.html
@@ -154,6 +154,12 @@ No access tokens, authorization codes or provider API responses are written to l
 4. The front-end login form.
 
 == Changelog ==
+
+= 2.6.3 =
+* Points: transaction ownership is decided instead of assumed. The plugin asks the database whether a transaction is already open, and when that answer is unavailable it probes with a throwaway savepoint; if neither tells it, the movement is refused rather than risking a START TRANSACTION that would silently commit another plugin's work.
+* Points: a movement that only released a savepoint is no longer described as done. The balance and the ledger are written, but the balance meta is left alone and the success action is replaced by a "deferred" notice, so an outer transaction that later rolls back cannot leave a mirror or a side effect behind.
+* Points: every transaction step reports its own failure. A savepoint that cannot be created aborts the movement, a release that fails undoes the movement inside the caller's transaction, and a rollback that fails raises a transaction error instead of being swallowed.
+* Points: the balance is no longer faked as 0 when it cannot be read. balance() returns an error, can_afford() refuses, and the account screens show "unavailable" instead of a confident zero; the legacy history is also read straight from the table so a broken read is told apart from an empty one.
 
 = 2.6.2 =
 * Points: a failed ledger read can no longer be mistaken for "this account has no points". Balancing up against the ledger now aborts with an error, rolls back and leaves both the account row and the meta mirror untouched, instead of writing a zero over a real balance.

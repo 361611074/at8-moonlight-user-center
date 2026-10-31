@@ -71,6 +71,7 @@ $at8_mluc_registered = $at8_mluc_user->user_registered
 	$at8_mluc_level_label = $at8_mluc_level ? AT8_MLUC_Membership::get_level_label( $at8_mluc_level ) : __( 'None', 'at8-moonlight-user-center' );
 	$at8_mluc_expires     = AT8_MLUC_Membership::get_user_expires( $at8_mluc_user->ID );
 	$at8_mluc_points      = AT8_MLUC_Points::balance( $at8_mluc_user->ID );
+	$at8_mluc_points_text = is_wp_error( $at8_mluc_points ) ? '—' : number_format_i18n( $at8_mluc_points );
 	$at8_mluc_orders      = AT8_MLUC_Payments::get_user_orders( $at8_mluc_user->ID, 100 );
 	$at8_mluc_paid        = 0;
 	$at8_mluc_spent       = 0.0;
@@ -104,7 +105,7 @@ $at8_mluc_registered = $at8_mluc_user->user_registered
 
 		<li>
 			<span class="at8-mluc-stat-label"><?php echo esc_html( AT8_MLUC_Points::label() ); ?></span>
-			<span class="at8-mluc-stat-value"><?php echo esc_html( number_format_i18n( $at8_mluc_points ) ); ?></span>
+			<span class="at8-mluc-stat-value"><?php echo esc_html( $at8_mluc_points_text ); ?></span>
 		</li>
 
 		<li>

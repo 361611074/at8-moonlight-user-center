@@ -84,6 +84,13 @@ class AT8_MLUC_Points {
 	const DB_VERSION = 1;
 
 	/**
+	 * Savepoint used when an outer transaction already owns the commit.
+	 *
+	 * @var string
+	 */
+	const SAVEPOINT = 'at8_mluc_points_tx';
+
+	/**
 	 * How often a movement retries when another request moved the account
 	 * between its read and its write.
 	 *
@@ -120,6 +127,14 @@ class AT8_MLUC_Points {
 	 * @var string
 	 */
 	private static $tx_mode = '';
+
+	/**
+	 * Whether the last movement only released a savepoint, i.e. the commit
+	 * still belongs to somebody else and nothing may be described as durable.
+	 *
+	 * @var bool
+	 */
+	private static $last_deferred = false;
 
 	/**
 	 * Retrieve the singleton.
@@ -512,8 +527,10 @@ class AT8_MLUC_Points {
 
 			list( , $fence ) = $account;
 
-			if ( ! self::begin() ) {
-				return self::tx_error();
+			$begun = self::begin();
+
+			if ( is_wp_error( $begun ) ) {
+				return $begun;
 			}
 
 			/*
@@ -525,9 +542,9 @@ class AT8_MLUC_Points {
 			$sum = self::ledger_sum( $user_id );
 
 			if ( is_wp_error( $sum ) ) {
-				self::rollback();
+				$undone = self::rollback();
 
-				return $sum;
+				return is_wp_error( $undone ) ? $undone : $sum;
 			}
 
 			// phpcs:ignore WordPress.DB.DirectDatabaseQuery.DirectQuery, WordPress.DB.DirectDatabaseQuery.NoCaching -- Repair write, guarded by the row version.
@@ -551,11 +568,19 @@ class AT8_MLUC_Points {
 				continue;
 			}
 
-			if ( ! self::commit() ) {
-				return self::tx_error();
+			$deferred  = ( 'savepoint' === self::$tx_mode );
+			$committed = self::commit();
+
+			if ( is_wp_error( $committed ) ) {
+				return $committed;
 			}
 
-			self::sync_mirror( $user_id, $sum );
+			// Inside somebody else's transaction the mirror could outlive a
+			// rollback in the object cache, so it is only written when this
+			// request owns the commit.
+			if ( ! $deferred ) {
+				self::sync_mirror( $user_id, $sum );
+			}
 
 			return $sum;
 		}
@@ -631,15 +656,25 @@ class AT8_MLUC_Points {
 	 * Balance for a user.
 	 *
 	 * @param int $user_id User ID.
-	 * @return int
+	 * @return int|WP_Error Balance, or an error when it could not be read.
+	 *                      Never a made-up zero: callers that only display it
+	 *                      should show "unavailable" instead of 0.
 	 */
 	public static function balance( $user_id ) {
-		$account = self::account( (int) $user_id );
+		$user_id = (int) $user_id;
+		$account = self::account( $user_id );
 
 		if ( is_wp_error( $account ) ) {
-			// The migration could not run (missing table, broken write). Show
-			// the legacy total rather than a wrong zero, and write nothing.
-			return max( 0, self::legacy_total( (int) $user_id ) );
+			// The account could not be read. Fall back to the legacy history,
+			// which is read straight from the table; if that also fails the
+			// caller gets the error rather than a fake zero.
+			$legacy = self::legacy_total( $user_id );
+
+			if ( is_wp_error( $legacy ) ) {
+				return $legacy;
+			}
+
+			return max( 0, (int) $legacy );
 		}
 
 		return max( 0, (int) $account[0] );
@@ -769,10 +804,11 @@ class AT8_MLUC_Points {
 			return $ready;
 		}
 
-		$reason    = sanitize_text_field( (string) $reason );
-		$source    = sanitize_key( (string) $source );
-		$by        = get_current_user_id();
-		$processed = time();
+		$reason              = sanitize_text_field( (string) $reason );
+		$source              = sanitize_key( (string) $source );
+		$by                  = get_current_user_id();
+		$processed           = time();
+		self::$last_deferred = false;
 
 		for ( $attempt = 1; $attempt <= self::MAX_ATTEMPTS; $attempt++ ) {
 			$account = self::account( $user_id );
@@ -805,8 +841,10 @@ class AT8_MLUC_Points {
 
 			// Without a transaction the balance and the ledger could drift
 			// apart, so a failed BEGIN means "do nothing at all".
-			if ( ! self::begin() ) {
-				return self::tx_error();
+			$begun = self::begin();
+
+			if ( is_wp_error( $begun ) ) {
+				return $begun;
 			}
 
 			/*
@@ -829,7 +867,11 @@ class AT8_MLUC_Points {
 			);
 
 			if ( 1 !== (int) $moved ) {
-				self::rollback();
+				$undone = self::rollback();
+
+				if ( is_wp_error( $undone ) ) {
+					return $undone;
+				}
 
 				$current = self::account( $user_id );
 
@@ -860,7 +902,11 @@ class AT8_MLUC_Points {
 			if ( false === $entry_id ) {
 				// The ledger row did not land, so the balance change must not
 				// survive either: one transaction, one outcome.
-				self::rollback();
+				$undone = self::rollback();
+
+				if ( is_wp_error( $undone ) ) {
+					return $undone;
+				}
 
 				// A concurrent request with the same key won the race: report
 				// the balance it produced. Anything else is a real failure.
@@ -871,15 +917,27 @@ class AT8_MLUC_Points {
 				return self::save_error();
 			}
 
+			/*
+			 * A savepoint release only hands the work to the outer transaction,
+			 * so nothing may be described as durable in that case: no mirror
+			 * write (it would survive a rollback in the object cache) and no
+			 * success action (its side effects cannot be undone).
+			 */
+			$deferred = ( 'savepoint' === self::$tx_mode );
+
 			// A failed COMMIT means the movement is not durable: report an
 			// error and never fire the "balance changed" action for it.
-			if ( ! self::commit() ) {
-				return self::tx_error();
+			$committed = self::commit();
+
+			if ( is_wp_error( $committed ) ) {
+				return $committed;
 			}
 
 			$new_balance = $balance + $amount;
 
-			self::sync_mirror( $user_id, $new_balance );
+			if ( ! $deferred ) {
+				self::sync_mirror( $user_id, $new_balance );
+			}
 
 			$entry = array(
 				'time'   => $processed,
@@ -901,7 +959,25 @@ class AT8_MLUC_Points {
 			 * @param int   $balance New balance.
 			 * @param array $entry   Ledger entry.
 			 */
-			do_action( 'at8_mluc_points_adjusted', $user_id, $amount, $new_balance, $entry );
+			self::$last_deferred = $deferred;
+
+			if ( $deferred ) {
+				/**
+				 * Fires when a movement is inside a transaction this plugin does
+				 * not own. The caller's transaction may still roll back, so the
+				 * movement is not durable yet.
+				 *
+				 * @since 2.6.3
+				 *
+				 * @param int   $user_id User ID.
+				 * @param int   $amount  Signed amount applied.
+				 * @param int   $balance Balance including this movement.
+				 * @param array $entry   Ledger entry.
+				 */
+				do_action( 'at8_mluc_points_adjusted_deferred', $user_id, $amount, $new_balance, $entry );
+			} else {
+				do_action( 'at8_mluc_points_adjusted', $user_id, $amount, $new_balance, $entry );
+			}
 
 			return $new_balance;
 		}
@@ -974,9 +1050,16 @@ class AT8_MLUC_Points {
 			return;
 		}
 
-		// Fast-path marker for later triggers. It is only an optimisation: the
-		// idempotency key and the account version are what prevent a re-award.
-		add_post_meta( $order_id, '_at8_mluc_points_awarded', 1, true );
+		/*
+		 * Fast-path marker for later triggers. It is only an optimisation: the
+		 * idempotency key and the account version are what prevent a re-award.
+		 * It is skipped when the movement sits inside somebody else's
+		 * transaction, because the marker would outlive a rollback in the
+		 * object cache while the movement itself disappears.
+		 */
+		if ( ! self::$last_deferred ) {
+			add_post_meta( $order_id, '_at8_mluc_points_awarded', 1, true );
+		}
 	}
 
 	/**
@@ -1092,8 +1175,10 @@ class AT8_MLUC_Points {
 
 		$balance = $total + $opening;
 
-		if ( ! self::begin() ) {
-			return self::tx_error();
+		$begun = self::begin();
+
+		if ( is_wp_error( $begun ) ) {
+			return $begun;
 		}
 
 		$suppress = $wpdb->suppress_errors( true );
@@ -1188,17 +1273,22 @@ class AT8_MLUC_Points {
 		);
 
 		if ( 1 !== (int) $updated ) {
-			self::rollback();
+			$undone = self::rollback();
 
-			return self::save_error();
+			return is_wp_error( $undone ) ? $undone : self::save_error();
 		}
 
-		if ( ! self::commit() ) {
-			// Nothing is reported as migrated unless the commit went through.
-			return self::tx_error();
+		$deferred  = ( 'savepoint' === self::$tx_mode );
+		$committed = self::commit();
+
+		// Nothing is reported as migrated unless the commit went through.
+		if ( is_wp_error( $committed ) ) {
+			return $committed;
 		}
 
-		self::sync_mirror( $user_id, $balance );
+		if ( ! $deferred ) {
+			self::sync_mirror( $user_id, $balance );
+		}
 
 		return array( $balance, 0 );
 	}
@@ -1258,35 +1348,27 @@ class AT8_MLUC_Points {
 	private static function legacy_entries( $user_id ) {
 		global $wpdb;
 
-		$entries = array();
-
-		// Clear the driver state first: a cached read never touches the
-		// database and would otherwise inherit an earlier query's error.
-		$wpdb->last_error = '';
-
-		$legacy = get_user_meta( $user_id, self::LEDGER_META, true );
-
-		if ( is_array( $legacy ) ) {
-			foreach ( $legacy as $row ) {
-				if ( is_array( $row ) && isset( $row['amount'] ) ) {
-					$entries[] = self::normalise_entry( $row );
-				}
-			}
-		}
-
-		$rows = get_user_meta( $user_id, self::ENTRY_META, false );
-
-		if ( is_array( $rows ) ) {
-			foreach ( $rows as $row ) {
-				if ( is_array( $row ) && isset( $row['amount'] ) ) {
-					$entries[] = self::normalise_entry( $row );
-				}
-			}
-		}
+		/*
+		 * Read the raw rows instead of going through the user-meta API: the
+		 * API answers an empty value for a failed query and serves cached
+		 * copies, so neither a broken read nor a stale cache can be told apart
+		 * from "this user has no history". This is the only source the first
+		 * migration has, so it is read from the table.
+		 */
+		// phpcs:ignore WordPress.DB.DirectDatabaseQuery.DirectQuery, WordPress.DB.DirectDatabaseQuery.NoCaching -- One-time history import, read straight from the table.
+		$rows = $wpdb->get_results(
+			$wpdb->prepare(
+				"SELECT meta_key, meta_value FROM {$wpdb->usermeta} WHERE user_id = %d AND meta_key IN ( %s, %s ) ORDER BY umeta_id ASC",
+				(int) $user_id,
+				self::LEDGER_META,
+				self::ENTRY_META
+			),
+			ARRAY_A
+		);
 
 		$error = self::clean_error( (string) $wpdb->last_error );
 
-		if ( '' !== $error ) {
+		if ( '' !== $error || null === $rows ) {
 			// An unreadable history must not look like "no history": that
 			// would migrate nothing and report a zero balance as truth.
 			return new WP_Error(
@@ -1294,9 +1376,35 @@ class AT8_MLUC_Points {
 				sprintf(
 					/* translators: %s: database error message. */
 					__( 'The legacy points history could not be read: %s', 'at8-moonlight-user-center' ),
-					$error
+					'' !== $error ? $error : __( 'unknown database error', 'at8-moonlight-user-center' )
 				)
 			);
+		}
+
+		$entries = array();
+
+		foreach ( (array) $rows as $row ) {
+			$value = maybe_unserialize( $row['meta_value'] );
+
+			if ( self::LEDGER_META === $row['meta_key'] ) {
+				// Older versions kept the whole history in one meta row.
+				if ( ! is_array( $value ) ) {
+					continue;
+				}
+
+				foreach ( $value as $entry ) {
+					if ( is_array( $entry ) && isset( $entry['amount'] ) ) {
+						$entries[] = self::normalise_entry( $entry );
+					}
+				}
+
+				continue;
+			}
+
+			// 2.5.7 – 2.5.9 wrote one meta row per movement.
+			if ( is_array( $value ) && isset( $value['amount'] ) ) {
+				$entries[] = self::normalise_entry( $value );
+			}
 		}
 
 		usort(
@@ -1452,26 +1560,43 @@ class AT8_MLUC_Points {
 	 * ------------------------------------------------------------------ */
 
 	/**
-	 * Open a transaction.
+	 * Open a transaction scope.
 	 *
 	 * If another plugin already has a transaction open, starting our own would
 	 * silently commit theirs, so a savepoint is used instead and only our own
-	 * statements are ever rolled back.
+	 * statements are ever rolled back. When the state cannot be determined the
+	 * call fails instead of guessing: an unknown state must never lead to a
+	 * blind START TRANSACTION.
 	 *
-	 * @return bool Whether the scope was opened.
+	 * @return true|WP_Error
 	 */
 	private static function begin() {
 		if ( '' !== self::$tx_mode ) {
 			// Nested scope: never needed by this class, and silently joining
 			// an outer transaction would make the caller's rollback wrong.
-			return false;
+			return new WP_Error(
+				'at8_mluc_points_tx',
+				__( 'The points update was already inside a transaction scope.', 'at8-moonlight-user-center' )
+			);
 		}
 
-		$mode = self::has_open_transaction() ? 'savepoint' : 'own';
-		$sql  = 'savepoint' === $mode ? 'SAVEPOINT at8_mluc_points_tx' : 'START TRANSACTION';
+		$mode = self::transaction_mode();
+
+		if ( is_wp_error( $mode ) ) {
+			return $mode;
+		}
+
+		$sql = 'savepoint' === $mode ? 'SAVEPOINT ' . self::SAVEPOINT : 'START TRANSACTION';
 
 		if ( ! self::run_sql( $sql ) ) {
-			return false;
+			return new WP_Error(
+				'at8_mluc_points_tx',
+				'savepoint' === $mode
+					/* translators: %s: database error message. */
+					? sprintf( __( 'The points savepoint could not be created: %s', 'at8-moonlight-user-center' ), self::last_error_text() )
+					/* translators: %s: database error message. */
+					: sprintf( __( 'The points transaction could not be started: %s', 'at8-moonlight-user-center' ), self::last_error_text() )
+			);
 		}
 
 		self::$tx_mode = $mode;
@@ -1480,44 +1605,226 @@ class AT8_MLUC_Points {
 	}
 
 	/**
-	 * Commit the current scope. The result decides whether the caller may
-	 * report success.
+	 * Close the current scope.
 	 *
-	 * @return bool Whether the work is durable.
+	 * Releasing a savepoint only hands the work to the outer transaction, so
+	 * the caller still may not call the movement durable.
+	 *
+	 * @return true|WP_Error
 	 */
 	private static function commit() {
+		global $wpdb;
+
 		if ( '' === self::$tx_mode ) {
-			return false;
+			return new WP_Error(
+				'at8_mluc_points_tx',
+				__( 'The points update had no transaction to commit.', 'at8-moonlight-user-center' )
+			);
 		}
 
 		$mode          = self::$tx_mode;
 		self::$tx_mode = '';
 
-		$committed = self::run_sql( 'savepoint' === $mode ? 'RELEASE SAVEPOINT at8_mluc_points_tx' : 'COMMIT' );
+		if ( 'savepoint' === $mode ) {
+			if ( ! self::run_sql( 'RELEASE SAVEPOINT ' . self::SAVEPOINT ) ) {
+				$error = new WP_Error(
+					'at8_mluc_points_tx',
+					/* translators: %s: database error message. */
+					sprintf( __( 'The points savepoint could not be released, so the movement is not confirmed: %s', 'at8-moonlight-user-center' ), self::last_error_text() )
+				);
 
-		if ( ! $committed && 'own' === $mode ) {
+				// The savepoint still exists: undo the movement inside the
+				// caller's transaction instead of leaving it half applied.
+				// phpcs:ignore WordPress.DB.DirectDatabaseQuery.DirectQuery, WordPress.DB.DirectDatabaseQuery.NoCaching, WordPress.DB.PreparedSQL.NotPrepared, PluginCheck.Security.DirectDB.UnescapedDBParameter -- Fixed identifier built in this class.
+				$wpdb->query( 'ROLLBACK TO SAVEPOINT ' . self::SAVEPOINT );
+
+				return self::report_tx_error( $error );
+			}
+
+			return true;
+		}
+
+		if ( ! self::run_sql( 'COMMIT' ) ) {
 			// A refused COMMIT can leave the transaction open; close it so the
 			// rest of the request is not writing inside a phantom transaction.
 			self::run_sql( 'ROLLBACK' );
+
+			return new WP_Error(
+				'at8_mluc_points_tx',
+				/* translators: %s: database error message. */
+				sprintf( __( 'The points update could not be committed: %s', 'at8-moonlight-user-center' ), self::last_error_text() )
+			);
 		}
 
-		return $committed;
+		return true;
 	}
 
 	/**
 	 * Undo the current scope.
 	 *
-	 * @return bool Whether the rollback was accepted.
+	 * @return true|WP_Error
 	 */
 	private static function rollback() {
 		if ( '' === self::$tx_mode ) {
-			return false;
+			return new WP_Error(
+				'at8_mluc_points_tx',
+				__( 'The points update had no transaction to roll back.', 'at8-moonlight-user-center' )
+			);
 		}
 
 		$mode          = self::$tx_mode;
 		self::$tx_mode = '';
 
-		return self::run_sql( 'savepoint' === $mode ? 'ROLLBACK TO SAVEPOINT at8_mluc_points_tx' : 'ROLLBACK' );
+		if ( 'savepoint' === $mode ) {
+			if ( ! self::run_sql( 'ROLLBACK TO SAVEPOINT ' . self::SAVEPOINT ) ) {
+				return self::report_tx_error(
+					new WP_Error(
+						'at8_mluc_points_tx',
+						/* translators: %s: database error message. */
+						sprintf( __( 'The points savepoint could not be rolled back: %s', 'at8-moonlight-user-center' ), self::last_error_text() )
+					)
+				);
+			}
+
+			// The savepoint itself stays behind until it is released; ignoring
+			// a failure here is safe because the outer owner will discard it.
+			self::run_sql( 'RELEASE SAVEPOINT ' . self::SAVEPOINT );
+
+			return true;
+		}
+
+		if ( ! self::run_sql( 'ROLLBACK' ) ) {
+			return self::report_tx_error(
+				new WP_Error(
+					'at8_mluc_points_tx',
+					/* translators: %s: database error message. */
+					sprintf( __( 'The points transaction could not be rolled back: %s', 'at8-moonlight-user-center' ), self::last_error_text() )
+				)
+			);
+		}
+
+		return true;
+	}
+
+	/**
+	 * Make a rollback failure visible: it means the connection may still hold
+	 * half of a movement.
+	 *
+	 * @param WP_Error $error Failure to report.
+	 * @return WP_Error The same error, for chaining.
+	 */
+	private static function report_tx_error( $error ) {
+		/**
+		 * Fires when a transaction could not be finished cleanly.
+		 *
+		 * @since 2.6.3
+		 *
+		 * @param WP_Error $error What went wrong.
+		 */
+		do_action( 'at8_mluc_points_transaction_error', $error );
+
+		if ( defined( 'WP_DEBUG' ) && WP_DEBUG ) {
+			error_log( 'AT8 Moonlight User Center: ' . $error->get_error_message() ); // phpcs:ignore WordPress.PHP.DevelopmentFunctions.error_log_error_log -- Debug-only diagnostics for a transaction that could not be rolled back.
+		}
+
+		return $error;
+	}
+
+	/**
+	 * Which scope this request needs.
+	 *
+	 * @return string|WP_Error 'own' or 'savepoint'.
+	 */
+	private static function transaction_mode() {
+		return self::probe_transaction_state();
+	}
+
+	/**
+	 * Decide whether somebody else already owns a transaction.
+	 *
+	 * Two probes, both harmless:
+	 *
+	 * 1. `SELECT @@in_transaction` — exact on MySQL 5.7.36+ and MariaDB 10.3+.
+	 * 2. A throwaway savepoint — outside a transaction creating it is a no-op
+	 *    and `ROLLBACK TO` is refused, inside one both succeed. It never
+	 *    touches data because nothing was written after the savepoint.
+	 *
+	 * Anything that cannot be decided is an error: starting our own
+	 * transaction blindly would commit somebody else's work.
+	 *
+	 * @return string|WP_Error 'own' or 'savepoint'.
+	 */
+	private static function probe_transaction_state() {
+		global $wpdb;
+
+		$suppress = $wpdb->suppress_errors( true );
+
+		// phpcs:ignore WordPress.DB.DirectDatabaseQuery.DirectQuery, WordPress.DB.DirectDatabaseQuery.NoCaching, WordPress.DB.PreparedSQL.NotPrepared -- Server variable, no user input.
+		$value      = $wpdb->get_var( 'SELECT @@in_transaction' );
+		$value_err  = self::clean_error( (string) $wpdb->last_error );
+
+		if ( '' === $value_err && in_array( (string) $value, array( '0', '1' ), true ) ) {
+			$wpdb->suppress_errors( $suppress );
+
+			return '1' === (string) $value ? 'savepoint' : 'own';
+		}
+
+		$probe = 'at8_mluc_points_probe';
+
+		// phpcs:ignore WordPress.DB.DirectDatabaseQuery.DirectQuery, WordPress.DB.DirectDatabaseQuery.NoCaching, WordPress.DB.PreparedSQL.NotPrepared, PluginCheck.Security.DirectDB.UnescapedDBParameter -- Fixed identifier built in this class.
+		$created       = $wpdb->query( 'SAVEPOINT ' . $probe );
+		$created_error = self::clean_error( (string) $wpdb->last_error );
+
+		if ( false === $created || '' !== $created_error ) {
+			$wpdb->suppress_errors( $suppress );
+
+			return new WP_Error(
+				'at8_mluc_points_tx',
+				sprintf(
+					/* translators: %s: database error message. */
+					__( 'The database transaction state could not be determined: %s', 'at8-moonlight-user-center' ),
+					'' !== $created_error ? $created_error : __( 'savepoints are not available', 'at8-moonlight-user-center' )
+				)
+			);
+		}
+
+		// phpcs:ignore WordPress.DB.DirectDatabaseQuery.DirectQuery, WordPress.DB.DirectDatabaseQuery.NoCaching, WordPress.DB.PreparedSQL.NotPrepared, PluginCheck.Security.DirectDB.UnescapedDBParameter -- Fixed identifier built in this class.
+		$rewound       = $wpdb->query( 'ROLLBACK TO SAVEPOINT ' . $probe );
+		$rewound_error = self::clean_error( (string) $wpdb->last_error );
+
+		if ( false !== $rewound && '' === $rewound_error ) {
+			// A transaction was open. Nothing was written since the savepoint,
+			// so this only removes the probe itself.
+			// phpcs:ignore WordPress.DB.DirectDatabaseQuery.DirectQuery, WordPress.DB.DirectDatabaseQuery.NoCaching, WordPress.DB.PreparedSQL.NotPrepared, PluginCheck.Security.DirectDB.UnescapedDBParameter -- Fixed identifier built in this class.
+			$wpdb->query( 'RELEASE SAVEPOINT ' . $probe );
+			$wpdb->suppress_errors( $suppress );
+
+			return 'savepoint';
+		}
+
+		/*
+		 * The savepoint could not be rolled back to, which is exactly what a
+		 * server without an open transaction answers: the SAVEPOINT was a
+		 * no-op and nothing was changed. A driver that fails this way for
+		 * another reason still lands on "no transaction", so the movement then
+		 * opens its own and stays atomic.
+		 */
+		$wpdb->suppress_errors( $suppress );
+
+		return 'own';
+	}
+
+	/**
+	 * One-line text of the driver error that just happened.
+	 *
+	 * @return string
+	 */
+	private static function last_error_text() {
+		global $wpdb;
+
+		$error = self::clean_error( (string) $wpdb->last_error );
+
+		return '' !== $error ? $error : __( 'unknown database error', 'at8-moonlight-user-center' );
 	}
 
 	/**
@@ -1565,18 +1872,6 @@ class AT8_MLUC_Points {
 	}
 
 	/**
-	 * Error returned when the transaction could not be opened or committed.
-	 *
-	 * @return WP_Error
-	 */
-	private static function tx_error() {
-		return new WP_Error(
-			'at8_mluc_points_tx',
-			__( 'The points update could not be committed. Please try again.', 'at8-moonlight-user-center' )
-		);
-	}
-
-	/**
 	 * Legacy balance of a user, computed without touching the tables.
 	 *
 	 * Used only when the account could not be read or migrated: showing the
@@ -1584,13 +1879,15 @@ class AT8_MLUC_Points {
 	 * nothing.
 	 *
 	 * @param int $user_id User ID.
-	 * @return int
+	 * @return int|WP_Error
 	 */
 	private static function legacy_total( $user_id ) {
+		global $wpdb;
+
 		$entries = self::legacy_entries( $user_id );
 
 		if ( is_wp_error( $entries ) ) {
-			return 0;
+			return $entries;
 		}
 
 		$total = 0;
@@ -1599,15 +1896,35 @@ class AT8_MLUC_Points {
 			$total += (int) $entry['amount'];
 		}
 
-		if ( empty( $entries ) ) {
-			$mirror = get_user_meta( $user_id, self::BALANCE_META, true );
-
-			if ( is_numeric( $mirror ) && (int) $mirror > 0 ) {
-				$total = (int) $mirror;
-			}
+		if ( ! empty( $entries ) ) {
+			return $total;
 		}
 
-		return $total;
+		// Very old installs only stored a balance; read it the same way so a
+		// failed query cannot pass for "no points".
+		// phpcs:ignore WordPress.DB.DirectDatabaseQuery.DirectQuery, WordPress.DB.DirectDatabaseQuery.NoCaching -- Reading one meta row for the fallback total.
+		$mirror = $wpdb->get_var(
+			$wpdb->prepare(
+				"SELECT meta_value FROM {$wpdb->usermeta} WHERE user_id = %d AND meta_key = %s LIMIT 1",
+				(int) $user_id,
+				self::BALANCE_META
+			)
+		);
+
+		$error = self::clean_error( (string) $wpdb->last_error );
+
+		if ( '' !== $error ) {
+			return new WP_Error(
+				'at8_mluc_points_read',
+				sprintf(
+					/* translators: %s: database error message. */
+					__( 'The stored points balance could not be read: %s', 'at8-moonlight-user-center' ),
+					$error
+				)
+			);
+		}
+
+		return is_numeric( $mirror ) && (int) $mirror > 0 ? (int) $mirror : 0;
 	}
 
 	/* ---------------------------------------------------------------------
@@ -1673,7 +1990,14 @@ class AT8_MLUC_Points {
 	 * @return bool
 	 */
 	public static function can_afford( $user_id, $cost ) {
-		return self::balance( $user_id ) >= (int) $cost;
+		$balance = self::balance( $user_id );
+
+		// An unreadable balance is not an affordable one.
+		if ( is_wp_error( $balance ) ) {
+			return false;
+		}
+
+		return $balance >= (int) $cost;
 	}
 
 	/**
@@ -1706,7 +2030,15 @@ class AT8_MLUC_Points {
 		}
 
 		$balance = self::balance( $user->ID );
-		$ledger  = self::ledger( $user->ID, 10 );
+
+		if ( is_wp_error( $balance ) ) {
+			echo '<h2>' . esc_html__( 'Points', 'at8-moonlight-user-center' ) . '</h2>';
+			echo '<p>' . esc_html( $balance->get_error_message() ) . '</p>';
+
+			return;
+		}
+
+		$ledger = self::ledger( $user->ID, 10 );
 		?>
 		<h2><?php esc_html_e( 'Points', 'at8-moonlight-user-center' ); ?></h2>
 		<table class="form-table" role="presentation">

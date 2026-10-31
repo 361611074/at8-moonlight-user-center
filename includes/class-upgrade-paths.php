@@ -176,13 +176,18 @@ class AT8_MLUC_Upgrade_Paths {
 	public static function render_points_card( $levels, $user_id ) {
 		$balance = AT8_MLUC_Points::balance( $user_id );
 		$label   = AT8_MLUC_Points::label();
+
+		// An unreadable balance is shown as such, never as a confident zero.
+		$amount = is_wp_error( $balance )
+			? __( 'temporarily unavailable', 'at8-moonlight-user-center' )
+			: AT8_MLUC_Points::format( $balance );
 		?>
 		<p class="at8-mluc-redeem-balance">
 			<?php
 			printf(
 				/* translators: 1: formatted balance, 2: point unit name. */
 				esc_html__( 'Your balance: %1$s', 'at8-moonlight-user-center' ),
-				'<strong>' . esc_html( AT8_MLUC_Points::format( $balance ) ) . '</strong>'
+				'<strong>' . esc_html( $amount ) . '</strong>'
 			);
 			?>
 		</p>

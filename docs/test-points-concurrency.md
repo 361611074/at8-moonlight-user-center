@@ -303,3 +303,87 @@ COMMIT;
 | Plugin Check 2.1.0（ZIP 解压扫描） | **0 ERROR / 25 WARNING**（与基线一致） |
 | 升级 2.6.1 → 2.6.2 | 覆盖安装后版本 2.6.2，全部套件重跑通过 |
 | MySQL/InnoDB 实机、PHP 7.4 实机、多站点 | **NOT RUN** |
+
+---
+
+# 2.6.3 补充：事务边界、外部事务兼容与余额读取
+
+- 日期：2026-10-31
+- 任务书：《AT8 Moonlight User Center 2.6.2 → 2.6.3 精准整改》
+- 交付 ZIP：`at8-moonlight-user-center-2.6.3.zip`（50 文件 / 173,616 B / SHA-256 `10d2d8fa45f3efd471435be3c43c07b165d22e8768082e66cb8bedd533765767`）
+- 测试脚本：`docs/tests/transaction_test.php`（45 断言）
+
+## 一、先纠正一个此前写错的前提
+
+2.6.0 的报告里写过"SQLite 的 SAVEPOINT 会自动开启事务"。**这个说法对本项目实际使用的 SQLite 集成不成立**：它按 MySQL 语义实现，事务外执行 `SAVEPOINT` 是空操作，随后 `RELEASE SAVEPOINT` 直接报 `1305 SAVEPOINT ... does not exist`。实测证据：事务外 `SAVEPOINT` → 返回 0 无错误；`RELEASE SAVEPOINT` → false + 1305。
+
+所以 2.6.3 不依赖这个假设，改为**先探测、再决定**。
+
+## 二、P1-01：`has_open_transaction()` 改造为可判定的事务状态
+
+旧实现只看 `@@in_transaction`，查询失败时返回 false（= 没有外部事务），正是任务书指出的"把失败当成没有外部事务"。
+
+新实现 `probe_transaction_state()` 两级探测：
+
+| 步骤 | 做法 | 结论 |
+|---|---|---|
+| 1 | `SELECT @@in_transaction` 返回 0 / 1 且无错误 | 直接采用（MySQL 5.7.36+ / MariaDB 10.3+ 精确） |
+| 2 | 否则用一次性 SAVEPOINT 探测：`SAVEPOINT x` → `ROLLBACK TO SAVEPOINT x` | 能回滚 = **在事务中** → `savepoint` 模式；报错 = **无事务** → `own` 模式（SAVEPOINT 本身就是空操作，未改动任何数据） |
+| 3 | 两级都拿不到答案（SAVEPOINT 都建不出来） | 返回 `WP_Error('at8_mluc_points_tx')`，**不写入** |
+
+这样既满足"查询结果为 NULL 或无法识别时必须返回明确错误"（第 3 级），也不会因为 SQLite 不支持 `@@in_transaction` 而把整个插件判死（第 2 级兜底），且**任何情况下都不会盲目 `START TRANSACTION`**——那会隐式提交别人的事务。
+
+## 三、P1-02：事务生命周期
+
+| 要求 | 实现 |
+|---|---|
+| 自己的事务自己提交/回滚 | `begin()` 记录 `$tx_mode`（own / savepoint），`commit()`/`rollback()` 按模式走不同语句 |
+| 外部事务必须用 SAVEPOINT | 探测到在事务中即走 `SAVEPOINT at8_mluc_points_tx` |
+| SAVEPOINT 创建失败必须终止 | `begin()` 返回 `WP_Error`，调用方立即返回，零写入 |
+| RELEASE 失败必须返回错误 | 返回 `at8_mluc_points_tx`，并**补一次 `ROLLBACK TO SAVEPOINT`** 撤销本次变动，避免留下半笔 |
+| ROLLBACK TO 失败必须记录明确错误 | 触发 `at8_mluc_points_transaction_error` 动作 + `WP_DEBUG` 下写 error_log |
+| 外部事务未提交时不得宣称已持久化 | savepoint 模式：**不写 usermeta 镜像**（缓存会活过回滚）、**不触发 `at8_mluc_points_adjusted`**，改发 `at8_mluc_points_adjusted_deferred` |
+| 成功钩子与镜像同步时机 | 同上，只在 own 模式下执行 |
+| 外部事务回滚不得留下镜像/副作用 | `grant_for_order()` 的 `_at8_mluc_points_awarded` 快路径标记在 deferred 模式下也跳过（否则缓存会残留"已发放"） |
+
+## 四、P2-01：余额读取
+
+- `balance()` 改为返回 `int|WP_Error`：账户读失败 → 回落旧 meta；旧 meta 也读失败 → **返回 WP_Error，不再返回 0**。
+- `can_afford()` 读不到余额时返回 false（不能确认就不放行兑换）。
+- 账户页积分显示：读失败显示 `—`；兑换卡显示 "temporarily unavailable"；后台用户编辑页显示错误信息而不是 0。
+- `legacy_entries()` 改为**直接查 usermeta 表**（此前走 meta API，失败与空值无法区分，且会拿到缓存副本）；`legacy_total()` 同样直接读，失败返回 WP_Error。
+
+## 五、任务书要求的 12 项测试
+
+| # | 场景 | 结果 |
+|---|---|---|
+| 1 | 正常独立事务加分 | **PASS**（+40，1 行，镜像写入） |
+| 2 | 正常独立事务扣分 | **PASS**（-15 → 25，2 行，余额=流水合计） |
+| 3 | 外部事务中执行积分操作 | **PASS**（外层事务内 +10 生效于事务内；只触发 deferred，不触发 confirmed；镜像未写） |
+| 4 | 外部事务最终 COMMIT | **PASS**（提交后 35 分、3 行、余额一致） |
+| 5 | 外部事务最终 ROLLBACK | **PASS**（回到 35、3 行、镜像未被污染、confirmed 动作未触发） |
+| 6 | `SELECT @@in_transaction` 查询失败 | **PASS**（回落到 SAVEPOINT 探测仍正确加分；两级探测都失败时返回 `at8_mluc_points_tx` 且零写入） |
+| 7 | SAVEPOINT 创建失败 | **PASS**（返回事务错误，余额不变） |
+| 8 | RELEASE SAVEPOINT 失败 | **PASS**（返回未确认错误、触发 transaction_error、本次变动被撤销、无多余流水） |
+| 9 | ROLLBACK TO SAVEPOINT 失败 | **PASS**（报错并触发 transaction_error；外层回滚后余额不变） |
+| 10 | 旧版 usermeta 查询失败 | **PASS**（`balance()` 返回 `at8_mluc_points_read` 而不是 0；未发生迁移；恢复后正常迁移 7 分） |
+| 11 | reconcile 与 adjust 并发执行 | **PASS**（5 轮交替，0 失败，150 = 流水合计） |
+| 12 | 同一订单 10 次回调 | **PASS**（只发 20 分、1 条流水） |
+
+真实多进程并发（10 进程）在 `concurrency_test.php`：**54/0**，其中场景 4 就是 10 个进程同时打同一订单。
+
+## 六、回归
+
+| 套件 | 结果 |
+|---|---|
+| `transaction_test.php`（本轮新增） | 45 / 0 |
+| `db_safety_test.php` | 47 / 0 |
+| `migration_test.php` | 41 / 0 |
+| `atomicity_test.php` | 32 / 0 |
+| `concurrency_test.php`（10 场景，真实进程） | 54 / 0 |
+| `v4_matrix_test.php` | 50 / 0 |
+| Free 独立 `reg_test.php` | 76 / 0 |
+| Free + Pro `pro_test.php` | 64 / 0 |
+| `php -l` 全量（40 文件） | 0 失败 |
+| Plugin Check 2.1.0（ZIP 解压扫描） | **0 ERROR / 25 WARNING**（与基线一致） |
+| MySQL/InnoDB 实机、PHP 7.4 实机、多站点 | **NOT RUN** |
