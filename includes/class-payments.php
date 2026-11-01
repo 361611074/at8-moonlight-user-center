@@ -266,6 +266,7 @@ class AT8_MLUC_Payments {
 	public static function claim_order( $order_id ) {
 		global $wpdb;
 
+		// phpcs:ignore WordPress.DB.DirectDatabaseQuery.DirectQuery, WordPress.DB.DirectDatabaseQuery.NoCaching -- 原子认领：meta API 无法表达"仍为 pending 才改成 paid"，先读后写在并发回调下会双认领。
 		$claimed = $wpdb->query(
 			$wpdb->prepare(
 				"UPDATE {$wpdb->postmeta} SET meta_value = 'paid' WHERE post_id = %d AND meta_key = '_at8_mluc_pay_status' AND meta_value = 'pending'",
@@ -375,6 +376,7 @@ class AT8_MLUC_Payments {
 						'before' => gmdate( 'Y-m-d H:i:s', time() - $hours * HOUR_IN_SECONDS ),
 					),
 				),
+				// phpcs:ignore WordPress.DB.SlowDBQuery.slow_db_query_meta_query -- 每次最多 100 单、只查一种状态，走 postmeta 索引。
 				'meta_query'     => array(
 					array(
 						'key'   => '_at8_mluc_pay_status',
@@ -387,6 +389,7 @@ class AT8_MLUC_Payments {
 		foreach ( $order_ids as $order_id ) {
 			global $wpdb;
 
+			// phpcs:ignore WordPress.DB.DirectDatabaseQuery.DirectQuery, WordPress.DB.DirectDatabaseQuery.NoCaching -- 同上：条件更新保证每笔订单只会被关闭一次。
 			$claimed = $wpdb->query(
 				$wpdb->prepare(
 					"UPDATE {$wpdb->postmeta} SET meta_value = 'cancelled' WHERE post_id = %d AND meta_key = '_at8_mluc_pay_status' AND meta_value = 'pending'",
@@ -426,6 +429,7 @@ class AT8_MLUC_Payments {
 				'orderby'        => 'date',
 				'order'          => 'DESC',
 				'fields'         => 'ids',
+				// phpcs:ignore WordPress.DB.SlowDBQuery.slow_db_query_meta_query -- 单个用户、条数受 $limit 限制，走 postmeta 索引。
 				'meta_query'     => array(
 					array(
 						'key'     => '_at8_mluc_pay_user',

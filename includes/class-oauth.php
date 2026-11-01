@@ -230,9 +230,8 @@ class AT8_MLUC_OAuth
 			return;
 		}
 		// 优先采用当前页面传入的 redirect_to（如登录页 ?redirect_to=...），保证登录后回原处
-		// phpcs:ignore WordPress.Security.NonceVerification.Recommended -- Read-only: forwards the current page's redirect_to into the provider auth URL.
-		if (!$redirect_to && !empty($_GET['redirect_to'])) {
-			$redirect_to = esc_url_raw(wp_unslash($_GET['redirect_to']));
+		if (!$redirect_to) {
+			$redirect_to = $this->requested_redirect();
 		}
 		echo '<div class="at8-mluc-oauth">';
 		echo '<div class="at8-mluc-oauth-divider"><span>' . esc_html__('或使用第三方账号登录', 'at8-moonlight-user-center') . '</span></div>';
@@ -290,6 +289,93 @@ class AT8_MLUC_OAuth
 	}
 
 	/**
+	 * 读取当前页面要求登录后返回的地址。
+	 *
+	 * 只用于拼本站跳转地址：值经 esc_url_raw() 过滤，非法地址变成空串。
+	 *
+	 * @return string
+	 */
+	private function requested_redirect()
+	{
+		// phpcs:ignore WordPress.Security.NonceVerification.Recommended -- 只读跳转目标；值经 esc_url_raw() 过滤，不写入任何数据。
+		$requested = isset($_GET['redirect_to']) ? esc_url_raw(wp_unslash($_GET['redirect_to'])) : '';
+
+		return (string) $requested;
+	}
+
+	/**
+	 * 读取第三方回传的一个参数。
+	 *
+	 * 这里无法使用 WordPress nonce：浏览器是从第三方域名跳回来的，那个域名
+	 * 并不知道本站的 nonce。真正的 CSRF 凭据是 state —— 由本站生成、存进
+	 * transient 并绑定当前会话，在使用下面任何值之前先校验（见
+	 * maybe_handle_callback()）。Apple 用 form_post 回传，所以 GET / POST
+	 * 两处都读，且只在这一处读。
+	 *
+	 * @param string $name 参数名。
+	 * @return string 已清洗的值，缺省为空串。
+	 */
+	private function callback_param($name)
+	{
+		// phpcs:ignore WordPress.Security.NonceVerification.Recommended, WordPress.Security.ValidatedSanitizedInput.InputNotSanitized -- 第三方回调；CSRF 由 state 参数校验，值在方法末尾统一 sanitize_text_field()。
+		$value = isset($_GET[$name]) ? wp_unslash($_GET[$name]) : null;
+
+		if (null === $value) {
+			// phpcs:ignore WordPress.Security.NonceVerification.Missing, WordPress.Security.ValidatedSanitizedInput.InputNotSanitized -- 第三方回调（Apple 用表单 POST）；CSRF 由 state 参数校验，值在方法末尾统一 sanitize_text_field()。
+			$value = isset($_POST[$name]) ? wp_unslash($_POST[$name]) : null;
+		}
+
+		return null === $value ? '' : sanitize_text_field((string) $value);
+	}
+
+	/**
+	 * 读取 Apple 一次性回传的姓名对象。
+	 *
+	 * @return string[] [firstName, lastName]，缺失项为空串。
+	 */
+	private function callback_user_names()
+	{
+		// phpcs:ignore WordPress.Security.NonceVerification.Missing, WordPress.Security.ValidatedSanitizedInput.InputNotSanitized -- 第三方回调；数组的每个元素在下一行单独清洗。
+		$user = isset($_POST['user']) && is_array($_POST['user']) ? wp_unslash($_POST['user']) : array();
+
+		$first = isset($user['firstName']) ? sanitize_text_field((string) $user['firstName']) : '';
+		$last  = isset($user['lastName']) ? sanitize_text_field((string) $user['lastName']) : '';
+
+		return array($first, $last);
+	}
+
+	/**
+	 * 已绑定某个第三方账号的用户。
+	 *
+	 * 直接查 usermeta：这是一个按值取单条记录的查找，每次社交登录都会走，
+	 * 用一条走索引的语句比"整表用户查询 + meta 过滤"更快，也不需要把
+	 * 结果集取回内存。
+	 *
+	 * @param string $meta_key 绑定用的 meta 键。
+	 * @param string $value    第三方账号 ID。
+	 * @return int 用户 ID，未绑定返回 0。
+	 */
+	private static function find_bound_user($meta_key, $value)
+	{
+		global $wpdb;
+
+		$value = (string) $value;
+
+		if ('' === $value) {
+			return 0;
+		}
+
+		// phpcs:ignore WordPress.DB.DirectDatabaseQuery.DirectQuery, WordPress.DB.DirectDatabaseQuery.NoCaching -- 按 meta 值取单条记录，meta API 无法在不拉整批用户的情况下做到。
+		return (int) $wpdb->get_var(
+			$wpdb->prepare(
+				"SELECT user_id FROM {$wpdb->usermeta} WHERE meta_key = %s AND meta_value = %s LIMIT 1",
+				$meta_key,
+				$value
+			)
+		);
+	}
+
+	/**
 	 * 回调处理：?at8_mluc_oauth=provider&code=...&state=...
 	 * Apple 在某些配置下以 form_post 回传，故 code/state 同时兼容 GET 与 POST。
 	 *
@@ -299,7 +385,7 @@ class AT8_MLUC_OAuth
 	// phpcs:ignore WordPress.Security.NonceVerification.Missing -- Third-party OAuth callback; CSRF is covered by the state transient + cookie pair below.
 	public function maybe_handle_callback()
 	{
-		$id = isset($_GET['at8_mluc_oauth']) ? sanitize_key(wp_unslash($_GET['at8_mluc_oauth'])) : '';
+		$id = sanitize_key($this->callback_param('at8_mluc_oauth'));
 		if (!$id) {
 			return;
 		}
@@ -309,14 +395,14 @@ class AT8_MLUC_OAuth
 		}
 
 		// 用户取消授权（各平台回传 error 参数）
-		$error = isset($_GET['error']) ? sanitize_text_field(wp_unslash($_GET['error'])) : (isset($_POST['error']) ? sanitize_text_field(wp_unslash($_POST['error'])) : '');
+		$error = $this->callback_param('error');
 		if ($error) {
 			$this->oauth_fail('cancelled', __('已取消授权，请重试或使用其他方式登录。', 'at8-moonlight-user-center'));
 		}
 
 		// 兼容 GET（多数平台）与 POST（Apple form_post）两种回传方式
-		$code  = isset($_GET['code']) ? sanitize_text_field(wp_unslash($_GET['code'])) : (isset($_POST['code']) ? sanitize_text_field(wp_unslash($_POST['code'])) : '');
-		$state = isset($_GET['state']) ? sanitize_text_field(wp_unslash($_GET['state'])) : (isset($_POST['state']) ? sanitize_text_field(wp_unslash($_POST['state'])) : '');
+		$code  = $this->callback_param('code');
+		$state = $this->callback_param('state');
 
 		$st = $state ? get_transient('at8_mluc_oauth_state_' . $state) : null;
 		if (!$code || !$state || !is_array($st) || empty($st['provider']) || $st['provider'] !== $id) {
@@ -506,9 +592,7 @@ class AT8_MLUC_OAuth
 				$profile['email'] = isset($payload['email']) ? $payload['email'] : '';
 				// Apple 私邮中继域名不做邮箱匹配，避免与其它账户误绑
 				$profile['email_verified'] = !empty($profile['email']) && false === strpos($profile['email'], '@privaterelay.appleid.com');
-				$profile['name']  = isset($_POST['user']) && is_array($_POST['user'])
-					? trim(sanitize_text_field(wp_unslash($_POST['user']['firstName'] ?? '')) . ' ' . sanitize_text_field(wp_unslash($_POST['user']['lastName'] ?? '')))
-					: '';
+				$profile['name']  = trim(implode(' ', $this->callback_user_names()));
 				if (empty($profile['name'])) {
 					$profile['name'] = $profile['email'] ? strtok($profile['email'], '@') : __('Apple 用户', 'at8-moonlight-user-center');
 				}
@@ -541,9 +625,9 @@ class AT8_MLUC_OAuth
 		}
 
 		// 按 provider_id 查找已有绑定
-		$users = get_users(array('meta_key' => $meta_key, 'meta_value' => $profile['provider_id'], 'number' => 1));
-		if (!empty($users)) {
-			$this->do_login($users[0]->ID, $profile, $redirect_to);
+		$bound_user = self::find_bound_user($meta_key, $profile['provider_id']);
+		if ($bound_user) {
+			$this->do_login($bound_user, $profile, $redirect_to);
 		}
 
 		// 按邮箱查找：仅当第三方已验证该邮箱归属时才自动登录既有账户，

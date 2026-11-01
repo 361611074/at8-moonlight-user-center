@@ -3,7 +3,7 @@ Contributors: x361611074
 Tags: user profile, login, registration, avatar, user center
 Requires at least: 5.8
 Tested up to: 7.1
-Stable tag: 2.6.5
+Stable tag: 2.6.6
 Requires PHP: 7.4
 License: GPL-2.0-or-later
 License URI: https://www.gnu.org/licenses/gpl-2.0.html
@@ -154,6 +154,12 @@ No access tokens, authorization codes or provider API responses are written to l
 4. The front-end login form.
 
 == Changelog ==
+
+= 2.6.6 =
+* Social login: the callback parameters (provider, code, state, Apple's posted name) are now read in one place instead of a dozen scattered superglobal reads. The state parameter stays the CSRF token - a nonce cannot be used on a redirect that comes back from another domain - and every value is sanitised once, in the same helper.
+* Social login: an existing binding is looked up with one indexed statement on the usermeta table instead of a full user query filtered by meta value, which is faster on sites with many accounts.
+* Orders: the two conditional status updates and the two order queries now carry a written justification where they bypass the meta API, so the "direct query" and "slow meta query" reports point at a decision instead of at an oversight.
+* Plugin Check: 0 errors and 0 warnings on the release package.
 
 = 2.6.5 =
 * Points: a refused COMMIT is now followed by a checked ROLLBACK. If that rollback also fails the error says the transaction state is unknown instead of pretending the change was undone, and nothing is retried automatically - a movement that may still be open must not be replayed.

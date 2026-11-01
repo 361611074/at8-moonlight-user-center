@@ -585,3 +585,56 @@ COMMIT;
 | Plugin Check 2.1.0（ZIP 解压扫描） | **0 ERROR / 25 WARNING** |
 | 升级 2.6.4 → 2.6.5 | 余额 100→100、流水 2→2、幂等键保留、重发不变、升级后变动 105、`reconcile` 105 且一致 |
 | **真实 MySQL/MariaDB 环境** | **未执行**（本机为 SQLite 的 MySQL 语义兼容层，无 mysqld）；`@@in_transaction` 主路径、真实死锁、行锁隔离级别仍需真机复核 |
+
+---
+
+# 2.6.6 补充：Plugin Check 警告清零（0 ERROR / 0 WARNING）
+
+- 日期：2026-11-01
+- 触发：后台 Plugin Check 报表（2.6.5，25 WARNING，集中在 class-oauth.php 21 条、class-payments.php 4 条）
+- 交付 ZIP：`at8-moonlight-user-center-2.6.6.zip`（50 文件 / 179,250 B / SHA-256 `9c515975c876bc5bf8eed81b5032b2955b68b4165725efe0828e1cd97f13706d`）
+
+## 一、25 条警告的构成与处置
+
+| 文件 | 条数 | 代码 | 处置 |
+|---|---|---|---|
+| class-oauth.php | 19 | `NonceVerification.Recommended/Missing` | **重构**：回调参数统一由 `callback_param()` 读取、Apple 姓名由 `callback_user_names()` 读取、跳转地址由 `requested_redirect()` 读取；调用处不再出现超全局变量 |
+| class-oauth.php | 2 | `SlowDBQuery.slow_db_query_meta_key/meta_value` | **重构**：按 provider id 查找绑定改为 `usermeta` 上的一条索引查询（`find_bound_user()`），不再走"整批用户查询 + meta 过滤" |
+| class-payments.php | 2 | `DirectDatabaseQuery.DirectQuery` | **保留 + 写明理由**：状态流转必须是条件更新（`meta_value='pending'` 才改），先读后写在并发回调下会双认领，meta API 无法表达 |
+| class-payments.php | 2 | `SlowDBQuery.slow_db_query_meta_query` | **保留 + 写明理由**：一处每次最多 100 单、一处单个用户且条数受 `$limit` 限制，均走 postmeta 索引 |
+
+结论：19 + 2 条通过**改代码**消除；4 条是 WP_Query / 原子条件更新的固有形态，保留并逐处注明理由（不是用注释掩盖，而是说明为什么必须这样写）。
+
+## 二、过程中确认的两条 PCP 行为（影响后续所有清理）
+
+1. **`phpcs:ignore` 确实有效**，但只对**赋值语句所在行**可靠；写在 `if (...)` / `elseif` 条件行的上一行时**不会生效**（2.6.5 里 19 条警告的真正原因就是这些 ignore 都贴在条件行上）。
+2. **PCP 必须对"ZIP 解压目录"运行，不能对仓库目录运行**——仓库里的 `docs/tests/*.php`、`.gitignore` 会被一起扫描，凭空多出 200+ 条（含 ERROR）。`sync_local.py` 会把 `docs/` 同步进测试站，所以对测试站目录跑也会失真。
+
+## 三、行为验证（重构后的针对性测试）
+
+`oauth_refactor_test.php`（22 断言，未随包发布，放在 `_tools`）：
+
+- `callback_param()`：GET 优先于 POST、值被 trim、缺省空串、标记被剥离、纯值不变
+- `callback_user_names()`：两个字段读取与清洗、缺项为空、非数组载荷不报警、标记被剥离
+- `requested_redirect()`：合法地址保留、`javascript:` 被丢弃、缺省空串
+- `find_bound_user()`：命中用户、未知 id 返回 0、provider 键不匹配返回 0、空值不查询、**引号注入无效**（`x' OR '1'='1` 返回 0）、重复查询稳定、解绑后返回 0
+
+## 四、回归
+
+| 套件 | 结果 |
+|---|---|
+| `oauth_refactor_test.php`（新增） | 22 / 0 |
+| `final_checklist_test.php`（OAuth state 重放/跨身份） | 6 / 0 |
+| `tx_final_test.php` | 114 / 0 |
+| `tx_boundary_test.php` | 58 / 0 |
+| `transaction_test.php` | 45 / 0 |
+| `db_safety_test.php` | 47 / 0 |
+| `migration_test.php` | 41 / 0 |
+| `atomicity_test.php` | 32 / 0 |
+| `concurrency_test.php`（10 场景，10 进程） | 54 / 0 |
+| `v4_matrix_test.php` | 50 / 0 |
+| Free 独立 `reg_test.php` | 76 / 0 |
+| Free + Pro `pro_test.php` | 64 / 0 |
+| `php -l`（40 文件） | 0 失败 |
+| **Plugin Check 2.1.0（ZIP 解压扫描）** | **0 ERROR / 0 WARNING** |
+| 升级 2.6.5 → 2.6.6 | 余额 50→50、流水 1→1、幂等键保留、OAuth 绑定可查、`verify_balance` 通过、升级后变动 55 |
