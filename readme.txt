@@ -3,7 +3,7 @@ Contributors: x361611074
 Tags: user profile, login, registration, avatar, user center
 Requires at least: 5.8
 Tested up to: 7.1
-Stable tag: 2.6.4
+Stable tag: 2.6.5
 Requires PHP: 7.4
 License: GPL-2.0-or-later
 License URI: https://www.gnu.org/licenses/gpl-2.0.html
@@ -154,6 +154,12 @@ No access tokens, authorization codes or provider API responses are written to l
 4. The front-end login form.
 
 == Changelog ==
+
+= 2.6.5 =
+* Points: a refused COMMIT is now followed by a checked ROLLBACK. If that rollback also fails the error says the transaction state is unknown instead of pretending the change was undone, and nothing is retried automatically - a movement that may still be open must not be replayed.
+* Points: every migration failure path closes its scope the same way and checks the result. A history that could not be imported is never reported as partly imported: either the whole import is rolled back or the caller is told the state is unknown.
+* Points: all transaction failures carry the same structured data - operation, failure, transaction state, the original error, the rollback error, the user and the context - so a caller can tell "failed and rolled back" from "failed and unknown". Driver text stays out of the message shown to visitors and is recorded with the report instead.
+* Points: the savepoint probe now needs two independent signals before it concludes that no transaction is open, and it checks creating, rewinding and releasing the probe. Any statement it cannot verify ends as an error rather than as an assumption.
 
 = 2.6.4 =
 * Points: an undeterminable transaction state is now an error instead of an assumption. The savepoint probe only accepts the documented "that savepoint does not exist" answer (1305 / SQLSTATE 3B001) as proof that no transaction is open; a savepoint that cannot be created, or one that cannot be rewound for any other reason, aborts the movement before anything is written.

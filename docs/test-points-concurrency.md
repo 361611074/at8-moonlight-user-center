@@ -486,3 +486,102 @@ COMMIT;
 | Plugin Check 2.1.0（ZIP 解压扫描） | **0 ERROR / 25 WARNING**（与基线一致） |
 | 升级 2.6.3 → 2.6.4 | 余额 65→65、流水 2→2、`verify_balance` 通过、升级后新增变动 70、`reconcile` 70 且一致 |
 | MySQL/InnoDB 实机（`@@in_transaction` 主路径、真实死锁）、PHP 7.4 实机、多站点 | **NOT RUN** |
+
+---
+
+# 2.6.5 补充：事务失败分类、迁移回滚校验、SAVEPOINT 双信号探测
+
+- 日期：2026-11-01
+- 任务书：《AT8 Moonlight User Center 2.6.5 WordPress.org 官方终审整改任务书》
+- 交付 ZIP：`at8-moonlight-user-center-2.6.5.zip`（50 文件 / 177,510 B / SHA-256 `a5b24600e7f1c5be56287943b7531cf8f2fc78ca56acd6a3f2fbeb8aa3d0423a`）
+- 新增测试：`docs/tests/tx_final_test.php`（114 断言）
+
+## 一、P1-01：COMMIT 失败后的 ROLLBACK 检查
+
+`commit()` 原实现在 COMMIT 失败后无条件 `run_sql('ROLLBACK')`，不看结果。现在：
+
+| 情况 | 处理 | 返回 |
+|---|---|---|
+| COMMIT 成功 | — | `true` |
+| COMMIT 失败，ROLLBACK 成功 | 记录 COMMIT 原始错误；`transaction_state = rolled_back`；不触发成功钩子；不写镜像 | `WP_Error('at8_mluc_points_tx')`，`failure = commit_failed` |
+| COMMIT 失败，ROLLBACK 失败 | 同时记录两个错误；`transaction_state = unknown`；`failure = transaction_state_unknown`；调用 `report_tx_error()` | 同上，并明确"状态未知、不自动重试" |
+
+`adjust()` / `migrate_user()` / `reconcile()` 在 `commit()` 返回错误时直接返回，**不重试**——状态未知时重放可能重复入账。测试用「COMMIT 语句被改写为必失败」实测：COMMIT 只执行 1 次。
+
+## 二、P1-02：migrate_user() 全部失败路径
+
+四处失败分支（账户行创建、任一条历史流水、开户余额流水、余额写入）全部改走 `fail_migration()`：
+
+```
+失败 → rollback()
+     ├─ 回滚成功 → 返回原始错误（业务失败照旧，如 at8_mluc_points_save / at8_mluc_points_schema）
+     └─ 回滚失败 → 返回 transaction_state_unknown，同时携带 original_error + rollback_error
+```
+
+迁移的"全或无"再次实测：断掉第 1 条 / 中间一条 / 最后一条流水 → 已写入的行**一并消失**、账户行不存在、旧 meta 一条不删；恢复后重试完整导入且余额 == 流水合计。
+
+## 三、P1-03：统一的事务错误结构
+
+所有事务错误统一为 `WP_Error('at8_mluc_points_tx')`，`get_error_data()` 固定包含：
+
+| 字段 | 说明 |
+|---|---|
+| `operation` | begin / commit / rollback / release / probe / migrate |
+| `failure` | begin_failed / commit_failed / rollback_failed / release_failed / transaction_state_unknown |
+| `transaction_state` | committed / rolled_back / unknown |
+| `original_error` | 最初 SQL 或业务错误（清洗后 200 字符） |
+| `rollback_error` | 回滚失败原因 |
+| `user_id` | 涉及用户 |
+| `context` | adjust / migrate / reconcile / probe |
+
+**驱动原文不再进入面向用户的消息**，只进错误数据与 `WP_DEBUG` 日志；日志只记录上述结构，不含 SQL 参数、密码、OAuth token 等敏感值；日志写入失败不会影响返回值。`at8_mluc_points_transaction_error` 动作新增第二个参数（结构数组），旧的一参回调不受影响。
+
+## 四、P2-01：SAVEPOINT 全生命周期 + 探针双信号
+
+- 创建、`ROLLBACK TO`、`RELEASE` 三处全部检查结果。
+- `commit()`：RELEASE 失败 → 回滚到 SAVEPOINT（检查结果）。回滚成功但残留标记释放失败 → 同一条报告里带上 `release_error`（不产生第二条报告）；回滚也失败 → `unknown` + 明确"外层事务可能仍含未确认变动"。
+- `rollback()`：`ROLLBACK TO` 失败 → `unknown`；成功后释放标记，释放失败单独上报但不改变"已撤销"的事实。
+- **探测不再依赖单一错误码**：`@@in_transaction` 不可用时，要求两个独立信号一致——`ROLLBACK TO probe` 报"不存在" **且** `RELEASE probe` 也报"不存在"，才判定"无事务"。若回滚报不存在而释放成功（矛盾），或任一环节出现其他错误，一律 fail-closed 返回错误。探测失败时先尝试清除探针再返回。
+
+## 五、任务书 A–E 测试（`tx_final_test.php`，114 断言）
+
+| 组 | 覆盖 | 结果 |
+|---|---|---|
+| A COMMIT | 正常 / COMMIT 失败 / COMMIT+ROLLBACK 双失败 / 无成功钩子 / 无镜像 / 不重试（COMMIT 仅 1 次）/ 未知后连接仍可用 | **PASS** |
+| B ROLLBACK | 普通失败+回滚成功（保留业务错误码）/ 回滚失败（tx + unknown + 双错误） | **PASS** |
+| C migrate_user | 正常 / 重复迁移 / 账户初始化失败 / 首条·中间·最后一条流水失败 / 开户余额失败 / COMMIT 失败 / ROLLBACK 失败 / 两次读取并发迁移 / 余额==流水 | **PASS** |
+| D SAVEPOINT | 外层事务内加分（deferred）/ **插件从不发 COMMIT·ROLLBACK**、只用自有 savepoint / 创建失败 / RELEASE 失败 / RELEASE+回滚双失败 | **PASS** |
+| E 业务回归 | 加分 / 扣分 / 透支拒绝 / 同幂等键重复 / reconcile 正常 / reconcile 读失败不清零 | **PASS** |
+
+## 六、WordPress 审核项自查
+
+| 项 | 结果 |
+|---|---|
+| AJAX 处理器（11 个）/ nonce | 全部 `check_ajax_referer`（13 处） |
+| 能力检查 | 21 处 `current_user_can` / 登录与节流守卫 |
+| 输出转义 | 502 处 esc_* / wp_kses |
+| SQL 参数化 | 未参数化的仅为事务控制语句与 `{$wpdb->prefix}` 拼接（无用户输入） |
+| 任意文件写入 | 0 处 |
+| readme 头 | Contributors x361611074 / Requires 5.8 / Tested up to 7.1（实机 WP 7.1.3）/ Requires PHP 7.4 / License GPL-2.0-or-later + URI |
+| 主文件头 | Version 2.6.5 / Text Domain at8-moonlight-user-center / Domain Path /languages |
+| Uninstall | `delete_data` 开关；开启时仅删本插件 option/meta/两张表，核心数据不动 |
+| 外部服务披露 / 隐私 | readme External services + 隐私导出/擦除覆盖积分表 |
+
+## 七、回归
+
+| 套件 | 结果 |
+|---|---|
+| `tx_final_test.php`（新增） | 114 / 0 |
+| `tx_boundary_test.php` | 58 / 0 |
+| `transaction_test.php` | 45 / 0 |
+| `db_safety_test.php` | 47 / 0 |
+| `migration_test.php` | 41 / 0 |
+| `atomicity_test.php` | 32 / 0 |
+| `concurrency_test.php`（10 场景，真实 10 进程） | 54 / 0 |
+| `v4_matrix_test.php` | 50 / 0 |
+| Free 独立 `reg_test.php` | 76 / 0 |
+| Free + Pro `pro_test.php` | 64 / 0 |
+| `php -l`（40 文件） | 0 失败 |
+| Plugin Check 2.1.0（ZIP 解压扫描） | **0 ERROR / 25 WARNING** |
+| 升级 2.6.4 → 2.6.5 | 余额 100→100、流水 2→2、幂等键保留、重发不变、升级后变动 105、`reconcile` 105 且一致 |
+| **真实 MySQL/MariaDB 环境** | **未执行**（本机为 SQLite 的 MySQL 语义兼容层，无 mysqld）；`@@in_transaction` 主路径、真实死锁、行锁隔离级别仍需真机复核 |

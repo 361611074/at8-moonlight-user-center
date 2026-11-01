@@ -98,6 +98,15 @@ class AT8_MLUC_Points {
 	const PROBE_SAVEPOINT = 'at8_mluc_points_probe';
 
 	/**
+	 * Transaction states reported with a failure.
+	 *
+	 * @since 2.6.5
+	 */
+	const TX_COMMITTED   = 'committed';
+	const TX_ROLLED_BACK = 'rolled_back';
+	const TX_UNKNOWN     = 'unknown';
+
+	/**
 	 * How often a movement retries when another request moved the account
 	 * between its read and its write.
 	 *
@@ -534,7 +543,7 @@ class AT8_MLUC_Points {
 
 			list( , $fence ) = $account;
 
-			$begun = self::begin();
+			$begun = self::begin( $user_id, 'reconcile' );
 
 			if ( is_wp_error( $begun ) ) {
 				return $begun;
@@ -549,7 +558,7 @@ class AT8_MLUC_Points {
 			$sum = self::ledger_sum( $user_id );
 
 			if ( is_wp_error( $sum ) ) {
-				$undone = self::rollback();
+				$undone = self::rollback( $user_id, 'reconcile' );
 
 				return is_wp_error( $undone ) ? $undone : $sum;
 			}
@@ -577,7 +586,7 @@ class AT8_MLUC_Points {
 			 * pointless attempts.
 			 */
 			if ( false === $moved || '' !== $moved_error ) {
-				$undone = self::rollback();
+				$undone = self::rollback( $user_id, 'reconcile' );
 
 				if ( is_wp_error( $undone ) ) {
 					return $undone;
@@ -597,7 +606,7 @@ class AT8_MLUC_Points {
 				// A movement was applied while this repair was running: its
 				// snapshot is newer than ours, so start over instead of
 				// overwriting it.
-				$undone = self::rollback();
+				$undone = self::rollback( $user_id, 'reconcile' );
 
 				if ( is_wp_error( $undone ) ) {
 					return $undone;
@@ -608,7 +617,7 @@ class AT8_MLUC_Points {
 			}
 
 			if ( 1 !== (int) $moved ) {
-				$undone = self::rollback();
+				$undone = self::rollback( $user_id, 'reconcile' );
 
 				if ( is_wp_error( $undone ) ) {
 					return $undone;
@@ -625,7 +634,7 @@ class AT8_MLUC_Points {
 			}
 
 			$deferred  = ( 'savepoint' === self::$tx_mode );
-			$committed = self::commit();
+			$committed = self::commit( $user_id, 'reconcile' );
 
 			if ( is_wp_error( $committed ) ) {
 				return $committed;
@@ -897,7 +906,7 @@ class AT8_MLUC_Points {
 
 			// Without a transaction the balance and the ledger could drift
 			// apart, so a failed BEGIN means "do nothing at all".
-			$begun = self::begin();
+			$begun = self::begin( $user_id, 'adjust' );
 
 			if ( is_wp_error( $begun ) ) {
 				return $begun;
@@ -923,7 +932,7 @@ class AT8_MLUC_Points {
 			);
 
 			if ( 1 !== (int) $moved ) {
-				$undone = self::rollback();
+				$undone = self::rollback( $user_id, 'adjust' );
 
 				if ( is_wp_error( $undone ) ) {
 					return $undone;
@@ -958,7 +967,7 @@ class AT8_MLUC_Points {
 			if ( false === $entry_id ) {
 				// The ledger row did not land, so the balance change must not
 				// survive either: one transaction, one outcome.
-				$undone = self::rollback();
+				$undone = self::rollback( $user_id, 'adjust' );
 
 				if ( is_wp_error( $undone ) ) {
 					return $undone;
@@ -983,7 +992,7 @@ class AT8_MLUC_Points {
 
 			// A failed COMMIT means the movement is not durable: report an
 			// error and never fire the "balance changed" action for it.
-			$committed = self::commit();
+			$committed = self::commit( $user_id, 'adjust' );
 
 			if ( is_wp_error( $committed ) ) {
 				return $committed;
@@ -1231,7 +1240,7 @@ class AT8_MLUC_Points {
 
 		$balance = $total + $opening;
 
-		$begun = self::begin();
+		$begun = self::begin( $user_id, 'migrate' );
 
 		if ( is_wp_error( $begun ) ) {
 			return $begun;
@@ -1256,10 +1265,32 @@ class AT8_MLUC_Points {
 		$wpdb->suppress_errors( $suppress );
 
 		if ( ! $created ) {
-			// Another request may have created the row a moment ago and not
-			// committed it yet, so give it a short window before deciding
-			// that this is a real failure.
-			self::rollback();
+			/*
+			 * Another request may have created the row a moment ago and not
+			 * committed it yet, so the scope is closed and a short window is
+			 * given before this is called a real failure.
+			 *
+			 * Waiting only makes sense while the scope is provably closed: if
+			 * the rollback itself fails, the connection may still hold an
+			 * uncommitted insert and the wait would be guesswork on top of a
+			 * guess.
+			 */
+			$undone = self::rollback( $user_id, 'migrate' );
+
+			if ( is_wp_error( $undone ) ) {
+				return self::report_tx_error(
+					self::tx_failure(
+						'migrate',
+						self::TX_UNKNOWN,
+						self::clean_error( $create_error ),
+						self::tx_detail( $undone, 'rollback_error' ),
+						'migrate',
+						$user_id,
+						'transaction_state_unknown',
+						__( 'The points account could not be created and the database could not be rolled back either, so the migration must be treated as unknown, not as failed cleanly.', 'at8-moonlight-user-center' )
+					)
+				);
+			}
 
 			for ( $i = 0; $i < 10; $i++ ) {
 				// phpcs:ignore WordPress.DB.DirectDatabaseQuery.DirectQuery, WordPress.DB.DirectDatabaseQuery.NoCaching -- Reading the row the other request is committing.
@@ -1289,13 +1320,14 @@ class AT8_MLUC_Points {
 		$when = time();
 
 		foreach ( $entries as $index => $entry ) {
-			if ( ! self::migrate_movement( $user_id, $entry, (int) $index, $when ) ) {
-				// One movement is missing, so the history would be incomplete:
-				// abandon the whole migration instead of committing a partial
-				// copy of it.
-				self::rollback();
+			$movement_error = '';
 
-				return self::save_error();
+			if ( ! self::migrate_movement( $user_id, $entry, (int) $index, $when, $movement_error ) ) {
+				// One movement is missing, so the history would be
+				// incomplete: abandon the whole migration instead of
+				// committing a partial copy of it. It only counts as
+				// abandoned when the rollback really happened.
+				return self::fail_migration( $user_id, $movement_error );
 			}
 		}
 
@@ -1310,10 +1342,10 @@ class AT8_MLUC_Points {
 				'u'      => 'opening',
 			);
 
-			if ( ! self::migrate_movement( $user_id, $opening_entry, -1, $when ) ) {
-				self::rollback();
+			$opening_error = '';
 
-				return self::save_error();
+			if ( ! self::migrate_movement( $user_id, $opening_entry, -1, $when, $opening_error ) ) {
+				return self::fail_migration( $user_id, $opening_error );
 			}
 		}
 
@@ -1329,13 +1361,25 @@ class AT8_MLUC_Points {
 		);
 
 		if ( 1 !== (int) $updated ) {
-			$undone = self::rollback();
+			$update_error = self::clean_error( (string) $wpdb->last_error );
 
-			return is_wp_error( $undone ) ? $undone : self::save_error();
+			return self::fail_migration(
+				$user_id,
+				false === $updated || '' !== $update_error
+					? new WP_Error(
+						'at8_mluc_points_db',
+						__( 'The points balance could not be written while the history was imported.', 'at8-moonlight-user-center' ),
+						array( 'original_error' => '' !== $update_error ? $update_error : __( 'the statement was refused', 'at8-moonlight-user-center' ) )
+					)
+					: new WP_Error(
+						'at8_mluc_points_db',
+						__( 'The points account changed while the history was imported, so the import was abandoned.', 'at8-moonlight-user-center' )
+					)
+			);
 		}
 
 		$deferred  = ( 'savepoint' === self::$tx_mode );
-		$committed = self::commit();
+		$committed = self::commit( $user_id, 'migrate' );
 
 		// Nothing is reported as migrated unless the commit went through.
 		if ( is_wp_error( $committed ) ) {
@@ -1347,6 +1391,66 @@ class AT8_MLUC_Points {
 		}
 
 		return array( $balance, 0 );
+	}
+
+	/**
+	 * Abandon a migration and make sure it really was abandoned.
+	 *
+	 * Every migration failure path goes through here, so none of them can
+	 * report "nothing was imported" while the connection still holds a
+	 * partially imported history.
+	 *
+	 * @param int                $user_id  User ID.
+	 * @param WP_Error|string    $original What stopped the migration.
+	 * @return WP_Error
+	 */
+	private static function fail_migration( $user_id, $original = '' ) {
+		$original_error = is_wp_error( $original ) ? $original->get_error_message() : (string) $original;
+		$detail         = is_wp_error( $original ) ? self::tx_detail( $original, 'original_error' ) : (string) $original;
+
+		$undone = self::rollback( $user_id, 'migrate' );
+
+		if ( is_wp_error( $undone ) ) {
+			return self::report_tx_error(
+				self::tx_failure(
+					'migrate',
+					self::TX_UNKNOWN,
+					'' !== $detail ? $detail : $original_error,
+					self::tx_detail( $undone, 'rollback_error' ),
+					'migrate',
+					$user_id,
+					'transaction_state_unknown',
+					__( 'The points history could not be imported and the database could not be rolled back either, so the history must be treated as unknown rather than partly imported.', 'at8-moonlight-user-center' )
+				)
+			);
+		}
+
+		if ( is_wp_error( $original ) ) {
+			return $original;
+		}
+
+		return new WP_Error(
+			'at8_mluc_points_save',
+			__( 'The points history could not be imported, so nothing was imported. Please retry.', 'at8-moonlight-user-center' ),
+			array( 'original_error' => self::clean_error( $detail ) )
+		);
+	}
+
+	/**
+	 * Read one field out of a transaction failure's data.
+	 *
+	 * @param WP_Error $error    Failure.
+	 * @param string   $key      operation|failure|transaction_state|original_error|rollback_error|user_id|context.
+	 * @return string
+	 */
+	private static function tx_detail( $error, $key ) {
+		if ( ! is_wp_error( $error ) ) {
+			return '';
+		}
+
+		$data = $error->get_error_data();
+
+		return is_array( $data ) && isset( $data[ $key ] ) ? (string) $data[ $key ] : '';
 	}
 
 	/**
@@ -1368,7 +1472,7 @@ class AT8_MLUC_Points {
 	 * @param int                 $when    Fallback timestamp.
 	 * @return bool Whether the movement is stored.
 	 */
-	private static function migrate_movement( $user_id, $entry, $index, $when ) {
+	private static function migrate_movement( $user_id, $entry, $index, $when, &$error = null ) {
 		$amount = (int) $entry['amount'];
 		$reason = (string) $entry['reason'];
 		$source = (string) $entry['source'];
@@ -1392,7 +1496,13 @@ class AT8_MLUC_Points {
 
 		$error = '';
 
-		return (bool) self::insert_movement( $user_id, $amount, $reason, $source, $by, $key, 0, $time, $error );
+		$stored = (bool) self::insert_movement( $user_id, $amount, $reason, $source, $by, $key, 0, $time, $error );
+
+		if ( ! $stored && '' === $error ) {
+			$error = __( 'the database refused the movement', 'at8-moonlight-user-center' );
+		}
+
+		return $stored;
 	}
 
 	/**
@@ -1624,19 +1734,27 @@ class AT8_MLUC_Points {
 	 * call fails instead of guessing: an unknown state must never lead to a
 	 * blind START TRANSACTION.
 	 *
+	 * @param int    $user_id User the movement belongs to (for reporting).
+	 * @param string $context adjust|migrate|reconcile.
 	 * @return true|WP_Error
 	 */
-	private static function begin() {
+	private static function begin( $user_id = 0, $context = 'adjust' ) {
 		if ( '' !== self::$tx_mode ) {
 			// Nested scope: never needed by this class, and silently joining
 			// an outer transaction would make the caller's rollback wrong.
-			return new WP_Error(
-				'at8_mluc_points_tx',
+			return self::tx_failure(
+				'begin',
+				self::TX_UNKNOWN,
+				__( 'a scope was already open', 'at8-moonlight-user-center' ),
+				'',
+				$context,
+				$user_id,
+				'begin_failed',
 				__( 'The points update was already inside a transaction scope.', 'at8-moonlight-user-center' )
 			);
 		}
 
-		$mode = self::transaction_mode();
+		$mode = self::transaction_mode( $user_id, $context );
 
 		if ( is_wp_error( $mode ) ) {
 			return $mode;
@@ -1645,13 +1763,19 @@ class AT8_MLUC_Points {
 		$sql = 'savepoint' === $mode ? 'SAVEPOINT ' . self::SAVEPOINT : 'START TRANSACTION';
 
 		if ( ! self::run_sql( $sql ) ) {
-			return new WP_Error(
-				'at8_mluc_points_tx',
+			return self::tx_failure(
+				'begin',
+				self::TX_UNKNOWN,
+				self::last_error_text(),
+				'',
+				$context,
+				$user_id,
+				'begin_failed',
 				'savepoint' === $mode
 					/* translators: %s: database error message. */
-					? sprintf( __( 'The points savepoint could not be created: %s', 'at8-moonlight-user-center' ), self::last_error_text() )
+					? __( 'The points change could not be isolated inside the enclosing transaction, so nothing was written.', 'at8-moonlight-user-center' )
 					/* translators: %s: database error message. */
-					: sprintf( __( 'The points transaction could not be started: %s', 'at8-moonlight-user-center' ), self::last_error_text() )
+					: __( 'The points transaction could not be started, so nothing was written.', 'at8-moonlight-user-center' )
 			);
 		}
 
@@ -1666,12 +1790,26 @@ class AT8_MLUC_Points {
 	 * Releasing a savepoint only hands the work to the outer transaction, so
 	 * the caller still may not call the movement durable.
 	 *
+	 * A COMMIT counts as success only when the driver says so. When it does
+	 * not, the scope is closed with a ROLLBACK whose own result is checked
+	 * too: a transaction left open on the connection would poison every later
+	 * statement of the request, and assuming it was closed is how a movement
+	 * silently survives an operation that reported failure.
+	 *
+	 * @param int    $user_id User the movement belongs to.
+	 * @param string $context adjust|migrate|reconcile.
 	 * @return true|WP_Error
 	 */
-	private static function commit() {
+	private static function commit( $user_id = 0, $context = 'adjust' ) {
 		if ( '' === self::$tx_mode ) {
-			return new WP_Error(
-				'at8_mluc_points_tx',
+			return self::tx_failure(
+				'commit',
+				self::TX_UNKNOWN,
+				__( 'no scope was open', 'at8-moonlight-user-center' ),
+				'',
+				$context,
+				$user_id,
+				'commit_failed',
 				__( 'The points update had no transaction to commit.', 'at8-moonlight-user-center' )
 			);
 		}
@@ -1680,68 +1818,106 @@ class AT8_MLUC_Points {
 		self::$tx_mode = '';
 
 		if ( 'savepoint' === $mode ) {
-			if ( ! self::run_sql( 'RELEASE SAVEPOINT ' . self::SAVEPOINT ) ) {
-				$release_error = self::last_error_text();
+			if ( self::run_sql( 'RELEASE SAVEPOINT ' . self::SAVEPOINT ) ) {
+				return true;
+			}
 
-				// The savepoint still exists: undo the movement inside the
-				// caller's transaction instead of leaving it half applied.
-				if ( ! self::run_sql( 'ROLLBACK TO SAVEPOINT ' . self::SAVEPOINT ) ) {
-					return self::report_tx_error(
-						new WP_Error(
-							'at8_mluc_points_tx',
-							sprintf(
-								/* translators: 1: release error, 2: rollback error. */
-								__( 'The points savepoint could not be released (%1$s) and undoing the movement inside the enclosing transaction failed as well (%2$s). That transaction may still carry the unconfirmed points movement, so it must not be treated as if the movement were gone.', 'at8-moonlight-user-center' ),
-								$release_error,
-								self::last_error_text()
-							)
-						)
-					);
-				}
+			$release_error = self::last_error_text();
 
-				// The movement is gone; drop the savepoint rather than leaving
-				// a marker behind in somebody else's transaction.
-				self::run_sql( 'RELEASE SAVEPOINT ' . self::SAVEPOINT );
-
+			// The savepoint still exists: undo the movement inside the
+			// caller's transaction instead of leaving it half applied.
+			if ( ! self::run_sql( 'ROLLBACK TO SAVEPOINT ' . self::SAVEPOINT ) ) {
 				return self::report_tx_error(
-					new WP_Error(
-						'at8_mluc_points_tx',
-						sprintf(
-							/* translators: %s: database error message. */
-							__( 'The points savepoint could not be released (%s), so the movement is not confirmed; it was undone inside the enclosing transaction.', 'at8-moonlight-user-center' ),
-							$release_error
-						)
+					self::tx_failure(
+						'release',
+						self::TX_UNKNOWN,
+						$release_error,
+						self::last_error_text(),
+						$context,
+						$user_id,
+						'release_failed',
+						__( 'The points change could not be confirmed and could not be undone either, so the enclosing transaction may still carry the unconfirmed points movement. That transaction has to be rolled back as a whole before the balance can be trusted.', 'at8-moonlight-user-center' )
 					)
 				);
 			}
 
-			return true;
-		}
+			// The movement is gone. Drop the marker so the caller's
+			// transaction does not inherit it; the outcome is already decided,
+			// so a failure here is recorded in the same report instead of
+			// producing a second one.
+			$cleaned     = self::run_sql( 'RELEASE SAVEPOINT ' . self::SAVEPOINT );
+			$clean_error = $cleaned ? '' : self::last_error_text();
 
-		if ( ! self::run_sql( 'COMMIT' ) ) {
-			// A refused COMMIT can leave the transaction open; close it so the
-			// rest of the request is not writing inside a phantom transaction.
-			self::run_sql( 'ROLLBACK' );
-
-			return new WP_Error(
-				'at8_mluc_points_tx',
-				/* translators: %s: database error message. */
-				sprintf( __( 'The points update could not be committed: %s', 'at8-moonlight-user-center' ), self::last_error_text() )
+			return self::report_tx_error(
+				self::tx_failure(
+					'release',
+					self::TX_ROLLED_BACK,
+					$release_error,
+					$clean_error,
+					$context,
+					$user_id,
+					'release_failed',
+					__( 'The points change could not be confirmed, so it was undone inside the enclosing transaction.', 'at8-moonlight-user-center' )
+				)
 			);
 		}
 
-		return true;
+		if ( self::run_sql( 'COMMIT' ) ) {
+			return true;
+		}
+
+		$commit_error = self::last_error_text();
+
+		if ( ! self::run_sql( 'ROLLBACK' ) ) {
+			return self::report_tx_error(
+				self::tx_failure(
+					'commit',
+					self::TX_UNKNOWN,
+					$commit_error,
+					self::last_error_text(),
+					$context,
+					$user_id,
+					'transaction_state_unknown',
+					__( 'The points change could not be committed and could not be rolled back either, so the database transaction state is unknown. It will not be retried automatically.', 'at8-moonlight-user-center' )
+				)
+			);
+		}
+
+		return self::report_tx_error(
+			self::tx_failure(
+				'commit',
+				self::TX_ROLLED_BACK,
+				$commit_error,
+				'',
+				$context,
+				$user_id,
+				'commit_failed',
+				__( 'The points change could not be committed and was rolled back. Please retry.', 'at8-moonlight-user-center' )
+			)
+		);
 	}
 
 	/**
 	 * Undo the current scope.
 	 *
+	 * Every statement is checked: a rollback that did not happen must never
+	 * be reported as if it had, and a savepoint that cannot be rewound leaves
+	 * the caller's transaction carrying an unconfirmed change.
+	 *
+	 * @param int    $user_id User the movement belongs to.
+	 * @param string $context adjust|migrate|reconcile.
 	 * @return true|WP_Error
 	 */
-	private static function rollback() {
+	private static function rollback( $user_id = 0, $context = 'adjust' ) {
 		if ( '' === self::$tx_mode ) {
-			return new WP_Error(
-				'at8_mluc_points_tx',
+			return self::tx_failure(
+				'rollback',
+				self::TX_UNKNOWN,
+				__( 'no scope was open', 'at8-moonlight-user-center' ),
+				'',
+				$context,
+				$user_id,
+				'rollback_failed',
 				__( 'The points update had no transaction to roll back.', 'at8-moonlight-user-center' )
 			);
 		}
@@ -1752,27 +1928,51 @@ class AT8_MLUC_Points {
 		if ( 'savepoint' === $mode ) {
 			if ( ! self::run_sql( 'ROLLBACK TO SAVEPOINT ' . self::SAVEPOINT ) ) {
 				return self::report_tx_error(
-					new WP_Error(
-						'at8_mluc_points_tx',
-						/* translators: %s: database error message. */
-						sprintf( __( 'The points savepoint could not be rolled back: %s', 'at8-moonlight-user-center' ), self::last_error_text() )
+					self::tx_failure(
+						'rollback',
+						self::TX_UNKNOWN,
+						'',
+						self::last_error_text(),
+						$context,
+						$user_id,
+						'rollback_failed',
+						__( 'The points change could not be undone inside the enclosing transaction, so that transaction may still carry it.', 'at8-moonlight-user-center' )
 					)
 				);
 			}
 
-			// The savepoint itself stays behind until it is released; ignoring
-			// a failure here is safe because the outer owner will discard it.
-			self::run_sql( 'RELEASE SAVEPOINT ' . self::SAVEPOINT );
+			if ( ! self::run_sql( 'RELEASE SAVEPOINT ' . self::SAVEPOINT ) ) {
+				// The movement is undone; only the marker is left behind and
+				// the outer owner discards it on commit. Report it without
+				// turning a successful rollback into a failure.
+				self::report_tx_error(
+					self::tx_failure(
+						'release',
+						self::TX_ROLLED_BACK,
+						'',
+						self::last_error_text(),
+						$context,
+						$user_id,
+						'release_failed',
+						__( 'The points change was undone inside the enclosing transaction, but its savepoint could not be removed.', 'at8-moonlight-user-center' )
+					)
+				);
+			}
 
 			return true;
 		}
 
 		if ( ! self::run_sql( 'ROLLBACK' ) ) {
 			return self::report_tx_error(
-				new WP_Error(
-					'at8_mluc_points_tx',
-					/* translators: %s: database error message. */
-					sprintf( __( 'The points transaction could not be rolled back: %s', 'at8-moonlight-user-center' ), self::last_error_text() )
+				self::tx_failure(
+					'rollback',
+					self::TX_UNKNOWN,
+					'',
+					self::last_error_text(),
+					$context,
+					$user_id,
+					'rollback_failed',
+					__( 'The points transaction could not be rolled back, so the database transaction state is unknown.', 'at8-moonlight-user-center' )
 				)
 			);
 		}
@@ -1781,24 +1981,73 @@ class AT8_MLUC_Points {
 	}
 
 	/**
-	 * Make a rollback failure visible: it means the connection may still hold
-	 * half of a movement.
+	 * Build a transaction failure with everything an operator needs.
+	 *
+	 * Driver text never reaches the message: it travels in the error data and
+	 * in the debug log, so a front-end visitor is never shown SQLSTATE output.
+	 *
+	 * @param string $operation begin|commit|rollback|release|probe|migrate.
+	 * @param string $state     committed|rolled_back|unknown.
+	 * @param string $original  Original driver or business error.
+	 * @param string $rollback  Rollback failure reason, '' when there was none.
+	 * @param string $context   adjust|migrate|reconcile|probe.
+	 * @param int    $user_id   User the movement belongs to.
+	 * @param string $failure   commit_failed|rollback_failed|release_failed|transaction_state_unknown|begin_failed.
+	 * @param string $message   Human sentence.
+	 * @return WP_Error
+	 */
+	private static function tx_failure( $operation, $state, $original, $rollback, $context, $user_id, $failure, $message ) {
+		return new WP_Error(
+			'at8_mluc_points_tx',
+			$message,
+			array(
+				'operation'         => sanitize_key( (string) $operation ),
+				'failure'           => sanitize_key( (string) $failure ),
+				'transaction_state' => (string) $state,
+				'original_error'    => self::clean_error( (string) $original ),
+				'rollback_error'    => self::clean_error( (string) $rollback ),
+				'user_id'           => (int) $user_id,
+				'context'           => sanitize_key( (string) $context ),
+			)
+		);
+	}
+
+	/**
+	 * Make a transaction failure visible: it means the connection may still
+	 * hold half of a movement.
 	 *
 	 * @param WP_Error $error Failure to report.
 	 * @return WP_Error The same error, for chaining.
 	 */
 	private static function report_tx_error( $error ) {
+		$data = $error->get_error_data();
+		$data = is_array( $data ) ? $data : array();
+
 		/**
 		 * Fires when a transaction could not be finished cleanly.
 		 *
 		 * @since 2.6.3
+		 * @since 2.6.5 The structured failure data is passed as a second argument.
 		 *
 		 * @param WP_Error $error What went wrong.
+		 * @param array    $data  operation, failure, transaction_state, original_error, rollback_error, user_id, context.
 		 */
-		do_action( 'at8_mluc_points_transaction_error', $error );
+		do_action( 'at8_mluc_points_transaction_error', $error, $data );
 
 		if ( defined( 'WP_DEBUG' ) && WP_DEBUG ) {
-			error_log( 'AT8 Moonlight User Center: ' . $error->get_error_message() ); // phpcs:ignore WordPress.PHP.DevelopmentFunctions.error_log_error_log -- Debug-only diagnostics for a transaction that could not be rolled back.
+			/* translators: 1: operation, 2: failure, 3: transaction state, 4: context, 5: user ID, 6: original error, 7: rollback error. */
+			$line = sprintf(
+				'AT8 Moonlight User Center: points transaction %1$s failed (%2$s), state=%3$s, context=%4$s, user=%5$d, original="%6$s", rollback="%7$s"',
+				isset( $data['operation'] ) ? $data['operation'] : 'unknown',
+				isset( $data['failure'] ) ? $data['failure'] : 'unknown',
+				isset( $data['transaction_state'] ) ? $data['transaction_state'] : self::TX_UNKNOWN,
+				isset( $data['context'] ) ? $data['context'] : 'unknown',
+				isset( $data['user_id'] ) ? (int) $data['user_id'] : 0,
+				isset( $data['original_error'] ) ? $data['original_error'] : '',
+				isset( $data['rollback_error'] ) ? $data['rollback_error'] : ''
+			);
+
+			error_log( $line ); // phpcs:ignore WordPress.PHP.DevelopmentFunctions.error_log_error_log -- Debug-only diagnostics for a transaction that could not be finished.
 		}
 
 		return $error;
@@ -1807,10 +2056,12 @@ class AT8_MLUC_Points {
 	/**
 	 * Which scope this request needs.
 	 *
+	 * @param int    $user_id User the movement belongs to.
+	 * @param string $context adjust|migrate|reconcile.
 	 * @return string|WP_Error 'own' or 'savepoint'.
 	 */
-	private static function transaction_mode() {
-		return self::probe_transaction_state();
+	private static function transaction_mode( $user_id = 0, $context = 'adjust' ) {
+		return self::probe_transaction_state( $user_id, $context );
 	}
 
 	/**
@@ -1823,18 +2074,20 @@ class AT8_MLUC_Points {
 	 *
 	 * 1. `SELECT @@in_transaction` — exact on MySQL 5.7.36+ / MariaDB 10.3+.
 	 *    A failed query is a failed query; it is not a zero.
-	 * 2. A throwaway savepoint. Outside a transaction SAVEPOINT is a no-op and
-	 *    the matching ROLLBACK TO answers 1305 "does not exist"; inside one
-	 *    both succeed. Nothing is written between the two statements, so
-	 *    neither outcome changes data.
+	 * 2. Otherwise two independent savepoint signals, both required:
+	 *    inside a transaction the rewind succeeds, outside one the rewind
+	 *    reports the name as missing AND the release reports it as missing
+	 *    too. No single error code is trusted on its own — a driver that
+	 *    fails the rewind for an unrelated reason still lets the release
+	 *    succeed, and that contradiction counts as undetermined.
 	 *
-	 * Only that specific 1305 answer proves there is no transaction. Any other
-	 * failure — a create that is refused, a rollback refused for a reason the
-	 * probe cannot explain — leaves the state unknown and returns an error.
+	 * Every statement is checked, and every undetermined path fails closed.
 	 *
+	 * @param int    $user_id User the movement belongs to.
+	 * @param string $context adjust|migrate|reconcile.
 	 * @return string|WP_Error 'own' or 'savepoint'.
 	 */
-	private static function probe_transaction_state() {
+	private static function probe_transaction_state( $user_id = 0, $context = 'adjust' ) {
 		global $wpdb;
 
 		$suppress = $wpdb->suppress_errors( true );
@@ -1862,6 +2115,9 @@ class AT8_MLUC_Points {
 			// "no transaction" here would be exactly the guess that commits
 			// somebody else's work.
 			return self::unknown_transaction_state(
+				$user_id,
+				$context,
+				'begin',
 				'' !== $created_error
 					? $created_error
 					: __( 'the database refused to create a savepoint', 'at8-moonlight-user-center' )
@@ -1873,44 +2129,80 @@ class AT8_MLUC_Points {
 		$rewound_error = self::clean_error( (string) $wpdb->last_error );
 
 		if ( false !== $rewound && '' === $rewound_error ) {
-			// A transaction is open. The probe held no changes, so releasing it
-			// only removes the marker; a failure here is harmless because the
-			// outer owner discards leftover savepoints on commit anyway.
+			// Inside a transaction. A probe that cannot be cleaned up is not
+			// a probe this class is willing to trust.
 			// phpcs:ignore WordPress.DB.DirectDatabaseQuery.DirectQuery, WordPress.DB.DirectDatabaseQuery.NoCaching, WordPress.DB.PreparedSQL.NotPrepared, PluginCheck.Security.DirectDB.UnescapedDBParameter -- Fixed identifier built in this class.
-			$wpdb->query( 'RELEASE SAVEPOINT ' . $probe );
+			$released      = $wpdb->query( 'RELEASE SAVEPOINT ' . $probe );
+			$release_error = self::clean_error( (string) $wpdb->last_error );
+
 			$wpdb->suppress_errors( $suppress );
+
+			if ( false === $released || '' !== $release_error ) {
+				return self::unknown_transaction_state(
+					$user_id,
+					$context,
+					'release',
+					'' !== $release_error
+						? $release_error
+						: __( 'the probe savepoint could not be released', 'at8-moonlight-user-center' )
+				);
+			}
 
 			return 'savepoint';
 		}
 
-		if ( self::is_missing_savepoint_error( $rewound_error ) ) {
-			// Definitive: outside a transaction the SAVEPOINT was a no-op, so
-			// the rewind cannot find it. Nothing was written either way.
+		if ( ! self::is_missing_savepoint_error( $rewound_error ) ) {
+			// phpcs:ignore WordPress.DB.DirectDatabaseQuery.DirectQuery, WordPress.DB.DirectDatabaseQuery.NoCaching, WordPress.DB.PreparedSQL.NotPrepared, PluginCheck.Security.DirectDB.UnescapedDBParameter -- Fixed identifier built in this class.
+			$wpdb->query( 'RELEASE SAVEPOINT ' . $probe );
 			$wpdb->suppress_errors( $suppress );
 
-			return 'own';
+			return self::unknown_transaction_state(
+				$user_id,
+				$context,
+				'rollback',
+				'' !== $rewound_error
+					? $rewound_error
+					: __( 'the savepoint probe could not be rolled back', 'at8-moonlight-user-center' )
+			);
 		}
 
-		// Unknown: the probe exists and could not be rewound. Drop it so it
-		// does not linger in the caller's transaction, then refuse to write.
+		// Second signal: the same name must also be unknown to RELEASE before
+		// "no transaction" may be concluded.
 		// phpcs:ignore WordPress.DB.DirectDatabaseQuery.DirectQuery, WordPress.DB.DirectDatabaseQuery.NoCaching, WordPress.DB.PreparedSQL.NotPrepared, PluginCheck.Security.DirectDB.UnescapedDBParameter -- Fixed identifier built in this class.
-		$wpdb->query( 'RELEASE SAVEPOINT ' . $probe );
+		$released      = $wpdb->query( 'RELEASE SAVEPOINT ' . $probe );
+		$release_error = self::clean_error( (string) $wpdb->last_error );
+
 		$wpdb->suppress_errors( $suppress );
 
-		return self::unknown_transaction_state(
-			'' !== $rewound_error
-				? $rewound_error
-				: __( 'the savepoint probe could not be rolled back', 'at8-moonlight-user-center' )
-		);
+		if ( false !== $released && '' === $release_error ) {
+			return self::unknown_transaction_state(
+				$user_id,
+				$context,
+				'release',
+				__( 'the savepoint probe could not be rewound although it still existed', 'at8-moonlight-user-center' )
+			);
+		}
+
+		if ( ! self::is_missing_savepoint_error( $release_error ) ) {
+			return self::unknown_transaction_state(
+				$user_id,
+				$context,
+				'release',
+				'' !== $release_error
+					? $release_error
+					: __( 'the probe savepoint could not be released', 'at8-moonlight-user-center' )
+			);
+		}
+
+		return 'own';
 	}
 
 	/**
-	 * Whether a driver error is the documented "that savepoint does not exist"
-	 * answer.
+	 * Whether a driver error says the savepoint does not exist.
 	 *
-	 * MySQL reports 1305 / SQLSTATE 3B001 for a savepoint that was never
-	 * created, and that is precisely what an out-of-transaction SAVEPOINT
-	 * leaves behind. Every other error means the probe learnt nothing.
+	 * MySQL answers 1305 / SQLSTATE 3B001 for a savepoint that was never
+	 * created. It is one of the two signals the probe requires — never the
+	 * only one — before it concludes that no transaction is open.
 	 *
 	 * @param string $error Cleaned driver error.
 	 * @return bool
@@ -1936,17 +2228,22 @@ class AT8_MLUC_Points {
 	/**
 	 * Build the "this cannot be decided" error.
 	 *
-	 * @param string $detail Driver error or explanation.
+	 * @param int    $user_id   User the movement belongs to.
+	 * @param string $context   adjust|migrate|reconcile.
+	 * @param string $operation Statement that could not settle the question.
+	 * @param string $detail    Driver error or explanation.
 	 * @return WP_Error
 	 */
-	private static function unknown_transaction_state( $detail ) {
-		return new WP_Error(
-			'at8_mluc_points_tx',
-			sprintf(
-				/* translators: %s: database error message. */
-				__( 'The database transaction state could not be determined, so nothing was written: %s', 'at8-moonlight-user-center' ),
-				$detail
-			)
+	private static function unknown_transaction_state( $user_id, $context, $operation, $detail ) {
+		return self::tx_failure(
+			'probe',
+			self::TX_UNKNOWN,
+			$detail,
+			'',
+			$context,
+			$user_id,
+			'transaction_state_unknown',
+			__( 'The database transaction state could not be determined, so nothing was written.', 'at8-moonlight-user-center' )
 		);
 	}
 
