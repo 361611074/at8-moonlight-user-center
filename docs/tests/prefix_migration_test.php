@@ -80,6 +80,27 @@ $ledger  = $wpdb->prefix . 'at8mluc_points_ledger';
 $account = $wpdb->prefix . 'at8mluc_points_account';
 
 /*
+ * This long-lived test site still carries a pre-2.7.0 ledger whose rows 78-82
+ * differ from the current table (fixtures left by earlier concurrency runs).
+ * 2.7.2 deliberately refuses to call that state "migrated", so leaving those
+ * rows visible would correctly block the marker assertions in this suite.
+ * That conflict is exercised as a first-class scenario in
+ * points_verify_test.php. Here we isolate the migration *orchestration* by
+ * making only the legacy table-name lookup come back empty. No row is read,
+ * written or deleted by the filter.
+ */
+add_filter(
+	'query',
+	function ( $query ) {
+		if ( 0 === strpos( ltrim( $query ), 'SHOW TABLES LIKE' ) && false !== strpos( str_replace( '\\', '', $query ), 'at8_mluc_points_' ) ) {
+			return "SHOW TABLES LIKE 'at8_mluc_points_table_that_does_not_exist_9f3c'";
+		}
+
+		return $query;
+	}
+);
+
+/*
  * A site that already completed the migration: the run below must leave the
  * existing points rows exactly as they were, because a second copy would
  * double every balance.

@@ -1,6 +1,6 @@
 #!/usr/bin/env bash
 #
-# Authentication-chain suite for 2.7.1.
+# Authentication-chain suite for 2.7.2.
 #
 # The OAuth callback and the form handlers all end with a redirect or a JSON
 # response, which means they end with `exit`. Each scenario therefore runs in
@@ -20,7 +20,9 @@ CHILD="$BASE/_tools/oauth_chain_child.php"
 mkdir -p "$OUT"
 rm -f "$OUT"/auth_*.json
 
-for scenario in oauth_login oauth_veto form_login weak_login register; do
+for scenario in oauth_login oauth_veto form_login weak_login register \
+	oauth_native_veto oauth_user_policy_veto oauth_inactive oauth_identity_swap \
+	oauth_native_sees_user oauth_already_signed_in oauth_remember; do
 	PM_SCENARIO="$scenario" \
 	PM_OUT="$OUT/auth_$scenario.json" \
 	"$PHP" "$WPCLI" --path="$SITE" eval-file "$CHILD" > "$OUT/auth_$scenario.out" 2>&1

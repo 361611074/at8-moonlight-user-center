@@ -368,6 +368,34 @@
 		} );
 	}
 
+	/**
+	 * Pass the login form's "remember me" choice to the OAuth callback.
+	 *
+	 * Providers only echo the state parameter, so the choice travels in a
+	 * short-lived first-party cookie which the callback reads and clears.
+	 * When no checkbox is present (shortcode buttons, other pages) the cookie
+	 * is removed and the session stays short-lived.
+	 */
+	function bindOAuthRemember() {
+		var buttons = document.querySelectorAll( '.at8mluc-oauth-btn' );
+
+		if ( ! buttons.length ) {
+			return;
+		}
+
+		Array.prototype.forEach.call( buttons, function ( button ) {
+			button.addEventListener( 'click', function () {
+				var box = document.getElementById( 'at8mluc-login-remember' );
+				var remember = !!( box && box.checked );
+				var cookie = remember
+					? 'at8mluc_oauth_remember=1; path=/; max-age=600; SameSite=Lax'
+					: 'at8mluc_oauth_remember=; path=/; max-age=0; SameSite=Lax';
+
+				document.cookie = cookie;
+			} );
+		} );
+	}
+
 	if ( 'loading' === document.readyState ) {
 		document.addEventListener( 'DOMContentLoaded', function () {
 			bindForms();
@@ -375,6 +403,7 @@
 			bindStrength();
 			bindRedeem();
 			bindPaywall();
+			bindOAuthRemember();
 		} );
 	} else {
 		bindForms();
@@ -382,5 +411,6 @@
 		bindStrength();
 		bindRedeem();
 		bindPaywall();
+		bindOAuthRemember();
 	}
 } )();

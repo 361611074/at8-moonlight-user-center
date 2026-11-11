@@ -131,10 +131,11 @@ class AT8MLUC_OAuth
 	/**
 	 * 生成授权 URL（带 state 防 CSRF，并把回跳地址存入 state）。
 	 *
-	 * @param string $id         提供商
+	 * @param string $id          提供商
 	 * @param string $redirect_to 登录后期望回跳的同站地址（内部白名单校验后才用）
+	 * @param bool   $remember    是否延长会话；不传时由 at8mluc_oauth_remember 决定，默认 false。
 	 */
-	public function get_auth_url($id, $redirect_to = '')
+	public function get_auth_url($id, $redirect_to = '', $remember = null)
 	{
 		$providers = self::providers();
 		if (!isset($providers[$id])) {
@@ -146,10 +147,31 @@ class AT8MLUC_OAuth
 		// this exact shape, so a state can never be a value the site did not
 		// mint itself.
 		$state = wp_generate_password(32, false);
+
+		if (null === $remember) {
+			/**
+			 * Filters whether a social login keeps the session alive longer.
+			 *
+			 * Default false: a provider login has the same short session as a
+			 * normal login without "remember me". The front-end script adds a
+			 * per-click cookie when the visitor ticks the login form's
+			 * checkbox; that value is read on the callback, so a site does not
+			 * need this filter unless it wants a site-wide policy.
+			 *
+			 * @since 2.7.2
+			 *
+			 * @param bool   $remember   Whether to set a long-lived auth cookie.
+			 * @param string $id         Provider slug.
+			 * @param string $redirect_to Same-site return URL.
+			 */
+			$remember = (bool) apply_filters('at8mluc_oauth_remember', false, $id, $redirect_to);
+		}
+
 		// state 同时记录 provider、回跳意图与发起时的登录身份，回调据此还原
 		set_transient('at8mluc_oauth_state_' . $state, array(
 			'provider'  => $id,
 			'redirect'  => $redirect_to ? esc_url_raw($redirect_to) : '',
+			'remember'  => (bool) $remember,
 			// 安全：记录发起授权时的用户。回调时若当前登录用户与之不同，
 			// 说明是别人发起的流程被用到本浏览器上（账户绑定劫持），一律拒绝。
 			'init_user' => get_current_user_id(),
@@ -292,18 +314,42 @@ class AT8MLUC_OAuth
 	}
 
 	/**
+	 * Maximum accepted length of each callback parameter, in bytes.
+	 *
+	 * The limits are generous enough for real provider responses but keep a
+	 * crafted value out of transients, option names and outbound URLs.
+	 *
+	 * @var array<string, int>
+	 */
+	private $param_limits = array(
+		'at8mluc_oauth' => 64,
+		'code'          => 2048,
+		'state'         => 64,
+		'error'         => 128,
+		'redirect_to'   => 2048,
+		'remember'      => 8,
+		'firstName'     => 191,
+		'lastName'      => 191,
+	);
+
+	/**
 	 * 读取当前页面要求登录后返回的地址。
 	 *
-	 * 只用于拼本站跳转地址：值经 esc_url_raw() 过滤，非法地址变成空串。
+	 * 只用于拼本站跳转地址：先做类型与长度校验，再经 esc_url_raw() 过滤，
+	 * 最后用 wp_validate_redirect() 拒绝站外目标。
 	 *
 	 * @return string
 	 */
 	private function requested_redirect()
 	{
-		// phpcs:ignore WordPress.Security.NonceVerification.Recommended -- 只读跳转目标；值经 esc_url_raw() 过滤，不写入任何数据。
-		$requested = isset($_GET['redirect_to']) ? esc_url_raw(wp_unslash($_GET['redirect_to'])) : '';
+		$requested = $this->callback_param('redirect_to');
 
-		return (string) $requested;
+		if ('' === $requested) {
+			return '';
+		}
+
+		// 只保留同站地址；外部域名一律丢弃，不进 state、不进授权 URL。
+		return (string) wp_validate_redirect(esc_url_raw($requested), '');
 	}
 
 	/**
@@ -315,10 +361,16 @@ class AT8MLUC_OAuth
 	 * maybe_handle_callback()）。Apple 用 form_post 回传，所以 GET / POST
 	 * 两处都读，且只在这一处读。
 	 *
-	 * @param string $name 参数名。
-	 * @return string 已清洗的值，缺省为空串。
+	 * 只接受字符串/整数/浮点三种标量。数组、对象、资源、布尔值一律拒绝，
+	 * 不做 (string) 强转——那会在数组上产生 "Array to string conversion"
+	 * Warning，并让意外的结构流入 OAuth 流程。超长值直接拒绝而不是截断：
+	 * 截断后的 state 或 code 可能碰巧命中另一个合法值。
+	 *
+	 * @param string $name       参数名，决定长度上限。
+	 * @param int    $max_length 覆盖默认上限。
+	 * @return string 已清洗的值；缺失、类型异常、超长均为空串。
 	 */
-	private function callback_param($name)
+	private function callback_param($name, $max_length = 0)
 	{
 		// phpcs:ignore WordPress.Security.NonceVerification.Recommended, WordPress.Security.ValidatedSanitizedInput.InputNotSanitized -- 第三方回调；CSRF 由 state 参数校验，值在方法末尾统一 sanitize_text_field()。
 		$value = isset($_GET[$name]) ? wp_unslash($_GET[$name]) : null;
@@ -328,21 +380,90 @@ class AT8MLUC_OAuth
 			$value = isset($_POST[$name]) ? wp_unslash($_POST[$name]) : null;
 		}
 
-		return null === $value ? '' : sanitize_text_field((string) $value);
+		if (null === $value) {
+			return '';
+		}
+
+		// 类型白名单：非标量绝不转换成字符串。bool 也拒绝，避免 '1' 被当成开关。
+		if (!is_string($value) && !is_int($value) && !is_float($value)) {
+			$this->reject_malformed_input($name, 'type');
+			return '';
+		}
+
+		if (is_float($value) && !is_finite($value)) {
+			$this->reject_malformed_input($name, 'type');
+			return '';
+		}
+
+		$value = (string) $value;
+		$limit = $max_length > 0 ? (int) $max_length : (isset($this->param_limits[$name]) ? $this->param_limits[$name] : 256);
+
+		if (strlen($value) > $limit) {
+			$this->reject_malformed_input($name, 'length');
+			return '';
+		}
+
+		return sanitize_text_field($value);
+	}
+
+	/**
+	 * 记录一次畸形回调输入，供站点做日志/告警。
+	 *
+	 * 只记录参数名和原因，不记录原始值——回调参数里可能有 token。
+	 *
+	 * @param string $name   参数名。
+	 * @param string $reason type 或 length。
+	 */
+	private function reject_malformed_input($name, $reason)
+	{
+		/**
+		 * Fires when a callback parameter was refused for its type or length.
+		 *
+		 * @since 2.7.2
+		 *
+		 * @param string $name   Whitelisted parameter name.
+		 * @param string $reason Either 'type' or 'length'.
+		 */
+		do_action('at8mluc_oauth_malformed_input', (string) $name, (string) $reason);
+	}
+
+	/**
+	 * 读取一个只接受字符串的表单字段（Apple 的 user 对象元素）。
+	 *
+	 * @param mixed  $value 字段值。
+	 * @param string $name  用于查长度上限的字段名。
+	 * @return string
+	 */
+	private function scalar_field($value, $name)
+	{
+		if (!is_string($value) && !is_int($value) && !is_float($value)) {
+			$this->reject_malformed_input($name, 'type');
+			return '';
+		}
+
+		$value  = (string) $value;
+		$limit  = isset($this->param_limits[$name]) ? $this->param_limits[$name] : 191;
+
+		if (strlen($value) > $limit) {
+			$this->reject_malformed_input($name, 'length');
+			return '';
+		}
+
+		return sanitize_text_field($value);
 	}
 
 	/**
 	 * 读取 Apple 一次性回传的姓名对象。
 	 *
-	 * @return string[] [firstName, lastName]，缺失项为空串。
+	 * @return string[] [firstName, lastName]，缺失或类型异常项为空串。
 	 */
 	private function callback_user_names()
 	{
-		// phpcs:ignore WordPress.Security.NonceVerification.Missing, WordPress.Security.ValidatedSanitizedInput.InputNotSanitized -- 第三方回调；数组的每个元素在下一行单独清洗。
+		// phpcs:ignore WordPress.Security.NonceVerification.Missing, WordPress.Security.ValidatedSanitizedInput.InputNotSanitized -- 第三方回调；数组的每个元素由 scalar_field() 单独校验。
 		$user = isset($_POST['user']) && is_array($_POST['user']) ? wp_unslash($_POST['user']) : array();
 
-		$first = isset($user['firstName']) ? sanitize_text_field((string) $user['firstName']) : '';
-		$last  = isset($user['lastName']) ? sanitize_text_field((string) $user['lastName']) : '';
+		$first = isset($user['firstName']) ? $this->scalar_field($user['firstName'], 'firstName') : '';
+		$last  = isset($user['lastName']) ? $this->scalar_field($user['lastName'], 'lastName') : '';
 
 		return array($first, $last);
 	}
@@ -423,7 +544,9 @@ class AT8MLUC_OAuth
 		}
 		// 安全校验一：state 必须来自本浏览器会话（本浏览器确实发起过这次授权），
 		// 防止攻击者用自己的 state+code 构造回调链接让他人点击（登录 CSRF）。
-		$cookie_state = isset($_COOKIE['at8mluc_oauth_state']) ? sanitize_text_field(wp_unslash($_COOKIE['at8mluc_oauth_state'])) : '';
+		// phpcs:ignore WordPress.Security.ValidatedSanitizedInput.InputNotSanitized -- 只读比较值；先做类型与长度校验，再清洗。
+		$raw_cookie_state = isset($_COOKIE['at8mluc_oauth_state']) ? wp_unslash($_COOKIE['at8mluc_oauth_state']) : '';
+		$cookie_state = $this->scalar_field($raw_cookie_state, 'state');
 		if ('' === $cookie_state || !hash_equals((string) $cookie_state, (string) $state)) {
 			$this->clear_state_cookie();
 			$this->oauth_fail('state', __('安全校验失败（state 不匹配），请重试。', 'at8-moonlight-user-center'));
@@ -436,7 +559,12 @@ class AT8MLUC_OAuth
 		}
 		delete_transient('at8mluc_oauth_state_' . $state);
 		$this->clear_state_cookie();
-		$redirect_to = !empty($st['redirect']) ? $st['redirect'] : '';
+		$redirect_to = !empty($st['redirect']) ? (string) $st['redirect'] : '';
+
+		// 「记住我」由登录页脚本在点击时写入短时 cookie；站点策略存在 state 里。
+		// 两者都默认 false，绝不无条件延长会话。
+		$remember_click = $this->requested_remember();
+		$remember       = !empty($st['remember']) || $remember_click;
 
 		$token = $this->fetch_token($id, $code);
 		if (is_wp_error($token)) {
@@ -448,7 +576,41 @@ class AT8MLUC_OAuth
 			$this->oauth_fail('profile', $profile->get_error_message());
 		}
 
-		$this->login_or_register($id, $profile, $redirect_to);
+		$this->login_or_register($id, $profile, $redirect_to, $remember);
+	}
+
+	/**
+	 * 读取并清除登录页脚本写下的「记住我」意图。
+	 *
+	 * 只认字面量 '1'；数组、对象、其它值一律按 false 处理，不写日志、
+	 * 不展示、不进数据库。cookie 用完即清，避免影响下一次登录。
+	 *
+	 * @return bool
+	 */
+	private function requested_remember()
+	{
+		// phpcs:ignore WordPress.Security.ValidatedSanitizedInput.InputNotSanitized -- 只比较字面量；scalar_field() 先做类型与长度校验。
+		$raw = isset($_COOKIE['at8mluc_oauth_remember']) ? wp_unslash($_COOKIE['at8mluc_oauth_remember']) : '';
+
+		$value = $this->scalar_field($raw, 'remember');
+
+		$this->clear_remember_cookie();
+
+		return '1' === $value;
+	}
+
+	/**
+	 * 清除「记住我」意图 cookie。
+	 */
+	private function clear_remember_cookie()
+	{
+		if (headers_sent()) {
+			return;
+		}
+
+		$path   = defined('COOKIEPATH') && COOKIEPATH ? COOKIEPATH : '/';
+		$domain = defined('COOKIE_DOMAIN') ? COOKIE_DOMAIN : '';
+		setcookie('at8mluc_oauth_remember', '', time() - 3600, $path, $domain, is_ssl(), true);
 	}
 
 	/**
@@ -655,7 +817,7 @@ class AT8MLUC_OAuth
 	 *
 	 * @param string $redirect_to 登录后回跳地址（已通过 state 白名单校验）
 	 */
-	private function login_or_register($id, $profile, $redirect_to = '')
+	private function login_or_register($id, $profile, $redirect_to = '', $remember = false)
 	{
 		$meta_key = 'at8mluc_oauth_' . $id . '_id';
 
@@ -663,13 +825,13 @@ class AT8MLUC_OAuth
 		if (is_user_logged_in()) {
 			$user_id = get_current_user_id();
 			update_user_meta($user_id, $meta_key, $profile['provider_id']);
-			$this->do_login($user_id, $profile, $redirect_to);
+			$this->do_login($user_id, $profile, $redirect_to, $remember);
 		}
 
 		// 按 provider_id 查找已有绑定
 		$bound_user = self::find_bound_user($meta_key, $profile['provider_id']);
 		if ($bound_user) {
-			$this->do_login($bound_user, $profile, $redirect_to);
+			$this->do_login($bound_user, $profile, $redirect_to, $remember);
 		}
 
 		// 按邮箱查找：仅当第三方已验证该邮箱归属时才自动登录既有账户，
@@ -695,7 +857,7 @@ class AT8MLUC_OAuth
 			$u = get_user_by('email', $profile['email']);
 			if ($u) {
 				update_user_meta($u->ID, $meta_key, $profile['provider_id']);
-				$this->do_login($u->ID, $profile, $redirect_to);
+				$this->do_login($u->ID, $profile, $redirect_to, $remember);
 			}
 		}
 
@@ -717,74 +879,225 @@ class AT8MLUC_OAuth
 		if (!empty($profile['name'])) {
 			wp_update_user(array('ID' => $user_id, 'display_name' => $profile['name']));
 		}
-		$this->do_login($user_id, $profile, $redirect_to);
+		$this->do_login($user_id, $profile, $redirect_to, $remember);
 	}
 
 	/**
-	 * Sign in an identity the provider has already verified.
+	 * 第三方身份验证成功之后、建立 WordPress 登录态之前的统一认证适配层。
 	 *
-	 * This is the only place in the plugin that establishes a social-login
-	 * session, so all five providers go through the same steps in the same
-	 * order that `wp_signon()` uses internally:
+	 * 四种事情严格分开，绝不把 provider 返回的资料直接当成本地已认证用户：
 	 *
-	 *   1. a veto filter, where another plugin can refuse this identity;
-	 *   2. `wp_set_current_user()` plus the auth cookie, set exactly once;
-	 *   3. the standard `wp_login` action, which security, session, welcome
-	 *      mail and activity-log plugins all hook into.
+	 *   1. 第三方验证：provider 的 token / profile 已由 fetch_* 校验；
+	 *   2. 本地账户匹配：按绑定 ID / 已验证邮箱解析出本地 WP_User；
+	 *   3. 本地登录策略：站点停用规则 + WordPress 原生认证扩展点；
+	 *   4. 登录状态建立：只在第 3 步全部放行之后，由 do_login() 完成。
 	 *
-	 * `wp_signon()` itself cannot be called here: it verifies a username and
-	 * password against the local hash and an OAuth login has neither. Running
-	 * `wp_authenticate()` would fail by construction, so the adapter above
-	 * exists instead of pretending there is a password to check. Nothing is
-	 * skipped that a password login would do — the identity check simply
-	 * happened at the provider, and its result arrives as a verified profile.
+	 * 为什么不调用 wp_signon() / wp_authenticate()：两者都会走密码校验，而
+	 * OAuth 没有本地密码；伪造一个密码再"通过"校验既是撒谎也会绕过真正的
+	 * 策略检查。这里改为把已经解析好的 WP_User 作为初始值交给原生的
+	 * `authenticate` 过滤器链 —— 核心的两个密码校验器看到 WP_User 会原样
+	 * 返回（core 的 wp_authenticate_username_password() 首行即如此），而
+	 * 挂在 authenticate 上的安全 / 限流 / 双因素插件仍然可以返回 WP_Error
+	 * 拒绝本次登录。随后再跑一次 `wp_authenticate_user`，覆盖 spam / ban
+	 * 这类挂在该过滤器上的插件。
 	 *
-	 * @param int    $user_id     WordPress user ID.
-	 * @param array  $profile     Normalised profile returned by the provider.
-	 * @param string $redirect_to Validated same-site destination.
-	 * @return void
+	 * 诚实的限制：需要交互式第二因子（现场输入 TOTP 码、短信码）的插件在
+	 * OAuth 回调里拿不到输入界面。这类插件返回 WP_Error 时本方法拒绝登录，
+	 * 而不是绕过它；因此这是「可被拒绝、不被绕过」，不是「全面兼容 2FA」。
+	 * 站点若挂载了与已认证 WP_User 不兼容的 authenticate 回调，可用
+	 * at8mluc_oauth_use_authenticate_filter 关闭该桥接（默认开启）。
+	 *
+	 * @param int   $user_id 已解析出的本地用户 ID。
+	 * @param array $profile 归一化后的 provider 资料。
+	 * @return WP_User|WP_Error 认证通过的用户，或失败原因。
 	 */
-	private function do_login($user_id, $profile, $redirect_to = '')
+	private function authenticate_oauth_user($user_id, $profile)
 	{
 		$user = get_userdata((int) $user_id);
 
 		if (!$user || !$user->ID) {
-			$this->oauth_fail('identity', __('登录失败：账户不存在。', 'at8-moonlight-user-center'));
+			return new WP_Error('at8mluc_oauth_no_user', 'identity');
+		}
+
+		// 多站点：非本站点成员且非超级管理员，不允许从本站登录。
+		if (is_multisite() && !is_user_member_of_blog($user->ID, get_current_blog_id()) && !is_super_admin($user->ID)) {
+			return $this->oauth_denied($user, 'not_member', new WP_Error('at8mluc_oauth_not_member', 'not_member'));
 		}
 
 		/**
-		 * Filters whether a third-party identity may sign this user in.
+		 * Filters whether the matched local account is allowed to sign in.
 		 *
-		 * Every provider passes through here before a session is created, so
-		 * a security plugin can refuse the login (blocked account, unmet
-		 * second factor, IP rule) by returning a WP_Error, and the visitor is
-		 * sent back to the login form with the message.
+		 * Sites with their own "disabled / suspended / banned" flag can return
+		 * false or a WP_Error here. The default reflects WordPress core, which
+		 * has no separate account-active flag.
 		 *
-		 * @since 2.7.1
+		 * @since 2.7.2
 		 *
-		 * @param true|WP_Error|false $allow   True to continue with the login.
-		 * @param WP_User             $user    The account being signed in.
-		 * @param array               $profile Normalised provider profile.
+		 * @param bool|WP_Error $active  Whether the account may log in.
+		 * @param WP_User       $user    Matched local account.
+		 * @param array         $profile Normalised provider profile.
 		 */
-		$allow = apply_filters('at8mluc_oauth_authenticate_user', true, $user, $profile);
+		$active = apply_filters('at8mluc_oauth_user_is_active', true, $user, $profile);
 
-		if (is_wp_error($allow)) {
-			$this->oauth_fail('blocked', $allow->get_error_message());
+		if (is_wp_error($active)) {
+			return $this->oauth_denied($user, 'account_policy', $active);
 		}
 
-		if (!$allow) {
-			$this->oauth_fail('blocked', __('本站当前不允许该账户登录。', 'at8-moonlight-user-center'));
+		if (!$active) {
+			return $this->oauth_denied($user, 'inactive', new WP_Error('at8mluc_oauth_inactive', 'inactive'));
 		}
 
-		wp_set_current_user($user->ID);
-		wp_set_auth_cookie($user->ID, true, is_ssl());
+		/*
+		 * 原生「登录开始」事件。第二个参数是空字符串，含义是「本次没有本地
+		 * 密码」，不是伪造一个密码：密码校验完全不参与本流程。
+		 */
+		$login_name  = $user->user_login;
+		$no_password = '';
+		do_action_ref_array('wp_authenticate', array(&$login_name, &$no_password)); // phpcs:ignore WordPress.NamingConventions.PrefixAllGlobals.NonPrefixedHooknameFound -- Core action fired by wp_signon() before authentication.
 
-		/** This action is documented in wp-includes/user.php */
-		do_action('wp_login', $user->user_login, $user); // phpcs:ignore WordPress.NamingConventions.PrefixAllGlobals.NonPrefixedHooknameFound -- Core action: the event security and session plugins listen for.
+		// 2.7.1 起插件专用否决口，保留向后兼容。
+		$veto = apply_filters('at8mluc_oauth_authenticate_user', true, $user, $profile);
 
-		do_action('at8mluc_oauth_login', $user->ID, $profile);
+		if (is_wp_error($veto)) {
+			return $this->oauth_denied($user, 'veto', $veto);
+		}
 
-		// 优先回跳到 OAuth 发起时携带的同站地址；否则回账户中心
+		if (!$veto) {
+			return $this->oauth_denied($user, 'veto', new WP_Error('at8mluc_oauth_veto', 'veto'));
+		}
+
+		/**
+		 * Filters whether the native `authenticate` filter chain is used.
+		 *
+		 * Default true. Set it to false only when a third-party callback on
+		 * `authenticate` cannot cope with a pre-resolved WP_User; the plugin
+		 * still applies `at8mluc_oauth_authenticate_user` and
+		 * `wp_authenticate_user` in that case.
+		 *
+		 * @since 2.7.2
+		 *
+		 * @param bool    $use     Whether to bridge into the core filter.
+		 * @param WP_User $user    Matched local account.
+		 * @param array   $profile Normalised provider profile.
+		 */
+		$use_native = apply_filters('at8mluc_oauth_use_authenticate_filter', true, $user, $profile);
+
+		$result = $user;
+
+		if ($use_native) {
+			// 传 WP_User 而非 null：core 的密码校验器会短路，策略插件仍可否决。
+			$result = apply_filters('authenticate', $user, $user->user_login, ''); // phpcs:ignore WordPress.NamingConventions.PrefixAllGlobals.NonPrefixedHooknameFound -- Core filter: the extension point security plugins use.
+		}
+
+		if (!$result instanceof WP_User) {
+			$error = is_wp_error($result) ? $result : new WP_Error('at8mluc_oauth_authenticate_failed', 'not_wp_user');
+			return $this->oauth_denied($user, 'authenticate', $error);
+		}
+
+		// core 在密码校验成功后触发它；spam / ban 类插件常挂在这里。
+		$result = apply_filters('wp_authenticate_user', $result, ''); // phpcs:ignore WordPress.NamingConventions.PrefixAllGlobals.NonPrefixedHooknameFound -- Core filter: account-level login policy hooks live here.
+
+		if (is_wp_error($result)) {
+			return $this->oauth_denied($user, 'user_policy', $result);
+		}
+
+		if (!$result instanceof WP_User) {
+			return $this->oauth_denied($user, 'user_policy', new WP_Error('at8mluc_oauth_user_policy', 'not_wp_user'));
+		}
+
+		// 防账户掉包：任何过滤器都不能把身份换成另一个用户。
+		if ((int) $result->ID !== (int) $user->ID) {
+			return $this->oauth_denied($user, 'identity_changed', new WP_Error('at8mluc_oauth_identity_changed', 'identity_changed'));
+		}
+
+		return $result;
+	}
+
+	/**
+	 * 认证拒绝的统一出口：触发原生失败事件让限流 / 审计插件计数，
+	 * 详细原因只交给站点动作，不回显给浏览器。
+	 *
+	 * @param WP_User  $user   被拒绝的账户。
+	 * @param string   $reason 内部原因码。
+	 * @param WP_Error $error  错误对象。
+	 * @return WP_Error
+	 */
+	private function oauth_denied($user, $reason, $error)
+	{
+		do_action('wp_login_failed', $user->user_login, $error); // phpcs:ignore WordPress.NamingConventions.PrefixAllGlobals.NonPrefixedHooknameFound -- Core action: rate limiting and audit plugins count refusals here.
+
+		/**
+		 * Fires when a social login was refused by a local login policy.
+		 *
+		 * @since 2.7.2
+		 *
+		 * @param string   $reason Short internal reason code.
+		 * @param int      $user_id Matched local account ID.
+		 * @param WP_Error $error  Full error object, for site-owned logging.
+		 */
+		do_action('at8mluc_oauth_login_denied', (string) $reason, (int) $user->ID, $error);
+
+		return $error;
+	}
+
+	/**
+	 * 认证通过后建立会话 —— 插件里唯一一处为社交登录写 auth cookie 的地方。
+	 *
+	 * 顺序照 wp_signon()：secure cookie 过滤 → wp_set_auth_cookie() →
+	 * wp_login 动作；wp_set_current_user() 只为了让本次请求的
+	 * is_user_logged_in() 立即生效。已经以此身份登录时（账户绑定）整段跳过，
+	 * 不重复建 cookie、不重复触发登录动作。
+	 *
+	 * @param int    $user_id     本地用户 ID。
+	 * @param array  $profile     归一化后的 provider 资料。
+	 * @param string $redirect_to 已校验的同站回跳地址。
+	 * @param bool   $remember    是否延长会话，默认 false。
+	 * @return void
+	 */
+	private function do_login($user_id, $profile, $redirect_to = '', $remember = false)
+	{
+		$user = $this->authenticate_oauth_user($user_id, $profile);
+
+		if (is_wp_error($user)) {
+			// 通用文案：不泄漏第三方错误、安全插件规则或账户状态细节。
+			$this->oauth_fail('blocked', __('本站当前不允许该账户通过第三方账号登录。', 'at8-moonlight-user-center'));
+		}
+
+		$already_signed_in = is_user_logged_in() && (int) get_current_user_id() === (int) $user->ID;
+
+		if (!$already_signed_in) {
+			$credentials = array(
+				'user_login'    => $user->user_login,
+				'user_password' => '',
+				'remember'      => (bool) $remember,
+			);
+
+			$secure_cookie = apply_filters('secure_signon_cookie', is_ssl(), $credentials); // phpcs:ignore WordPress.NamingConventions.PrefixAllGlobals.NonPrefixedHooknameFound -- Core filter used by wp_signon().
+
+			wp_set_auth_cookie($user->ID, (bool) $remember, (bool) $secure_cookie);
+			wp_set_current_user($user->ID);
+
+			/** This action is documented in wp-includes/user.php */
+			do_action('wp_login', $user->user_login, $user); // phpcs:ignore WordPress.NamingConventions.PrefixAllGlobals.NonPrefixedHooknameFound -- Core action: the event security and session plugins listen for.
+		}
+
+		/**
+		 * Fires after a social login has been accepted.
+		 *
+		 * The third parameter tells listeners whether a new session was
+		 * created or the visitor was already signed in and only linked an
+		 * account. Previously this action had two parameters; extra arguments
+		 * do not break existing callbacks.
+		 *
+		 * @since 2.7.0
+		 *
+		 * @param int   $user_id           Signed-in account ID.
+		 * @param array $profile           Normalised provider profile.
+		 * @param bool  $already_signed_in No new session was created.
+		 */
+		do_action('at8mluc_oauth_login', $user->ID, $profile, $already_signed_in);
+
+		// 回跳地址在 state 生成时已校验，此处再兜一次，绝不裸跳外部域名。
 		if ($redirect_to && wp_validate_redirect($redirect_to, false)) {
 			wp_safe_redirect($redirect_to);
 		} else {

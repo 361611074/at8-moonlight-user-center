@@ -60,6 +60,11 @@ class AT8MLUC_Prefix_Migration {
 	const LAST_ERROR_OPTION = 'at8mluc_prefix_last_error';
 
 	/**
+	 * Option holding the row-by-row verification report of the last run.
+	 */
+	const REPORT_OPTION = 'at8mluc_prefix_migration_report';
+
+	/**
 	 * Seconds a lease stays valid before another request may take it over.
 	 */
 	const LOCK_TTL = 300;
@@ -91,6 +96,9 @@ class AT8MLUC_Prefix_Migration {
 	 * @return void
 	 */
 	public static function maybe_run() {
+		// Runs during plugins_loaded, before admin_notices is fired.
+		add_action( 'admin_notices', array( __CLASS__, 'admin_notice' ) );
+
 		if ( '' !== (string) get_option( self::DONE_OPTION, '' ) ) {
 			return;
 		}
@@ -120,7 +128,11 @@ class AT8MLUC_Prefix_Migration {
 			$failures = array();
 
 			foreach ( $steps as $step => $status ) {
-				if ( self::FAILED === $status ) {
+				// CONFLICT means something different depending on the step:
+				// for meta/options it is "both names already exist, do not
+				// overwrite" and the run may finish. For the points tables it
+				// is a data disagreement, which must hold back the marker.
+				if ( self::FAILED === $status || ( 'tables' === $step && self::CONFLICT === $status ) ) {
 					$failures[] = $step;
 				}
 			}
@@ -141,8 +153,9 @@ class AT8MLUC_Prefix_Migration {
 			update_option(
 				self::LAST_ERROR_OPTION,
 				array(
-					'time'  => time(),
-					'steps' => $failures,
+					'time'    => time(),
+					'steps'   => $failures,
+					'reports' => (array) get_option( self::REPORT_OPTION, array() ),
 				),
 				false
 			);
@@ -539,13 +552,11 @@ class AT8MLUC_Prefix_Migration {
 	}
 
 	/**
-	 * Move the two points tables to their new names.
+	 * Move the two points tables from their pre-2.7.0 names.
 	 *
-	 * A rename is preferred because it moves the rows without touching them.
-	 * Some database layers refuse it; the fallback creates the new table and
-	 * copies the rows into it, then leaves the old table in place. In that
-	 * case the copy is verified by row count, so a copy that stopped half way
-	 * is finished on the next run instead of being reported as complete.
+	 * A conflict is returned as such and stops the run: `maybe_run()` treats
+	 * it exactly like a failure, so the completion marker stays unwritten and
+	 * the old tables stay in place.
 	 *
 	 * @return string Step status.
 	 */
@@ -557,8 +568,8 @@ class AT8MLUC_Prefix_Migration {
 		foreach ( array( 'ledger', 'account' ) as $name ) {
 			$result = self::move_points_table( $wpdb->prefix . 'at8mluc_points_' . $name );
 
-			if ( self::FAILED === $result ) {
-				return self::FAILED;
+			if ( self::FAILED === $result || self::CONFLICT === $result ) {
+				return $result;
 			}
 
 			if ( self::OK === $result ) {
@@ -570,7 +581,18 @@ class AT8MLUC_Prefix_Migration {
 	}
 
 	/**
-	 * Move one points table.
+	 * Move one points table, verifying every source row against the target.
+	 *
+	 * A row count is never used as proof of success. The real columns and the
+	 * primary key are read from the database first, then the source is walked
+	 * in bounded batches and every row is compared column by column with the
+	 * row carrying the same primary key in the target.
+	 *
+	 * Three outcomes are possible for a row: identical (nothing to do),
+	 * missing (inserted on the second pass, never overwritten) or different
+	 * (a conflict — the run stops, nothing is overwritten, the old table is
+	 * kept). A final read-only pass must find zero missing and zero conflicting
+	 * rows before this step may report success.
 	 *
 	 * @param string $new New table name.
 	 * @return string Step status.
@@ -590,94 +612,493 @@ class AT8MLUC_Prefix_Migration {
 			return self::SKIPPED;
 		}
 
+		$schema = self::table_columns( $old );
+
+		if ( is_wp_error( $schema ) || '' === $schema['primary'] ) {
+			return self::FAILED;
+		}
+
 		$new_exists = self::table_exists( $new );
 
 		if ( is_wp_error( $new_exists ) ) {
 			return self::FAILED;
 		}
 
-		if ( $new_exists ) {
-			$old_rows = self::count_rows( $old );
-			$new_rows = self::count_rows( $new );
+		$report = array(
+			'table'     => $new,
+			'source'    => $old,
+			'primary'   => $schema['primary'],
+			'columns'   => $schema['columns'],
+			'checked'   => 0,
+			'identical' => 0,
+			'missing'   => 0,
+			'conflicts' => 0,
+			'copied'    => 0,
+			'samples'   => array(),
+			'method'    => '',
+			'verified'  => false,
+		);
 
-			if ( is_wp_error( $old_rows ) || is_wp_error( $new_rows ) ) {
-				return self::FAILED;
-			}
-
-			// A completed rename leaves no old table behind, and a completed
-			// copy holds at least as many rows as the source.
-			if ( $new_rows >= $old_rows ) {
-				return self::SKIPPED;
-			}
-		} else {
+		if ( ! $new_exists ) {
+			/*
+			 * An atomic rename is a physical move, not a copy: no row can be
+			 * lost or altered, so a row-by-row comparison would compare the
+			 * same table with itself. The report records that distinction.
+			 */
 			// phpcs:ignore WordPress.DB.DirectDatabaseQuery.DirectQuery, WordPress.DB.DirectDatabaseQuery.NoCaching, WordPress.DB.DirectDatabaseQuery.SchemaChange, WordPress.DB.PreparedSQL.NotPrepared, WordPress.DB.PreparedSQL.InterpolatedNotPrepared, PluginCheck.Security.DirectDB.UnescapedDBParameter -- Table names come from $wpdb->prefix.
 			$renamed = $wpdb->query( "RENAME TABLE `{$old}` TO `{$new}`" );
 			$error   = self::clean_error();
 
-			/*
-			 * A driver that cannot rename reports false with an empty message,
-			 * so the copy below is attempted either way. It reaches the same
-			 * result as the rename, just with more work.
-			 */
 			if ( false !== $renamed && '' === $error ) {
+				$report['method']   = 'atomic-rename';
+				$report['verified'] = true;
+				$report['note']     = 'Rows were moved, not copied; no row comparison applies.';
+				self::publish_report( $report );
+
 				return self::OK;
 			}
+
+			// The driver refused the rename (SQLite drop-in, restricted grants).
+			$installed = AT8MLUC_Points::install();
+
+			if ( is_wp_error( $installed ) ) {
+				return self::FAILED;
+			}
+
+			$new_exists = self::table_exists( $new );
+
+			if ( is_wp_error( $new_exists ) || ! $new_exists ) {
+				return self::FAILED;
+			}
+
+			$report['method'] = 'copy-and-verify';
+		} else {
+			$report['method'] = 'verify-existing';
 		}
 
-		// Create the target if the rename was refused, then copy the rows.
-		AT8MLUC_Points::install();
+		$new_schema = self::table_columns( $new );
 
-		if ( ! self::copy_rows( $new, $old ) ) {
+		if ( is_wp_error( $new_schema ) ) {
 			return self::FAILED;
 		}
 
-		$old_rows = self::count_rows( $old );
-		$new_rows = self::count_rows( $new );
+		$missing_columns = array_diff( $schema['columns'], $new_schema['columns'] );
 
-		if ( is_wp_error( $old_rows ) || is_wp_error( $new_rows ) ) {
+		if ( array() !== $missing_columns ) {
+			$report['conflicts'] = count( $missing_columns );
+			$report['samples'][] = 'target is missing columns: ' . implode( ', ', $missing_columns );
+			self::publish_report( $report );
+
+			return self::CONFLICT;
+		}
+
+		// Pass 1: read-only. Never write into a target that disagrees.
+		if ( ! self::inspect_rows( $old, $new, $schema, $report ) ) {
+			self::publish_report( $report );
+
 			return self::FAILED;
 		}
 
-		// Every source row has to be visible in the new table before this
-		// step counts as done.
-		if ( $new_rows < $old_rows ) {
+		if ( $report['conflicts'] > 0 ) {
+			self::publish_report( $report );
+
+			return self::CONFLICT;
+		}
+
+		// Pass 2: insert only rows whose primary key is absent. No UPDATE.
+		if ( $report['missing'] > 0 && ! self::copy_missing_rows( $old, $new, $schema, $report ) ) {
+			self::publish_report( $report );
+
 			return self::FAILED;
 		}
 
-		return self::OK;
+		// Pass 3: verify the result again before any completion marker.
+		$final            = $report;
+		$final['checked']   = 0;
+		$final['identical'] = 0;
+		$final['missing']   = 0;
+		$final['conflicts'] = 0;
+		$final['samples']   = array();
+
+		if ( ! self::inspect_rows( $old, $new, $schema, $final ) ) {
+			self::publish_report( $report );
+
+			return self::FAILED;
+		}
+
+		$report['checked']   = $final['checked'];
+		$report['identical'] = $final['identical'];
+		$report['missing']   = $final['missing'];
+		$report['conflicts'] = $final['conflicts'];
+
+		if ( $final['conflicts'] > 0 || $final['missing'] > 0 ) {
+			$report['samples'] = $final['samples'];
+			self::publish_report( $report );
+
+			return self::FAILED;
+		}
+
+		$report['verified'] = true;
+		self::publish_report( $report );
+
+		return $report['copied'] > 0 ? self::OK : self::SKIPPED;
 	}
 
 	/**
-	 * Copy every row of one table into another with the same schema.
+	 * Read the real columns and primary key of one table.
 	 *
-	 * `INSERT IGNORE` keeps a run that follows a partially copied table from
-	 * failing on the rows that are already there. Database layers that do not
-	 * know the keyword (the SQLite drop-in, for instance) reject the statement
-	 * outright, so the plain form is tried as a fallback — in that case the
-	 * table was empty, which is the only state the plain form can serve.
+	 * Column names are validated against an identifier allow-list before they
+	 * are ever interpolated into a query. Nothing here assumes that a column
+	 * exists: the schema of this release is not a safe description of a table
+	 * that may have been created by an older build.
 	 *
-	 * @param string $new Target table.
-	 * @param string $old Source table.
-	 * @return bool True when the driver reported no error.
+	 * @param string $table Full table name.
+	 * @return array{columns:string[],primary:string}|WP_Error
 	 */
-	private static function copy_rows( $new, $old ) {
+	private static function table_columns( $table ) {
 		global $wpdb;
 
 		$suppress = $wpdb->suppress_errors( true );
 
-		// phpcs:ignore WordPress.DB.DirectDatabaseQuery.DirectQuery, WordPress.DB.DirectDatabaseQuery.NoCaching, WordPress.DB.PreparedSQL.NotPrepared, WordPress.DB.PreparedSQL.InterpolatedNotPrepared, PluginCheck.Security.DirectDB.UnescapedDBParameter -- Copying the plugin's own rows into the table with the same schema.
-		$wpdb->query( "INSERT IGNORE INTO `{$new}` SELECT * FROM `{$old}`" );
-
-		if ( '' !== self::clean_error() ) {
-			// phpcs:ignore WordPress.DB.DirectDatabaseQuery.DirectQuery, WordPress.DB.DirectDatabaseQuery.NoCaching, WordPress.DB.PreparedSQL.NotPrepared, WordPress.DB.PreparedSQL.InterpolatedNotPrepared, PluginCheck.Security.DirectDB.UnescapedDBParameter -- Copying the plugin's own rows into the table with the same schema.
-			$wpdb->query( "INSERT INTO `{$new}` SELECT * FROM `{$old}`" );
-		}
-
+		// phpcs:ignore WordPress.DB.DirectDatabaseQuery.DirectQuery, WordPress.DB.DirectDatabaseQuery.NoCaching, WordPress.DB.PreparedSQL.NotPrepared, WordPress.DB.PreparedSQL.InterpolatedNotPrepared, PluginCheck.Security.DirectDB.UnescapedDBParameter -- Table name comes from $wpdb->prefix.
+		$rows  = $wpdb->get_results( "SHOW COLUMNS FROM `{$table}`", ARRAY_A );
 		$error = self::clean_error();
 
 		$wpdb->suppress_errors( $suppress );
 
-		return '' === $error;
+		if ( '' !== $error || ! is_array( $rows ) ) {
+			return new WP_Error( 'at8mluc_schema_read', '' !== $error ? $error : __( 'The table structure could not be read.', 'at8-moonlight-user-center' ) );
+		}
+
+		$columns = array();
+		$primary = '';
+
+		foreach ( $rows as $row ) {
+			$name = isset( $row['Field'] ) ? (string) $row['Field'] : '';
+
+			if ( '' === $name || ! preg_match( '/^[A-Za-z0-9_]+$/', $name ) ) {
+				return new WP_Error( 'at8mluc_schema_column', __( 'An unexpected column name was found.', 'at8-moonlight-user-center' ) );
+			}
+
+			$columns[] = $name;
+
+			if ( isset( $row['Key'] ) && 'PRI' === (string) $row['Key'] && '' === $primary ) {
+				$primary = $name;
+			}
+		}
+
+		if ( array() === $columns ) {
+			return new WP_Error( 'at8mluc_schema_empty', __( 'The table has no columns.', 'at8-moonlight-user-center' ) );
+		}
+
+		return array(
+			'columns' => $columns,
+			'primary' => $primary,
+		);
+	}
+
+	/**
+	 * Read one bounded batch of source rows.
+	 *
+	 * Keeping the batch small means a site with a very large ledger never
+	 * loads the whole table into PHP memory.
+	 *
+	 * @param string $table  Source table.
+	 * @param string $pk     Whitelisted primary key column.
+	 * @param int    $offset Batch offset.
+	 * @param int    $limit  Batch size.
+	 * @return array<int, array<string,mixed>>|WP_Error
+	 */
+	private static function read_batch( $table, $pk, $offset, $limit ) {
+		global $wpdb;
+
+		$suppress = $wpdb->suppress_errors( true );
+
+		// phpcs:ignore WordPress.DB.DirectDatabaseQuery.DirectQuery, WordPress.DB.DirectDatabaseQuery.NoCaching, WordPress.DB.PreparedSQL.InterpolatedNotPrepared, PluginCheck.Security.DirectDB.UnescapedDBParameter -- Table and column names come from $wpdb->prefix and SHOW COLUMNS.
+		$rows = $wpdb->get_results(
+			$wpdb->prepare(
+				"SELECT * FROM `{$table}` ORDER BY `{$pk}` ASC LIMIT %d, %d", // phpcs:ignore WordPress.DB.PreparedSQL.InterpolatedNotPrepared -- Identifiers come from $wpdb->prefix and SHOW COLUMNS.
+				(int) $offset,
+				(int) $limit
+			),
+			ARRAY_A
+		);
+		$error = self::clean_error();
+
+		$wpdb->suppress_errors( $suppress );
+
+		if ( '' !== $error || ! is_array( $rows ) ) {
+			return new WP_Error( 'at8mluc_batch_read', '' !== $error ? $error : __( 'A batch of rows could not be read.', 'at8-moonlight-user-center' ) );
+		}
+
+		return $rows;
+	}
+
+	/**
+	 * Read the target row with a given primary key.
+	 *
+	 * @param string $table Target table.
+	 * @param string $pk    Whitelisted primary key column.
+	 * @param string $key   Primary key value.
+	 * @return array<string,mixed>|null|WP_Error Null when the row is absent.
+	 */
+	private static function read_row( $table, $pk, $key ) {
+		global $wpdb;
+
+		$suppress = $wpdb->suppress_errors( true );
+
+		// phpcs:ignore WordPress.DB.DirectDatabaseQuery.DirectQuery, WordPress.DB.DirectDatabaseQuery.NoCaching, WordPress.DB.PreparedSQL.InterpolatedNotPrepared, PluginCheck.Security.DirectDB.UnescapedDBParameter -- Table and column names come from $wpdb->prefix and SHOW COLUMNS; the value is prepared.
+		$row = $wpdb->get_row(
+			$wpdb->prepare( "SELECT * FROM `{$table}` WHERE `{$pk}` = %s LIMIT 1", (string) $key ), // phpcs:ignore WordPress.DB.PreparedSQL.InterpolatedNotPrepared -- Identifiers come from $wpdb->prefix and SHOW COLUMNS.
+			ARRAY_A
+		);
+		$error = self::clean_error();
+
+		$wpdb->suppress_errors( $suppress );
+
+		if ( '' !== $error ) {
+			return new WP_Error( 'at8mluc_row_read', $error );
+		}
+
+		return null === $row ? null : $row;
+	}
+
+	/**
+	 * Name the first column whose value differs between two rows.
+	 *
+	 * NULL, a missing column and an empty string are deliberately distinct:
+	 * collapsing them would hide a real schema or data difference.
+	 *
+	 * @param string[]             $columns Columns to compare.
+	 * @param array<string,mixed>  $a       Source row.
+	 * @param array<string,mixed>  $b       Target row.
+	 * @return string Column name, or empty string when identical.
+	 */
+	private static function row_diff( $columns, $a, $b ) {
+		foreach ( $columns as $column ) {
+			$av = ! array_key_exists( $column, $a ) ? '<absent>' : ( null === $a[ $column ] ? '<null>' : (string) $a[ $column ] );
+			$bv = ! array_key_exists( $column, $b ) ? '<absent>' : ( null === $b[ $column ] ? '<null>' : (string) $b[ $column ] );
+
+			if ( $av !== $bv ) {
+				return $column;
+			}
+		}
+
+		return '';
+	}
+
+	/**
+	 * Pass 1 / pass 3: compare every source row with the target, read-only.
+	 *
+	 * @param string $old    Source table.
+	 * @param string $new    Target table.
+	 * @param array  $schema Real table structure.
+	 * @param array  $report Report to accumulate into, by reference.
+	 * @return bool False on a database error.
+	 */
+	private static function inspect_rows( $old, $new, $schema, &$report ) {
+		$pk     = $schema['primary'];
+		$cols   = $schema['columns'];
+		$batch  = 200;
+		$offset = 0;
+
+		while ( true ) {
+			$rows = self::read_batch( $old, $pk, $offset, $batch );
+
+			if ( is_wp_error( $rows ) ) {
+				$report['samples'][] = 'source read failed: ' . $rows->get_error_message();
+
+				return false;
+			}
+
+			if ( array() === $rows ) {
+				break;
+			}
+
+			foreach ( $rows as $row ) {
+				++$report['checked'];
+
+				$key    = isset( $row[ $pk ] ) ? (string) $row[ $pk ] : '';
+				$target = self::read_row( $new, $pk, $key );
+
+				if ( is_wp_error( $target ) ) {
+					$report['samples'][] = 'target read failed for pk=' . $key;
+
+					return false;
+				}
+
+				if ( null === $target ) {
+					++$report['missing'];
+
+					continue;
+				}
+
+				$diff = self::row_diff( $cols, $row, $target );
+
+				if ( '' !== $diff ) {
+					++$report['conflicts'];
+
+					if ( count( $report['samples'] ) < 5 ) {
+						$report['samples'][] = 'pk=' . $key . ' differs in column ' . $diff;
+					}
+				} else {
+					++$report['identical'];
+				}
+			}
+
+			$offset += $batch;
+		}
+
+		return true;
+	}
+
+	/**
+	 * Pass 2: insert rows whose primary key is absent from the target.
+	 *
+	 * Existing rows are never updated, even if another request inserted them
+	 * between the two passes. Each insert is read back and compared before it
+	 * counts as copied.
+	 *
+	 * @param string $old    Source table.
+	 * @param string $new    Target table.
+	 * @param array  $schema Real table structure.
+	 * @param array  $report Report to accumulate into, by reference.
+	 * @return bool False on a database error or a read-back mismatch.
+	 */
+	private static function copy_missing_rows( $old, $new, $schema, &$report ) {
+		global $wpdb;
+
+		$pk     = $schema['primary'];
+		$cols   = $schema['columns'];
+		$batch  = 200;
+		$offset = 0;
+
+		while ( true ) {
+			$rows = self::read_batch( $old, $pk, $offset, $batch );
+
+			if ( is_wp_error( $rows ) ) {
+				return false;
+			}
+
+			if ( array() === $rows ) {
+				break;
+			}
+
+			foreach ( $rows as $row ) {
+				$key    = isset( $row[ $pk ] ) ? (string) $row[ $pk ] : '';
+				$target = self::read_row( $new, $pk, $key );
+
+				if ( is_wp_error( $target ) ) {
+					return false;
+				}
+
+				if ( null !== $target ) {
+					// Already there. Never overwrite.
+					continue;
+				}
+
+				$payload = array();
+
+				foreach ( $cols as $column ) {
+					$payload[ $column ] = array_key_exists( $column, $row ) ? $row[ $column ] : null;
+				}
+
+				$suppress = $wpdb->suppress_errors( true );
+
+				// phpcs:ignore WordPress.DB.DirectDatabaseQuery.DirectQuery, WordPress.DB.DirectDatabaseQuery.NoCaching -- Inserting a source row whose key is absent from the target.
+				$inserted = $wpdb->insert( $new, $payload );
+				$error    = self::clean_error();
+
+				$wpdb->suppress_errors( $suppress );
+
+				if ( false === $inserted || '' !== $error ) {
+					if ( count( $report['samples'] ) < 5 ) {
+						$report['samples'][] = 'insert refused for pk=' . $key;
+					}
+
+					return false;
+				}
+
+				$back = self::read_row( $new, $pk, $key );
+
+				if ( is_wp_error( $back ) || null === $back || '' !== self::row_diff( $cols, $row, $back ) ) {
+					if ( count( $report['samples'] ) < 5 ) {
+						$report['samples'][] = 'read-back mismatch for pk=' . $key;
+					}
+
+					return false;
+				}
+
+				++$report['copied'];
+			}
+
+			$offset += $batch;
+		}
+
+		return true;
+	}
+
+	/**
+	 * Store and broadcast the verification report.
+	 *
+	 * The report contains table names, counts and column names only — never
+	 * user data or SQL text.
+	 *
+	 * @param array $report One table's verification result.
+	 * @return void
+	 */
+	private static function publish_report( $report ) {
+		$all   = (array) get_option( self::REPORT_OPTION, array() );
+		$all[] = $report;
+
+		// Keep the option small: only the last two tables of the last run.
+		$all = array_slice( $all, -2 );
+
+		update_option( self::REPORT_OPTION, $all, false );
+
+		/**
+		 * Fires with the row-by-row verification result of one points table.
+		 *
+		 * @since 2.7.2
+		 *
+		 * @param array $report Counts, column names and conflict samples.
+		 */
+		do_action( 'at8mluc_prefix_migration_verified', $report );
+	}
+
+	/**
+	 * Tell an administrator that the rename migration did not finish.
+	 *
+	 * The notice names the failing steps and the conflicting primary keys,
+	 * and states explicitly that the old data is still intact.
+	 */
+	public static function admin_notice() {
+		if ( ! current_user_can( 'manage_options' ) ) {
+			return;
+		}
+
+		$error = get_option( self::LAST_ERROR_OPTION, array() );
+
+		if ( ! is_array( $error ) || empty( $error['steps'] ) ) {
+			return;
+		}
+
+		$steps = implode( ', ', array_map( 'strval', (array) $error['steps'] ) );
+
+		echo '<div class="notice notice-error"><p>';
+		echo esc_html__(
+			'AT8 Moonlight User Center: the 2.7.0 identifier migration did not finish. Your existing options, meta and points data are still intact and have not been overwritten.',
+			'at8-moonlight-user-center'
+		);
+		echo '</p><p>';
+		echo esc_html(
+			sprintf(
+				/* translators: %s: comma separated list of failing steps. */
+				__( 'Steps needing attention: %s. The migration will be retried automatically; check the database if it keeps failing.', 'at8-moonlight-user-center' ),
+				$steps
+			)
+		);
+		echo '</p></div>';
 	}
 
 	/**

@@ -3,7 +3,7 @@ Contributors: x361611074
 Tags: user profile, login, registration, avatar, user center
 Requires at least: 5.8
 Tested up to: 7.1
-Stable tag: 2.7.1
+Stable tag: 2.7.2
 Requires PHP: 7.4
 License: GPL-2.0-or-later
 License URI: https://www.gnu.org/licenses/gpl-2.0.html
@@ -53,6 +53,12 @@ AT8 Moonlight User Center gives a WordPress site a complete front-end account ar
 * `[at8mluc_oauth_buttons]` — social login buttons on any page
 
 Place each shortcode on its own page, then choose those pages under User Center → Settings. Any page you leave unset falls back to the equivalent WordPress screen.
+
+**Project and author**
+
+* Source code, issue reports and release packages: https://github.com/361611074/at8-moonlight-user-center
+* Author's website: https://www.at8.fun/
+* The plugin is GPL-2.0-or-later and does not contact the author's website. No account, profile, points, order or login data is transmitted to at8.fun; every outbound request in this plugin goes to a social-login provider chosen by the site administrator, as listed under External services.
 
 **How it handles your data**
 
@@ -178,6 +184,9 @@ No user is ever created with a role chosen by the visitor: new accounts receive 
 4. The front-end login form.
 
 == Changelog ==
+
+= 2.7.2 =
+Security and reliability release. Social logins now pass through one authentication adapter: it resolves the local account, checks its status, fires the core `wp_authenticate` event and lets security plugins refuse through the native `authenticate` and `wp_authenticate_user` filters. A refusal fires `wp_login_failed` and leaves no session cookie; "remember me" is off by default. The 2.7.0 points-table migration now reads the real table structure and compares every row column by column in bounded batches instead of trusting row counts; a conflict stops the run, is reported to administrators and never overwrites data. OAuth callback parameters reject arrays, objects and over-long values. No settings change is needed.
 
 = 2.7.1 =
 * Social login: all five providers sign in through one routine that fires the standard `wp_login` action and offers a veto filter (`at8mluc_oauth_authenticate_user`), so security, two-factor and activity-log plugins see — and can refuse — a social login the same way they see a password login. Previously the session was created directly and no plugin was told.
@@ -352,6 +361,10 @@ No user is ever created with a role chosen by the visitor: new accounts receive 
 * Uninstall option to remove the plugin's data.
 
 == Upgrade Notice ==
+
+= 2.7.2 =
+Recommended for every site upgrading from 2.6.6 or earlier. The points-table migration is now verified row by row; if it finds a conflict it keeps all existing data, schedules a retry and shows an administrator notice instead of claiming success.
+
 
 = 2.7.1 =
 Security release: social logins now fire the standard `wp_login` action and other plugins can veto one, and the registration form signs in through `wp_signon()`. The 2.7.0 rename migration no longer reports success when a step failed. No settings change needed.
