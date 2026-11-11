@@ -4,7 +4,7 @@ A lightweight, theme-agnostic front-end user center for WordPress. It gives a si
 front-end login, registration, password recovery and a personal account area without
 touching the WordPress admin.
 
-**Version 2.6.6** · GPL-2.0-or-later · PHP 7.4+ · WordPress 5.8+
+**Version 2.7.0** · GPL-2.0-or-later · PHP 7.4+ · WordPress 5.8+
 
 ---
 
@@ -12,12 +12,12 @@ touching the WordPress admin.
 
 | Feature | Shortcode / where |
 | --- | --- |
-| Login form | `[at8_mluc_login]` |
-| Registration form | `[at8_mluc_register]` |
-| Password recovery form | `[at8_mluc_lostpassword]` |
-| Account dashboard | `[at8_mluc_account]` |
-| Hidden content | `[at8_mluc_hide type="logged\|reply"]` |
-| Social login buttons | `[at8_mluc_oauth_buttons]` |
+| Login form | `[at8mluc_login]` |
+| Registration form | `[at8mluc_register]` |
+| Password recovery form | `[at8mluc_lostpassword]` |
+| Account dashboard | `[at8mluc_account]` |
+| Hidden content | `[at8mluc_hide type="logged\|reply"]` |
+| Social login buttons | `[at8mluc_oauth_buttons]` |
 | Membership purchase | Membership tab in the account dashboard |
 
 The account dashboard has five sections:
@@ -101,7 +101,7 @@ installed — License (Pro).
 
 ## Installation
 
-1. Download `at8-moonlight-user-center-2.6.6.zip` from the releases, or clone this
+1. Download `at8-moonlight-user-center-2.7.0.zip` from the releases, or clone this
    repository into `wp-content/plugins/at8-moonlight-user-center/`.
 2. Activate the plugin under **Plugins**.
 3. Create pages containing the shortcodes listed above.
@@ -133,16 +133,16 @@ The plugin stores only what it needs:
 
 | User meta key | Contents |
 | --- | --- |
-| `at8_mluc_phone` | Phone number entered in the profile |
-| `at8_mluc_avatar_attachment_id` | Media ID of the chosen avatar |
-| `at8_mluc_avatar_url` | URL of the chosen avatar |
-| `at8_mluc_avatar_type` | How the avatar was chosen |
-| `at8_mluc_last_login` | Last login timestamp |
-| `at8_mluc_membership_level` | Membership level slug held by the user |
-| `at8_mluc_membership_expires` | Expiry timestamp of the current level (0 = never) |
+| `at8mluc_phone` | Phone number entered in the profile |
+| `at8mluc_avatar_attachment_id` | Media ID of the chosen avatar |
+| `at8mluc_avatar_url` | URL of the chosen avatar |
+| `at8mluc_avatar_type` | How the avatar was chosen |
+| `at8mluc_last_login` | Last login timestamp |
+| `at8mluc_membership_level` | Membership level slug held by the user |
+| `at8mluc_membership_expires` | Expiry timestamp of the current level (0 = never) |
 
-Settings live in a single `at8_mluc_options` option. Order records are stored as a
-custom post type (`at8_mluc_order`) with post meta — there are **no custom database
+Settings live in a single `at8mluc_options` option. Order records are stored as a
+custom post type (`at8mluc_order`) with post meta — there are **no custom database
 tables**.
 
 It registers a personal data exporter and eraser with the WordPress privacy tools, and
@@ -159,7 +159,7 @@ WordPress user accounts, posts and comments are never deleted.
 ```
 at8-moonlight-user-center/
 ├── at8-moonlight-user-center.php   # bootstrap: constants, autoloader, module wiring
-├── includes/                   # AT8_MLUC_* classes + helper functions
+├── includes/                   # AT8MLUC_* classes + helper functions
 ├── templates/                  # front-end templates (theme-overridable)
 ├── assets/css/ · assets/js/
 ├── languages/                  # .pot + zh_CN (.po/.mo)
@@ -168,13 +168,13 @@ at8-moonlight-user-center/
 └── LICENSE                     # GPL-2.0 full text
 ```
 
-The autoloader maps `AT8_MLUC_Foo_Bar` to `includes/class-foo-bar.php`, so a new class
+The autoloader maps `AT8MLUC_Foo_Bar` to `includes/class-foo-bar.php`, so a new class
 needs no registration.
 
 ### Conventions
 
-- Every global function is prefixed `at8_mluc_`, every class and constant `AT8_MLUC_`,
-  every option and transient `at8_mluc_`.
+- Every global function is prefixed `at8mluc_`, every class and constant `AT8MLUC_`,
+  every option and transient `at8mluc_`.
 - All user-facing strings use the `at8-moonlight-user-center` text domain with **English**
   source strings, so GlotPress and language packs work normally.
 - All request input is unslashed and sanitised; all output is escaped late.
@@ -230,11 +230,11 @@ must be a valid callback, class "MLUC_Activator" not found
 
 The autoloader resolved `includes/class-activator.php` through the stolen
 `MLUC_PLUGIN_DIR`, looked inside the shop plugin, found nothing, and the activation
-hook died. Version 1.0.1 renames every identifier to the `AT8_MLUC_` / `at8_mluc_` /
+hook died. Version 1.0.1 renames every identifier to the `AT8MLUC_` / `at8mluc_` /
 `at8-moonlight-user-center` namespace, which no other plugin defines, and the
 autoloader now resolves classes from `__DIR__` so no shared constant can redirect
-class loading. Shortcodes became `[at8_mluc_login]`, `[at8_mluc_register]`,
-`[at8_mluc_lostpassword]` and `[at8_mluc_account]`.
+class loading. Shortcodes became `[at8mluc_login]`, `[at8mluc_register]`,
+`[at8mluc_lostpassword]` and `[at8mluc_account]`.
 
 **The previous version is preserved.** It is reachable at any time:
 
@@ -246,7 +246,7 @@ git checkout legacy-v2.1.1     # the old commercial Free edition
 Paid features continue in the separate repository
 [at8-moonlight-user-center-pro](https://github.com/361611074/at8-moonlight-user-center-pro),
 which this plugin does not depend on. All extension points are plain WordPress hooks
-(`at8_mluc_loaded`, `at8_mluc_account_tabs`, `at8_mluc_template_args`, `at8_mluc_after_register`, …).
+(`at8mluc_loaded`, `at8mluc_account_tabs`, `at8mluc_template_args`, `at8mluc_after_register`, …).
 
 ### 2.5.0 — no artificial ceilings
 
@@ -255,9 +255,9 @@ that a paid add-on lifts. Version 2.5.0 therefore removes every artificial ceili
 membership levels, published avatars and payment gateways are **unlimited** in the
 free plugin, the single-post paywall accepts any number of free-read levels, and the
 Pro comparison table was rewritten to describe what Pro actually adds instead of
-marketing lifted limits. The old `at8_mluc_membership_level_limit`,
-`at8_mluc_limit_avatar_count`, `at8_mluc_limit_gateway_count` and
-`at8_mluc_paywall_level_limit` filters no longer exist, and Pro 1.6.x no longer
+marketing lifted limits. The old `at8mluc_membership_level_limit`,
+`at8mluc_limit_avatar_count`, `at8mluc_limit_gateway_count` and
+`at8mluc_paywall_level_limit` filters no longer exist, and Pro 1.6.x no longer
 references them. Historical tables below still mention the old caps — they describe
 the version they are named after, not the current one.
 
@@ -301,7 +301,7 @@ Two long-standing defects surfaced while testing this and are fixed here:
 
 ### 2.3.0 — one boundary API, a rebuilt admin and a rebuilt front end
 
-Version 2.3.0 introduces `AT8_MLUC_Upgrade`, the single source of truth for the
+Version 2.3.0 introduces `AT8MLUC_Upgrade`, the single source of truth for the
 Free/Pro boundary. Every limit is a *quantity*, filterable by Pro:
 
 | Resource | Free | Pro |
@@ -312,13 +312,13 @@ Free/Pro boundary. Every limit is a *quantity*, filterable by Pro:
 
 *(Historical record of 2.3.0. These caps were removed in 2.5.0.)*
 
-The ceiling is now **enforced**, not just advertised: `AT8_MLUC_Payments::get_gateways()`
+The ceiling is now **enforced**, not just advertised: `AT8MLUC_Payments::get_gateways()`
 trims the shelf to the licensed count and always keeps bank transfer, and avatars past
 the cap stay drafts with an explanation instead of silently failing.
 
 Also in 2.3.0: a redesigned settings screen (branded header, dismissible Pro
 comparison table, shortcode cheat sheet, sticky save bar), an accent colour setting
-exposed as `--at8-mluc-accent`, order list columns with inline confirm/cancel, front
+exposed as `--at8mluc-accent`, order list columns with inline confirm/cancel, front
 end styles rebuilt on neutral translucent surfaces, and a fix for every membership
 badge sharing one colour because the factory defaults carried none.
 
@@ -328,13 +328,13 @@ Version 2.2.1 fixes an admin-menu bug. `add_menu_page()` populates WordPress's
 `$admin_page_hooks`, and only afterwards does `add_submenu_page()` derive the same
 page hook that core computes when the page is opened. Because Pro bootstraps on
 `plugins_loaded` priority 6 and the free plugin on the default 10, Pro used to add
-its submenus *first* — it got `admin_page_at8-mlucp-license` where core later looked
-for `user-center_page_at8-mlucp-license`, so every Pro submenu page was rejected with
+its submenus *first* — it got `admin_page_at8mlucp-license` where core later looked
+for `user-center_page_at8mlucp-license`, so every Pro submenu page was rejected with
 "Sorry, you are not allowed to access this page" (HTTP 403) even though the menu link
 rendered fine.
 
 The User Center menu is now built on `admin_menu` priority 5 and fires a dedicated
-`at8_mluc_admin_menu` action afterwards; extensions should hook that instead of
+`at8mluc_admin_menu` action afterwards; extensions should hook that instead of
 `admin_menu`.
 
 ### 2.2.0 — membership, offline payments and the User Center menu
@@ -343,20 +343,20 @@ Version 2.2.0 rebalances the Free/Pro split so the free version offers the whole
 feature set with **quantity limits**, not a crippled subset:
 
 - **Membership levels** moved into the free plugin (up to three; Pro lifts the cap
-  to eight through the `at8_mluc_membership_level_limit` filter). The level
+  to eight through the `at8mluc_membership_level_limit` filter). The level
   editor, the membership account tab and the purchase card ship unlocked.
   *(Historical: that filter and the cap were removed in 2.5.0.)*
 - **Offline payments** moved in as well: the order engine (custom post type
-  `at8_mluc_order` with an atomic pending→paid claim), the bank-transfer gateway
+  `at8mluc_order` with an atomic pending→paid claim), the bank-transfer gateway
   and admin confirmation. Pro contributes PayPal / Stripe through the
-  `at8_mluc_payment_gateways` and `at8_mluc_payment_order_response` filters.
+  `at8mluc_payment_gateways` and `at8mluc_payment_order_response` filters.
 - **The admin menu** became a single top-level **User Center** screen with a
   card-based settings page (general settings, membership levels, offline
   payments, sidebar menu icons, interface text, social login, avatar library)
   and sticky section navigation. Pro renders its own sections on the same screen
-  through the `at8_mluc_register_settings` action.
+  through the `at8mluc_register_settings` action.
 - Pro is a pure add-on: no shared classes, no duplicated data. Pro-only order
-  types (paywall) complete through the `at8_mluc_complete_paywall_order` filter
+  types (paywall) complete through the `at8mluc_complete_paywall_order` filter
   so every payment type shares one atomic claim path.
 
 ### 1.0.2 — WordPress Plugin Check clean-up
@@ -370,10 +370,10 @@ ready for the WordPress.org directory:
 - **Nonce verification is inline.** Each AJAX handler calls
   `check_ajax_referer( …, false )` directly instead of routing the check through a
   helper method, so the verification is visible to static analysis. The two nonce
-  helpers on `AT8_MLUC_Security` were removed; capability, login and rate-limit checks
+  helpers on `AT8MLUC_Security` were removed; capability, login and rate-limit checks
   still go through that class.
 - **Template variables are prefixed.** The account templates' local variables are now
-  `$at8_mluc_user`, `$at8_mluc_avatar_url`, `$at8_mluc_library`, … matching the rest of
+  `$at8mluc_user`, `$at8mluc_avatar_url`, `$at8mluc_library`, … matching the rest of
   the codebase.
 - **The login redirect hint is passed as a parameter** to `resolve_redirect()` instead
   of being read from `$_POST` inside a helper, and both query-string readers

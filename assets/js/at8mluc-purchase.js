@@ -1,16 +1,16 @@
 /**
  * Membership purchase card: buy buttons and gateway radios.
  *
- * Configuration arrives through window.at8MlucPurchase (localized by
- * AT8_MLUC_Payments::enqueue_purchase_script()): ajaxUrl, nonce and the
- * translated strings used by the PayPal flow. Every .at8-mluc-buy block on
+ * Configuration arrives through window.at8mlucPurchase (localized by
+ * AT8MLUC_Payments::enqueue_purchase_script()): ajaxUrl, nonce and the
+ * translated strings used by the PayPal flow. Every .at8mluc-buy block on
  * the page is bound on its own, so several cards (the purchase path, an
  * add-on's upgrade ladder) can coexist.
  */
 (function () {
 	'use strict';
 
-	var cfg = window.at8MlucPurchase || {};
+	var cfg = window.at8mlucPurchase || {};
 	var strings = cfg.strings || {};
 
 	function post(action, extra) {
@@ -23,8 +23,8 @@
 	}
 
 	function bind(root) {
-		var msg = root.querySelector('.at8-mluc-buy-msg');
-		var ppMount = root.querySelector('.at8-mluc-pp-mount');
+		var msg = root.querySelector('.at8mluc-buy-msg');
+		var ppMount = root.querySelector('.at8mluc-pp-mount');
 		var ppOrder = null;
 
 		function say(text) { if (msg) { msg.textContent = text || ''; } }
@@ -40,14 +40,14 @@
 			window.paypal.Buttons({
 				style: { layout: 'vertical', label: 'paypal' },
 				createOrder: function () {
-					return post('at8_mluc_paypal_create', { order_id: orderId }).then(function (res) {
+					return post('at8mluc_paypal_create', { order_id: orderId }).then(function (res) {
 						if (!res.success) { throw new Error(res.message || 'create failed'); }
 						return res.data.pp_order_id;
 					});
 				},
 				onApprove: function () {
 					say(strings.confirming || '');
-					return post('at8_mluc_paypal_capture', { order_id: orderId, pp_order_id: ppOrder }).then(function (res) {
+					return post('at8mluc_paypal_capture', { order_id: orderId, pp_order_id: ppOrder }).then(function (res) {
 						say(res.message);
 						if (res.success) { setTimeout(function () { window.location.reload(); }, 1500); }
 					});
@@ -59,11 +59,11 @@
 		}
 
 		root.addEventListener('click', function (e) {
-			var btn = e.target.closest ? e.target.closest('.at8-mluc-btn-buy') : null;
+			var btn = e.target.closest ? e.target.closest('.at8mluc-btn-buy') : null;
 			if (!btn) { return; }
 			e.preventDefault();
 			var level = btn.getAttribute('data-level');
-			var gwEl = root.querySelector('input[name="at8_mluc_buy_gateway_' + level + '"]:checked');
+			var gwEl = root.querySelector('input[name="at8mluc_buy_gateway_' + level + '"]:checked');
 			var gw = gwEl ? gwEl.value : '';
 			var payload = { level: level, gateway: gw };
 			// Upgrade ladders mark their button; the server then charges the
@@ -74,7 +74,7 @@
 			}
 			say('');
 			btn.disabled = true;
-			post('at8_mluc_buy_level', payload)
+			post('at8mluc_buy_level', payload)
 				.then(function (res) {
 					if (!res.success) { say(res.message); return; }
 					var flow = res.data && res.data.flow;
@@ -94,6 +94,6 @@
 		});
 	}
 
-	var roots = document.querySelectorAll('.at8-mluc-buy');
+	var roots = document.querySelectorAll('.at8mluc-buy');
 	Array.prototype.forEach.call(roots, bind);
 }());

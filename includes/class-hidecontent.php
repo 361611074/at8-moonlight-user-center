@@ -1,13 +1,13 @@
 <?php
 /**
- * [at8_mluc_hide] shortcode + content filter.
+ * [at8mluc_hide] shortcode + content filter.
  *
- * Usage: [at8_mluc_hide type="reply|logged"]...[/at8_mluc_hide]
+ * Usage: [at8mluc_hide type="reply|logged"]...[/at8mluc_hide]
  *   - reply   Visible after the visitor's comment is approved.
  *   - logged  Visible once the visitor is logged in.
  *
  * Pro add-on types (membership / purchase gates) are injected through the
- * `at8_mluc_hide_types` filter, so one shortcode name covers every tier.
+ * `at8mluc_hide_types` filter, so one shortcode name covers every tier.
  *
  * Nesting safety: rendering runs do_shortcode over $content, so inner
  * shortcodes are not swallowed by the outer one. Elementor compatibility:
@@ -22,12 +22,12 @@ defined( 'ABSPATH' ) || exit;
 /**
  * Hidden content shortcode.
  */
-class AT8_MLUC_Hidecontent {
+class AT8MLUC_Hidecontent {
 
 	/**
 	 * Retrieve the singleton.
 	 *
-	 * @return AT8_MLUC_Hidecontent
+	 * @return AT8MLUC_Hidecontent
 	 */
 	public static function get_instance() {
 		static $instance = null;
@@ -43,14 +43,14 @@ class AT8_MLUC_Hidecontent {
 	 * Register hooks.
 	 */
 	private function __construct() {
-		add_shortcode( 'at8_mluc_hide', array( $this, 'render' ) );
+		add_shortcode( 'at8mluc_hide', array( $this, 'render' ) );
 		/*
 		 * Legacy alias from the Pro 1.0.x days. Registered here (not in Pro)
 		 * so old content never leaks raw shortcode text on sites where Pro is
 		 * absent or its license lapsed: unlicensed types render the generic
 		 * locked card instead of revealing anything.
 		 */
-		add_shortcode( 'at8_mlucp_hide', array( $this, 'render' ) );
+		add_shortcode( 'at8mlucp_hide', array( $this, 'render' ) );
 		// Standard content chain p5: ahead of the WP default do_shortcode (p11),
 		// so the shortcode is consumed first. do_shortcode is idempotent — the
 		// second run finds no shortcode tags left and does not re-render.
@@ -89,7 +89,7 @@ class AT8_MLUC_Hidecontent {
 		 *
 		 * @param array $types Type registry.
 		 */
-		return (array) apply_filters( 'at8_mluc_hide_types', $types );
+		return (array) apply_filters( 'at8mluc_hide_types', $types );
 	}
 
 	/**
@@ -103,7 +103,7 @@ class AT8_MLUC_Hidecontent {
 			return $content;
 		}
 
-		if ( false === strpos( $content, '[at8_mluc_hide' ) && false === strpos( $content, '[at8_mlucp_hide' ) ) {
+		if ( false === strpos( $content, '[at8mluc_hide' ) && false === strpos( $content, '[at8mlucp_hide' ) ) {
 			return $content;
 		}
 
@@ -121,7 +121,7 @@ class AT8_MLUC_Hidecontent {
 		$atts = shortcode_atts(
 			array( 'type' => 'logged' ),
 			$atts,
-			'at8_mluc_hide'
+			'at8mluc_hide'
 		);
 
 		$type = isset( $atts['type'] ) ? (string) $atts['type'] : 'logged';
@@ -177,7 +177,7 @@ class AT8_MLUC_Hidecontent {
 				 * @param bool   $can_view Default false.
 				 * @param string $type     Type key.
 				 */
-				return (bool) apply_filters( 'at8_mluc_hide_user_can_view', false, $type );
+				return (bool) apply_filters( 'at8mluc_hide_user_can_view', false, $type );
 		}
 	}
 
@@ -254,8 +254,8 @@ class AT8_MLUC_Hidecontent {
 		switch ( $type ) {
 			case 'logged':
 				$action = sprintf(
-					'<a class="at8-mluc-hc-btn" href="%s">%s</a>',
-					esc_url( at8_mluc_get_login_url( get_permalink() ) ),
+					'<a class="at8mluc-hc-btn" href="%s">%s</a>',
+					esc_url( at8mluc_get_login_url( get_permalink() ) ),
 					esc_html__( 'Log In', 'at8-moonlight-user-center' )
 				);
 				$tip = esc_html__( 'Log in to view the content below.', 'at8-moonlight-user-center' );
@@ -263,7 +263,7 @@ class AT8_MLUC_Hidecontent {
 
 			case 'reply':
 				$action = sprintf(
-					'<a class="at8-mluc-hc-btn" href="%s#respond">%s</a>',
+					'<a class="at8mluc-hc-btn" href="%s#respond">%s</a>',
 					esc_url( is_singular() ? get_permalink() : home_url( '/' ) ),
 					esc_html__( 'Post a Comment', 'at8-moonlight-user-center' )
 				);
@@ -281,7 +281,7 @@ class AT8_MLUC_Hidecontent {
 				 * @param string $html Default empty.
 				 * @param string $type Type key.
 				 */
-				$custom = (string) apply_filters( 'at8_mluc_hide_cta_html', '', $type );
+				$custom = (string) apply_filters( 'at8mluc_hide_cta_html', '', $type );
 
 				if ( '' !== $custom ) {
 					return $custom;
@@ -293,7 +293,7 @@ class AT8_MLUC_Hidecontent {
 		}
 
 		// Titles go through the label filter (English default, admin-overridable).
-		$title = at8_mluc_ui_label(
+		$title = at8mluc_ui_label(
 			'hc_title_' . $type,
 			isset( $info['cta'] ) ? $info['cta'] : __( 'Locked Content', 'at8-moonlight-user-center' )
 		);
@@ -301,14 +301,14 @@ class AT8_MLUC_Hidecontent {
 		$type_esc = esc_attr( $type );
 
 		return sprintf(
-			'<div class="at8-mluc-hidecontent at8-mluc-hc-%1$s" data-type="%1$s">'
-				. '<div class="at8-mluc-hc-inner">'
-				. '<span class="at8-mluc-hc-icon" aria-hidden="true">%2$s</span>'
-				. '<div class="at8-mluc-hc-text">'
-				. '<div class="at8-mluc-hc-title">%3$s</div>'
-				. '<div class="at8-mluc-hc-tip">%4$s</div>'
+			'<div class="at8mluc-hidecontent at8mluc-hc-%1$s" data-type="%1$s">'
+				. '<div class="at8mluc-hc-inner">'
+				. '<span class="at8mluc-hc-icon" aria-hidden="true">%2$s</span>'
+				. '<div class="at8mluc-hc-text">'
+				. '<div class="at8mluc-hc-title">%3$s</div>'
+				. '<div class="at8mluc-hc-tip">%4$s</div>'
 				. '</div>'
-				. '<div class="at8-mluc-hc-action">%5$s</div>'
+				. '<div class="at8mluc-hc-action">%5$s</div>'
 				. '</div></div>',
 			$type_esc,
 			esc_html( $info['icon'] ),

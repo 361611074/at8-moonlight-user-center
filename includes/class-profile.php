@@ -15,14 +15,14 @@ defined( 'ABSPATH' ) || exit;
 /**
  * Profile update handling.
  */
-class AT8_MLUC_Profile {
+class AT8MLUC_Profile {
 
 	/**
 	 * Nonce action for the profile form.
 	 *
 	 * @var string
 	 */
-	const NONCE_ACTION = 'at8_mluc_update_profile';
+	const NONCE_ACTION = 'at8mluc_update_profile';
 
 	/**
 	 * Maximum length accepted for the phone number.
@@ -34,14 +34,14 @@ class AT8_MLUC_Profile {
 	/**
 	 * Singleton instance.
 	 *
-	 * @var AT8_MLUC_Profile|null
+	 * @var AT8MLUC_Profile|null
 	 */
 	private static $instance = null;
 
 	/**
 	 * Retrieve the singleton.
 	 *
-	 * @return AT8_MLUC_Profile
+	 * @return AT8MLUC_Profile
 	 */
 	public static function get_instance() {
 		if ( null === self::$instance ) {
@@ -55,7 +55,7 @@ class AT8_MLUC_Profile {
 	 * Register hooks.
 	 */
 	private function __construct() {
-		add_action( 'wp_ajax_at8_mluc_update_profile', array( $this, 'handle_update' ) );
+		add_action( 'wp_ajax_at8mluc_update_profile', array( $this, 'handle_update' ) );
 	}
 
 	/**
@@ -64,13 +64,13 @@ class AT8_MLUC_Profile {
 	 * @return void
 	 */
 	public function handle_update() {
-		if ( ! check_ajax_referer( self::NONCE_ACTION, AT8_MLUC_Security::NONCE_FIELD, false ) ) {
-			at8_mluc_send_json( false, __( 'The security check failed. Please reload the page and try again.', 'at8-moonlight-user-center' ) );
+		if ( ! check_ajax_referer( self::NONCE_ACTION, AT8MLUC_Security::NONCE_FIELD, false ) ) {
+			wp_send_json( at8mluc_json_payload( false, __( 'The security check failed. Please reload the page and try again.', 'at8-moonlight-user-center' ) ) );
 		}
-		AT8_MLUC_Security::require_login();
+		AT8MLUC_Security::require_login();
 
-		if ( ! AT8_MLUC_Security::allow( 'profile' ) ) {
-			AT8_MLUC_Security::reject_throttled();
+		if ( ! AT8MLUC_Security::allow( 'profile' ) ) {
+			AT8MLUC_Security::reject_throttled();
 		}
 
 		$user_id = get_current_user_id();
@@ -87,16 +87,16 @@ class AT8_MLUC_Profile {
 		$nickname     = trim( $nickname );
 
 		if ( '' === $display_name ) {
-			at8_mluc_send_json( false, __( 'Please enter a display name.', 'at8-moonlight-user-center' ) );
+			at8mluc_send_json( false, __( 'Please enter a display name.', 'at8-moonlight-user-center' ) );
 		}
 
 		// Mirror the validation WordPress core applies to comment author names.
 		if ( strlen( $display_name ) > 100 ) {
-			at8_mluc_send_json( false, __( 'That display name is too long.', 'at8-moonlight-user-center' ) );
+			at8mluc_send_json( false, __( 'That display name is too long.', 'at8-moonlight-user-center' ) );
 		}
 
 		if ( preg_match( '/[<>%\{\}\[\]]/', $display_name ) ) {
-			at8_mluc_send_json( false, __( 'That display name contains characters that are not allowed.', 'at8-moonlight-user-center' ) );
+			at8mluc_send_json( false, __( 'That display name contains characters that are not allowed.', 'at8-moonlight-user-center' ) );
 		}
 
 		if ( '' === $nickname ) {
@@ -104,15 +104,15 @@ class AT8_MLUC_Profile {
 		}
 
 		if ( strlen( $nickname ) > 100 || preg_match( '/[<>%\{\}\[\]]/', $nickname ) ) {
-			at8_mluc_send_json( false, __( 'That nickname contains characters that are not allowed.', 'at8-moonlight-user-center' ) );
+			at8mluc_send_json( false, __( 'That nickname contains characters that are not allowed.', 'at8-moonlight-user-center' ) );
 		}
 
 		if ( '' !== $user_url && ! wp_http_validate_url( $user_url ) ) {
-			at8_mluc_send_json( false, __( 'That website address is not valid.', 'at8-moonlight-user-center' ) );
+			at8mluc_send_json( false, __( 'That website address is not valid.', 'at8-moonlight-user-center' ) );
 		}
 
 		if ( '' !== $phone && strlen( $phone ) > self::PHONE_MAX_LENGTH ) {
-			at8_mluc_send_json( false, __( 'That phone number is too long.', 'at8-moonlight-user-center' ) );
+			at8mluc_send_json( false, __( 'That phone number is too long.', 'at8-moonlight-user-center' ) );
 		}
 
 		$result = wp_update_user(
@@ -128,13 +128,13 @@ class AT8_MLUC_Profile {
 		);
 
 		if ( is_wp_error( $result ) ) {
-			at8_mluc_send_json( false, at8_mluc_translate_wp_error( $result ) );
+			at8mluc_send_json( false, at8mluc_translate_wp_error( $result ) );
 		}
 
 		if ( '' === $phone ) {
-			delete_user_meta( $user_id, 'at8_mluc_phone' );
+			delete_user_meta( $user_id, 'at8mluc_phone' );
 		} else {
-			update_user_meta( $user_id, 'at8_mluc_phone', $phone );
+			update_user_meta( $user_id, 'at8mluc_phone', $phone );
 		}
 
 		/**
@@ -146,7 +146,7 @@ class AT8_MLUC_Profile {
 		 * @param array $data    Fields that were submitted.
 		 */
 		do_action(
-			'at8_mluc_after_profile_update',
+			'at8mluc_after_profile_update',
 			$user_id,
 			array(
 				'display_name' => $display_name,
@@ -159,7 +159,7 @@ class AT8_MLUC_Profile {
 			)
 		);
 
-		at8_mluc_send_json(
+		at8mluc_send_json(
 			true,
 			__( 'Your profile has been updated.', 'at8-moonlight-user-center' ),
 			array(

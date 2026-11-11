@@ -1,5 +1,5 @@
 /**
- * TinyMCE 插件：插入 [at8_mluc_hide type="X"]...[/at8_mluc_hide] 短代码。
+ * TinyMCE 插件：插入 [at8mluc_hide type="X"]...[/at8mluc_hide] 短代码。
  *
  * 经典 API（addButton / addMenuItem）兼容 TinyMCE 4/6，WP 6+ 默认 TinyMCE 6。
  * 按钮渲染为下拉菜单，type 与 Free 内置类型（reply / logged）一一对应；
@@ -13,11 +13,11 @@
     }
 
     /**
-     * 类型与本地化文案来自服务器注入的 at8_mluc_tinymce_i18n；
+     * 类型与本地化文案来自服务器注入的 at8mluc_tinymce_i18n；
      * 若未注入则使用兜底，避免编辑器完全空白。
      */
-    var i18n = (window.at8_mluc_tinymce_i18n && typeof window.at8_mluc_tinymce_i18n === 'object')
-        ? window.at8_mluc_tinymce_i18n
+    var i18n = (window.at8mluc_tinymce_i18n && typeof window.at8mluc_tinymce_i18n === 'object')
+        ? window.at8mluc_tinymce_i18n
         : {};
 
     var TYPES = (Array.isArray(i18n.types) && i18n.types.length > 0)
@@ -29,7 +29,7 @@
 
     var BUTTON_LABEL = i18n.button_label || 'Hidden Content';
 
-    tinymce.PluginManager.add('at8_mluc_hidecontent', function (editor) {
+    tinymce.PluginManager.add('at8mluc_hidecontent', function (editor) {
         var menu = TYPES.map(function (t) {
             return {
                 text: t.label,
@@ -40,7 +40,7 @@
         });
 
         // 工具栏下拉按钮
-        editor.addButton('at8_mluc_hidecontent', {
+        editor.addButton('at8mluc_hidecontent', {
             title: BUTTON_LABEL,
             text: BUTTON_LABEL,
             type: 'menubutton',
@@ -48,7 +48,7 @@
         });
 
         // 同时注册菜单项（部分主题/插件可能屏蔽工具栏，但仍可在「格式」下拉找到）
-        editor.addMenuItem('at8_mluc_hidecontent', {
+        editor.addMenuItem('at8mluc_hidecontent', {
             text: BUTTON_LABEL,
             context: 'insert',
             menu: menu
@@ -56,12 +56,12 @@
     });
 
     /**
-     * 在编辑器光标处插入 [at8_mluc_hide type="X"]...[/at8_mluc_hide]。
+     * 在编辑器光标处插入 [at8mluc_hide type="X"]...[/at8mluc_hide]。
      * 插入后光标自动落在短代码之后，便于继续输入。
      */
     function insertShortcode(editor, type, label) {
-        var openTag  = '[at8_mluc_hide type="' + type + '"]';
-        var closeTag = '[/at8_mluc_hide]';
+        var openTag  = '[at8mluc_hide type="' + type + '"]';
+        var closeTag = '[/at8mluc_hide]';
         var placeholder = 'Enter content visible only to: ' + label + '…';
         var snippet = openTag + placeholder + closeTag;
 

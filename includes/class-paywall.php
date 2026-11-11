@@ -9,9 +9,9 @@
  * This is deliberately the small core. It stores four meta fields, renders one
  * locked card and records one unlock per user. An add-on extends the same
  * fields with additional levels, resource types and drip schedules through
- * `at8_mluc_paywall_levels`, `at8_mluc_paywall_price`,
- * `at8_mluc_paywall_locked_html`, `at8_mluc_paywall_unlocked_html`,
- * `at8_mluc_paywall_meta_extra` and friends; it does not need its own
+ * `at8mluc_paywall_levels`, `at8mluc_paywall_price`,
+ * `at8mluc_paywall_locked_html`, `at8mluc_paywall_unlocked_html`,
+ * `at8mluc_paywall_meta_extra` and friends; it does not need its own
  * content filter.
  *
  * The core always runs. An add-on that still ships its own independent gate
@@ -26,61 +26,61 @@ defined( 'ABSPATH' ) || exit;
 /**
  * Single-post paywall.
  */
-class AT8_MLUC_Paywall {
+class AT8MLUC_Paywall {
 
 	/**
 	 * Meta: paywall on.
 	 *
 	 * @var string
 	 */
-	const META_ENABLED = '_at8_mluc_pw_on';
+	const META_ENABLED = '_at8mluc_pw_on';
 
 	/**
 	 * Meta: price.
 	 *
 	 * @var string
 	 */
-	const META_PRICE = '_at8_mluc_pw_price';
+	const META_PRICE = '_at8mluc_pw_price';
 
 	/**
 	 * Meta: required level slug.
 	 *
 	 * @var string
 	 */
-	const META_LEVEL = '_at8_mluc_pw_level';
+	const META_LEVEL = '_at8mluc_pw_level';
 
 	/**
 	 * Meta: access length in days (0 = forever).
 	 *
 	 * @var string
 	 */
-	const META_DAYS = '_at8_mluc_pw_days';
+	const META_DAYS = '_at8mluc_pw_days';
 
 	/**
 	 * User meta: post id => expiry timestamp (0 = forever).
 	 *
 	 * @var string
 	 */
-	const UNLOCK_META = 'at8_mluc_pay_unlocks';
+	const UNLOCK_META = 'at8mluc_pay_unlocks';
 
 	/**
 	 * Nonce action for the unlock button.
 	 *
 	 * @var string
 	 */
-	const NONCE_ACTION = 'at8_mluc_paywall_buy';
+	const NONCE_ACTION = 'at8mluc_paywall_buy';
 
 	/**
 	 * Singleton instance.
 	 *
-	 * @var AT8_MLUC_Paywall|null
+	 * @var AT8MLUC_Paywall|null
 	 */
 	private static $instance = null;
 
 	/**
 	 * Retrieve the singleton.
 	 *
-	 * @return AT8_MLUC_Paywall
+	 * @return AT8MLUC_Paywall
 	 */
 	public static function get_instance() {
 		if ( null === self::$instance ) {
@@ -97,8 +97,8 @@ class AT8_MLUC_Paywall {
 		add_action( 'add_meta_boxes', array( $this, 'register_meta_box' ) );
 		add_action( 'save_post', array( $this, 'save_meta' ), 25 );
 		add_filter( 'the_content', array( $this, 'filter_content' ), 20 );
-		add_filter( 'at8_mluc_complete_paywall_order', array( $this, 'grant_for_order' ), 10, 3 );
-		add_action( 'wp_ajax_at8_mluc_paywall_buy', array( $this, 'ajax_buy' ) );
+		add_filter( 'at8mluc_complete_paywall_order', array( $this, 'grant_for_order' ), 10, 3 );
+		add_action( 'wp_ajax_at8mluc_paywall_buy', array( $this, 'ajax_buy' ) );
 	}
 
 	/**
@@ -120,7 +120,7 @@ class AT8_MLUC_Paywall {
 		 * @param int  $post_id Post ID.
 		 */
 		return (bool) apply_filters(
-			'at8_mluc_paywall_enabled',
+			'at8mluc_paywall_enabled',
 			(bool) get_post_meta( $post_id, self::META_ENABLED, true ),
 			$post_id
 		);
@@ -145,7 +145,7 @@ class AT8_MLUC_Paywall {
 		 * @param float $price   Base price.
 		 * @param int   $post_id Post ID.
 		 */
-		return (float) apply_filters( 'at8_mluc_paywall_price', $price, $post_id );
+		return (float) apply_filters( 'at8mluc_paywall_price', $price, $post_id );
 	}
 
 	/**
@@ -173,7 +173,7 @@ class AT8_MLUC_Paywall {
 		 * @param array $levels  Level slugs.
 		 * @param int   $post_id Post ID.
 		 */
-		return (array) apply_filters( 'at8_mluc_paywall_levels', $found, $post_id );
+		return (array) apply_filters( 'at8mluc_paywall_levels', $found, $post_id );
 	}
 
 	/**
@@ -193,7 +193,7 @@ class AT8_MLUC_Paywall {
 		 * @param int $days    Access length in days (0 = forever).
 		 * @param int $post_id Post ID.
 		 */
-		return max( 0, (int) apply_filters( 'at8_mluc_paywall_days', $days, $post_id ) );
+		return max( 0, (int) apply_filters( 'at8mluc_paywall_days', $days, $post_id ) );
 	}
 
 	/**
@@ -219,7 +219,7 @@ class AT8_MLUC_Paywall {
 		 * @param int $post_id Post ID.
 		 * @param int $user_id User ID.
 		 */
-		return (int) apply_filters( 'at8_mluc_paywall_unlock_expire', $expires, $post_id, $user_id );
+		return (int) apply_filters( 'at8mluc_paywall_unlock_expire', $expires, $post_id, $user_id );
 	}
 
 	/**
@@ -236,7 +236,7 @@ class AT8_MLUC_Paywall {
 		$user_id = get_current_user_id();
 
 		foreach ( self::levels( $post_id ) as $level ) {
-			if ( AT8_MLUC_Membership::user_can_access( $level, $user_id ) ) {
+			if ( AT8MLUC_Membership::user_can_access( $level, $user_id ) ) {
 				return false;
 			}
 		}
@@ -314,7 +314,7 @@ class AT8_MLUC_Paywall {
 		 * @param int $user_id User ID.
 		 * @param int $expires Expiry timestamp (0 = forever).
 		 */
-		do_action( 'at8_mluc_paywall_unlocked', $post_id, $user_id, max( 0, (int) $expires ) );
+		do_action( 'at8mluc_paywall_unlocked', $post_id, $user_id, max( 0, (int) $expires ) );
 	}
 
 	/**
@@ -330,11 +330,11 @@ class AT8_MLUC_Paywall {
 			return $handled;
 		}
 
-		if ( 'paywall' !== (string) get_post_meta( $order_id, '_at8_mluc_pay_type', true ) ) {
+		if ( 'paywall' !== (string) get_post_meta( $order_id, '_at8mluc_pay_type', true ) ) {
 			return $handled;
 		}
 
-		$post_id = (int) get_post_meta( $order_id, '_at8_mluc_pay_post', true );
+		$post_id = (int) get_post_meta( $order_id, '_at8mluc_pay_post', true );
 
 		if ( $post_id <= 0 ) {
 			return $handled;
@@ -342,7 +342,7 @@ class AT8_MLUC_Paywall {
 
 		// Claim first: this is the only atomic pending → paid transition, so a
 		// second confirmation finds nothing to update and delivers nothing.
-		if ( ! AT8_MLUC_Payments::claim_order( $order_id ) ) {
+		if ( ! AT8MLUC_Payments::claim_order( $order_id ) ) {
 			return $handled;
 		}
 
@@ -393,22 +393,22 @@ class AT8_MLUC_Paywall {
 			 * @param string $extra   Markup (empty by default).
 			 * @param int    $post_id Post ID.
 			 */
-			$extra = (string) apply_filters( 'at8_mluc_paywall_unlocked_html', $extra, $post_id );
+			$extra = (string) apply_filters( 'at8mluc_paywall_unlocked_html', $extra, $post_id );
 
 			return '' === $extra ? $content : $content . $extra;
 		}
 
 		ob_start();
-		at8_mluc_get_template(
+		at8mluc_get_template(
 			'paywall-locked',
 			array(
 				'post_id'  => $post_id,
 				'price'    => self::price( $post_id ),
-				'symbol'   => AT8_MLUC_Payments::get_currency_symbol(),
+				'symbol'   => AT8MLUC_Payments::get_currency_symbol(),
 				'levels'   => self::levels( $post_id ),
 				'nonce'    => wp_create_nonce( self::NONCE_ACTION ),
 				'loggedin' => is_user_logged_in(),
-				'login_url' => at8_mluc_get_login_url(),
+				'login_url' => at8mluc_get_login_url(),
 			)
 		);
 		$card = ob_get_clean();
@@ -423,7 +423,7 @@ class AT8_MLUC_Paywall {
 		 * @param string $card    Core card markup.
 		 * @param int    $post_id Post ID.
 		 */
-		$card = (string) apply_filters( 'at8_mluc_paywall_locked_html', $card, $post_id );
+		$card = (string) apply_filters( 'at8mluc_paywall_locked_html', $card, $post_id );
 
 		/*
 		 * Keep a short excerpt so search results and social cards stay
@@ -431,7 +431,7 @@ class AT8_MLUC_Paywall {
 		 */
 		$teaser = wp_trim_words( wp_strip_all_tags( $content ), 60, '…' );
 
-		return '<p class="at8-mluc-paywall-teaser">' . esc_html( $teaser ) . '</p>' . $card;
+		return '<p class="at8mluc-paywall-teaser">' . esc_html( $teaser ) . '</p>' . $card;
 	}
 
 	/**
@@ -440,17 +440,19 @@ class AT8_MLUC_Paywall {
 	 * @return void
 	 */
 	public function ajax_buy() {
-		check_ajax_referer( self::NONCE_ACTION, 'nonce', false );
+		if ( ! check_ajax_referer( self::NONCE_ACTION, 'nonce', false ) ) {
+			wp_send_json( at8mluc_json_payload( false, __( 'The security check failed. Please reload the page and try again.', 'at8-moonlight-user-center' ) ) );
+		}
 
 		if ( ! is_user_logged_in() ) {
-			at8_mluc_send_json( false, __( 'Please log in first to unlock this content.', 'at8-moonlight-user-center' ) );
+			at8mluc_send_json( false, __( 'Please log in first to unlock this content.', 'at8-moonlight-user-center' ) );
 		}
 
 		$user_id = get_current_user_id();
 		$post_id = isset( $_POST['post_id'] ) ? absint( $_POST['post_id'] ) : 0;
 
 		if ( $post_id <= 0 || ! self::is_paywalled( $post_id ) ) {
-			at8_mluc_send_json( false, __( 'This content is not available for purchase.', 'at8-moonlight-user-center' ) );
+			at8mluc_send_json( false, __( 'This content is not available for purchase.', 'at8-moonlight-user-center' ) );
 		}
 
 		/**
@@ -464,37 +466,37 @@ class AT8_MLUC_Paywall {
 		 * @param int  $post_id Post ID.
 		 * @param int  $user_id User ID.
 		 */
-		$can_buy = (bool) apply_filters( 'at8_mluc_paywall_can_purchase', true, $post_id, $user_id );
+		$can_buy = (bool) apply_filters( 'at8mluc_paywall_can_purchase', true, $post_id, $user_id );
 
 		if ( ! $can_buy ) {
-			at8_mluc_send_json( false, __( 'Your membership level does not include this purchase.', 'at8-moonlight-user-center' ) );
+			at8mluc_send_json( false, __( 'Your membership level does not include this purchase.', 'at8-moonlight-user-center' ) );
 		}
 
 		$price = self::price( $post_id );
 
 		if ( $price <= 0 ) {
-			at8_mluc_send_json( false, __( 'This content has no price set yet.', 'at8-moonlight-user-center' ) );
+			at8mluc_send_json( false, __( 'This content has no price set yet.', 'at8-moonlight-user-center' ) );
 		}
 
 		$gateway = isset( $_POST['gateway'] ) ? sanitize_key( wp_unslash( $_POST['gateway'] ) ) : '';
-		$gateways = AT8_MLUC_Payments::get_gateways();
+		$gateways = AT8MLUC_Payments::get_gateways();
 
 		if ( '' === $gateway || ! isset( $gateways[ $gateway ] ) ) {
-			at8_mluc_send_json( false, __( 'Please choose a payment method.', 'at8-moonlight-user-center' ) );
+			at8mluc_send_json( false, __( 'Please choose a payment method.', 'at8-moonlight-user-center' ) );
 		}
 
-		$rate_key = 'at8_mluc_pw_rl_' . $user_id;
+		$rate_key = 'at8mluc_pw_rl_' . $user_id;
 		$hits     = (int) get_transient( $rate_key );
 
 		if ( $hits >= 10 ) {
-			at8_mluc_send_json( false, __( 'Too many attempts in a short period. Please try again later.', 'at8-moonlight-user-center' ) );
+			at8mluc_send_json( false, __( 'Too many attempts in a short period. Please try again later.', 'at8-moonlight-user-center' ) );
 		}
 
 		set_transient( $rate_key, $hits + 1, 10 * MINUTE_IN_SECONDS );
 
 		$order_id = wp_insert_post(
 			array(
-				'post_type'   => AT8_MLUC_Payments::CPT,
+				'post_type'   => AT8MLUC_Payments::CPT,
 				'post_status' => 'publish',
 				'post_title'  => sprintf( 'PW-%s-%d', gmdate( 'YmdHis' ), $post_id ),
 				'post_author' => $user_id,
@@ -502,15 +504,15 @@ class AT8_MLUC_Paywall {
 		);
 
 		if ( is_wp_error( $order_id ) || ! $order_id ) {
-			at8_mluc_send_json( false, __( 'Failed to create the order. Please try again later.', 'at8-moonlight-user-center' ) );
+			at8mluc_send_json( false, __( 'Failed to create the order. Please try again later.', 'at8-moonlight-user-center' ) );
 		}
 
-		update_post_meta( $order_id, '_at8_mluc_pay_user', $user_id );
-		update_post_meta( $order_id, '_at8_mluc_pay_type', 'paywall' );
-		update_post_meta( $order_id, '_at8_mluc_pay_post', $post_id );
-		update_post_meta( $order_id, '_at8_mluc_pay_price', $price );
-		update_post_meta( $order_id, '_at8_mluc_pay_gateway', $gateway );
-		update_post_meta( $order_id, '_at8_mluc_pay_status', 'pending' );
+		update_post_meta( $order_id, '_at8mluc_pay_user', $user_id );
+		update_post_meta( $order_id, '_at8mluc_pay_type', 'paywall' );
+		update_post_meta( $order_id, '_at8mluc_pay_post', $post_id );
+		update_post_meta( $order_id, '_at8mluc_pay_price', $price );
+		update_post_meta( $order_id, '_at8mluc_pay_gateway', $gateway );
+		update_post_meta( $order_id, '_at8mluc_pay_status', 'pending' );
 
 		/**
 		 * Fires after a paywall order was created.
@@ -521,14 +523,14 @@ class AT8_MLUC_Paywall {
 		 * @param int $user_id  User ID.
 		 * @param int $post_id  Post being unlocked.
 		 */
-		do_action( 'at8_mluc_paywall_order_created', $order_id, $user_id, $post_id );
+		do_action( 'at8mluc_paywall_order_created', $order_id, $user_id, $post_id );
 
-		at8_mluc_send_json(
+		at8mluc_send_json(
 			true,
 			__( 'Order created. Once the payment is confirmed the content unlocks.', 'at8-moonlight-user-center' ),
 			array(
 				'order_id'     => (int) $order_id,
-				'instructions' => AT8_MLUC_Payments::get_instructions(),
+				'instructions' => AT8MLUC_Payments::get_instructions(),
 			)
 		);
 	}
@@ -537,9 +539,9 @@ class AT8_MLUC_Paywall {
 	 * Register the meta box.
 	 *
 	 * An add-on that ships its own, richer paywall box (modes, resources,
-	 * per-level pricing) filters `at8_mluc_paywall_meta_box` to false and
+	 * per-level pricing) filters `at8mluc_paywall_meta_box` to false and
 	 * takes the box over; the core gate keeps reading whatever meta that box
-	 * writes through the `at8_mluc_paywall_*` filters.
+	 * writes through the `at8mluc_paywall_*` filters.
 	 *
 	 * @return void
 	 */
@@ -551,13 +553,13 @@ class AT8_MLUC_Paywall {
 		 *
 		 * @param bool $register Whether to register the core box.
 		 */
-		if ( ! apply_filters( 'at8_mluc_paywall_meta_box', true ) ) {
+		if ( ! apply_filters( 'at8mluc_paywall_meta_box', true ) ) {
 			return;
 		}
 
 		foreach ( array( 'post', 'page' ) as $type ) {
 			add_meta_box(
-				'at8-mluc-paywall',
+				'at8mluc-paywall',
 				__( 'Paywall', 'at8-moonlight-user-center' ),
 				array( $this, 'render_meta_box' ),
 				$type,
@@ -573,12 +575,12 @@ class AT8_MLUC_Paywall {
 	 * @return void
 	 */
 	public function render_meta_box( $post ) {
-		wp_nonce_field( 'at8_mluc_paywall_save', 'at8_mluc_paywall_nonce' );
+		wp_nonce_field( 'at8mluc_paywall_save', 'at8mluc_paywall_nonce' );
 
 		$on     = self::is_enabled( $post->ID );
 		$price  = self::price( $post->ID );
 		$days   = self::days( $post->ID );
-		$levels = AT8_MLUC_Membership::get_levels();
+		$levels = AT8MLUC_Membership::get_levels();
 		$chosen = self::levels( $post->ID );
 		?>
 		<p>
@@ -589,17 +591,17 @@ class AT8_MLUC_Paywall {
 		</p>
 
 		<p>
-			<label for="at8-mluc-pw-price"><?php esc_html_e( 'Price', 'at8-moonlight-user-center' ); ?></label>
-			<input type="number" step="0.01" min="0" class="widefat" id="at8-mluc-pw-price"
+			<label for="at8mluc-pw-price"><?php esc_html_e( 'Price', 'at8-moonlight-user-center' ); ?></label>
+			<input type="number" step="0.01" min="0" class="widefat" id="at8mluc-pw-price"
 				name="<?php echo esc_attr( self::META_PRICE ); ?>" value="<?php echo esc_attr( (string) $price ); ?>" />
 		</p>
 
 		<p>
-			<label for="at8-mluc-pw-level"><?php esc_html_e( 'Free for these membership levels', 'at8-moonlight-user-center' ); ?></label>
-			<select class="widefat" id="at8-mluc-pw-level" name="<?php echo esc_attr( self::META_LEVEL ); ?>[]" multiple size="4">
+			<label for="at8mluc-pw-level"><?php esc_html_e( 'Free for these membership levels', 'at8-moonlight-user-center' ); ?></label>
+			<select class="widefat" id="at8mluc-pw-level" name="<?php echo esc_attr( self::META_LEVEL ); ?>[]" multiple size="4">
 				<?php foreach ( array_keys( $levels ) as $key ) : ?>
 					<option value="<?php echo esc_attr( $key ); ?>" <?php selected( in_array( $key, $chosen, true ) ); ?>>
-						<?php echo esc_html( AT8_MLUC_Membership::get_level_label( $key ) ); ?>
+						<?php echo esc_html( AT8MLUC_Membership::get_level_label( $key ) ); ?>
 					</option>
 				<?php endforeach; ?>
 			</select>
@@ -609,8 +611,8 @@ class AT8_MLUC_Paywall {
 		</p>
 
 		<p>
-			<label for="at8-mluc-pw-days"><?php esc_html_e( 'Access length (days)', 'at8-moonlight-user-center' ); ?></label>
-			<input type="number" min="0" class="widefat" id="at8-mluc-pw-days"
+			<label for="at8mluc-pw-days"><?php esc_html_e( 'Access length (days)', 'at8-moonlight-user-center' ); ?></label>
+			<input type="number" min="0" class="widefat" id="at8mluc-pw-days"
 				name="<?php echo esc_attr( self::META_DAYS ); ?>" value="<?php echo esc_attr( (string) $days ); ?>" />
 			<span class="description"><?php esc_html_e( '0 keeps the access forever.', 'at8-moonlight-user-center' ); ?></span>
 		</p>
@@ -624,11 +626,11 @@ class AT8_MLUC_Paywall {
 	 * @return void
 	 */
 	public function save_meta( $post_id ) {
-		if ( ! isset( $_POST['at8_mluc_paywall_nonce'] ) ) {
+		if ( ! isset( $_POST['at8mluc_paywall_nonce'] ) ) {
 			return;
 		}
 
-		if ( ! wp_verify_nonce( sanitize_key( wp_unslash( $_POST['at8_mluc_paywall_nonce'] ) ), 'at8_mluc_paywall_save' ) ) {
+		if ( ! wp_verify_nonce( sanitize_key( wp_unslash( $_POST['at8mluc_paywall_nonce'] ) ), 'at8mluc_paywall_save' ) ) {
 			return;
 		}
 
@@ -659,7 +661,7 @@ class AT8_MLUC_Paywall {
 		 * single-value meta (one level slug) keeps working: levels() wraps a
 		 * lone string into an array, and re-saving normalises it.
 		 */
-		$levels = AT8_MLUC_Membership::get_levels();
+		$levels = AT8MLUC_Membership::get_levels();
 		$picked = array_values( array_filter( array_map( 'sanitize_key', (array) wp_unslash( isset( $_POST[ self::META_LEVEL ] ) ? $_POST[ self::META_LEVEL ] : array() ) ) ) );
 
 		if ( empty( $picked ) ) {

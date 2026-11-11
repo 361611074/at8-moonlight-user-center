@@ -20,26 +20,26 @@ defined( 'ABSPATH' ) || exit;
 /**
  * Capability catalogue and upgrade UI.
  */
-class AT8_MLUC_Upgrade {
+class AT8MLUC_Upgrade {
 
 	/**
 	 * Dismissed-state user meta key.
 	 *
 	 * @var string
 	 */
-	const DISMISS_META = 'at8_mluc_upgrade_banner_dismissed';
+	const DISMISS_META = 'at8mluc_upgrade_banner_dismissed';
 
 	/**
 	 * Singleton instance.
 	 *
-	 * @var AT8_MLUC_Upgrade|null
+	 * @var AT8MLUC_Upgrade|null
 	 */
 	private static $instance = null;
 
 	/**
 	 * Retrieve the singleton.
 	 *
-	 * @return AT8_MLUC_Upgrade
+	 * @return AT8MLUC_Upgrade
 	 */
 	public static function get_instance() {
 		if ( null === self::$instance ) {
@@ -53,7 +53,7 @@ class AT8_MLUC_Upgrade {
 	 * Register hooks.
 	 */
 	private function __construct() {
-		add_action( 'wp_ajax_at8_mluc_dismiss_upgrade', array( $this, 'ajax_dismiss' ) );
+		add_action( 'wp_ajax_at8mluc_dismiss_upgrade', array( $this, 'ajax_dismiss' ) );
 	}
 
 	/**
@@ -62,7 +62,7 @@ class AT8_MLUC_Upgrade {
 	 * @return bool
 	 */
 	public static function is_pro() {
-		return (bool) at8_mluc_is_pro();
+		return (bool) at8mluc_is_pro();
 	}
 
 	/**
@@ -71,7 +71,7 @@ class AT8_MLUC_Upgrade {
 	 * @return string
 	 */
 	public static function upgrade_url() {
-		return (string) apply_filters( 'at8_mluc_upgrade_url', 'https://www.at8.fun/' );
+		return (string) apply_filters( 'at8mluc_upgrade_url', 'https://www.at8.fun/' );
 	}
 
 	/**
@@ -135,7 +135,7 @@ class AT8_MLUC_Upgrade {
 		 *
 		 * @param array $catalogue Feature rows.
 		 */
-		return (array) apply_filters( 'at8_mluc_upgrade_features', $catalogue );
+		return (array) apply_filters( 'at8mluc_upgrade_features', $catalogue );
 	}
 
 	/**
@@ -148,7 +148,7 @@ class AT8_MLUC_Upgrade {
 			return '';
 		}
 
-		return '<span class="at8-mluc-pro-badge">' . esc_html__( 'Pro', 'at8-moonlight-user-center' ) . '</span>';
+		return '<span class="at8mluc-pro-badge">' . esc_html__( 'Pro', 'at8-moonlight-user-center' ) . '</span>';
 	}
 
 	/**
@@ -180,29 +180,29 @@ class AT8_MLUC_Upgrade {
 			return;
 		}
 		?>
-		<div class="at8-mluc-upgrade" id="at8-mluc-upgrade">
-			<button type="button" class="at8-mluc-upgrade-dismiss" aria-expanded="true" aria-controls="at8-mluc-upgrade-body">
+		<div class="at8mluc-upgrade" id="at8mluc-upgrade">
+			<button type="button" class="at8mluc-upgrade-dismiss" aria-expanded="true" aria-controls="at8mluc-upgrade-body">
 				<span class="dashicons dashicons-arrow-down-alt2"></span>
 				<span class="screen-reader-text"><?php esc_html_e( 'Toggle or hide the Pro comparison', 'at8-moonlight-user-center' ); ?></span>
 			</button>
 
-			<div class="at8-mluc-upgrade-head">
-				<span class="at8-mluc-upgrade-icon dashicons dashicons-superhero" aria-hidden="true"></span>
+			<div class="at8mluc-upgrade-head">
+				<span class="at8mluc-upgrade-icon dashicons dashicons-superhero" aria-hidden="true"></span>
 				<div>
-					<h2 class="at8-mluc-upgrade-title"><?php esc_html_e( 'AT8 Moonlight User Center Pro', 'at8-moonlight-user-center' ); ?></h2>
-					<p class="at8-mluc-upgrade-tagline">
+					<h2 class="at8mluc-upgrade-title"><?php esc_html_e( 'AT8 Moonlight User Center Pro', 'at8-moonlight-user-center' ); ?></h2>
+					<p class="at8mluc-upgrade-tagline">
 						<?php esc_html_e( 'Everything here works today. Pro adds online payments and content gates.', 'at8-moonlight-user-center' ); ?>
 					</p>
 				</div>
 			</div>
 
-			<div class="at8-mluc-upgrade-body" id="at8-mluc-upgrade-body">
-				<table class="at8-mluc-upgrade-table">
+			<div class="at8mluc-upgrade-body" id="at8mluc-upgrade-body">
+				<table class="at8mluc-upgrade-table">
 					<thead>
 						<tr>
 							<th scope="col"><?php esc_html_e( 'Feature', 'at8-moonlight-user-center' ); ?></th>
 							<th scope="col"><?php esc_html_e( 'Free', 'at8-moonlight-user-center' ); ?></th>
-							<th scope="col" class="at8-mluc-upgrade-col-pro"><?php esc_html_e( 'Pro', 'at8-moonlight-user-center' ); ?></th>
+							<th scope="col" class="at8mluc-upgrade-col-pro"><?php esc_html_e( 'Pro', 'at8-moonlight-user-center' ); ?></th>
 						</tr>
 					</thead>
 					<tbody>
@@ -210,20 +210,20 @@ class AT8_MLUC_Upgrade {
 							<tr>
 								<th scope="row">
 									<?php echo esc_html( $row['title'] ); ?>
-									<span class="at8-mluc-upgrade-note"><?php echo esc_html( $row['note'] ); ?></span>
+									<span class="at8mluc-upgrade-note"><?php echo esc_html( $row['note'] ); ?></span>
 								</th>
 								<td><?php echo esc_html( $row['free'] ); ?></td>
-								<td class="at8-mluc-upgrade-col-pro"><?php echo esc_html( $row['pro'] ); ?></td>
+								<td class="at8mluc-upgrade-col-pro"><?php echo esc_html( $row['pro'] ); ?></td>
 							</tr>
 						<?php endforeach; ?>
 					</tbody>
 				</table>
 
-				<p class="at8-mluc-upgrade-actions">
+				<p class="at8mluc-upgrade-actions">
 					<a class="button button-primary" href="<?php echo esc_url( self::upgrade_url() ); ?>" target="_blank" rel="noopener noreferrer">
 						<?php esc_html_e( 'Compare Pro plans', 'at8-moonlight-user-center' ); ?>
 					</a>
-					<button type="button" class="button link" data-at8-mluc-upgrade-hide="1">
+					<button type="button" class="button link" data-at8mluc-upgrade-hide="1">
 						<?php esc_html_e( 'Hide this panel', 'at8-moonlight-user-center' ); ?>
 					</button>
 				</p>
@@ -242,7 +242,7 @@ class AT8_MLUC_Upgrade {
 			wp_send_json_error( array( 'message' => esc_html__( 'You are not allowed to do this.', 'at8-moonlight-user-center' ) ) );
 		}
 
-		if ( ! check_ajax_referer( 'at8_mluc_nonce', 'nonce', false ) ) {
+		if ( ! check_ajax_referer( 'at8mluc_nonce', 'nonce', false ) ) {
 			wp_send_json_error( array( 'message' => esc_html__( 'The link has expired. Please refresh the page.', 'at8-moonlight-user-center' ) ) );
 		}
 
@@ -286,11 +286,11 @@ class AT8_MLUC_Upgrade {
 			),
 		);
 		?>
-		<div class="at8-mluc-gateways">
+		<div class="at8mluc-gateways">
 			<?php foreach ( $gateways as $gateway ) : ?>
-				<div class="at8-mluc-gateway at8-mluc-gateway-<?php echo esc_attr( $gateway['state'] ); ?>">
+				<div class="at8mluc-gateway at8mluc-gateway-<?php echo esc_attr( $gateway['state'] ); ?>">
 					<span class="dashicons <?php echo esc_attr( $gateway['icon'] ); ?>" aria-hidden="true"></span>
-					<div class="at8-mluc-gateway-body">
+					<div class="at8mluc-gateway-body">
 						<strong><?php echo esc_html( $gateway['label'] ); ?></strong>
 						<span><?php echo esc_html( $gateway['note'] ); ?></span>
 					</div>

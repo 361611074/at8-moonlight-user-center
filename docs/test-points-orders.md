@@ -6,14 +6,14 @@
 
 ## 调用链（实现证据）
 
-`complete_order()`（原子认领 pending→paid，幂等拒绝重复）→ `do_action('at8_mluc_payment_completed', $order_id, $user_id, $subject)` → `AT8_MLUC_Points::grant_for_order()`：
+`complete_order()`（原子认领 pending→paid，幂等拒绝重复）→ `do_action('at8mluc_payment_completed', $order_id, $user_id, $subject)` → `AT8MLUC_Points::grant_for_order()`：
 1. rate ≤ 0 / ID 非法 → return
-2. 订单状态防御：仅 `_at8_mluc_pay_status == 'paid'` 继续
+2. 订单状态防御：仅 `_at8mluc_pay_status == 'paid'` 继续
 3. `get_userdata()` 确认买家存在
 4. 服务端价格 meta → `floor(price × rate)` → `Points::adjust(..., 'purchase:<id>')`
 5. `adjust()` 先用**原子 INSERT** 在 options 表认领幂等键（`option_name` 有 UNIQUE 索引，数据库裁决唯一赢家），
    再取 per-user 互斥行，在临界区内重放账本 → 写流水 → 写余额镜像 → 校验
-6. 发放成功后 `add_post_meta($order_id, '_at8_mluc_points_awarded', 1, true)` 只作快路径标记，
+6. 发放成功后 `add_post_meta($order_id, '_at8mluc_points_awarded', 1, true)` 只作快路径标记，
    不再承担幂等职责（并发正确性由 claim 行 + 互斥行保证）
 
 ## 测试结果
@@ -29,7 +29,7 @@
 | 7 | cancelled 状态订单 | 不发放 | balance 不变 | **PASS** |
 | 8 | failed 状态 | 不发放 | 同守卫路径（非 'paid' 一律拒绝） | **PASS**（同用例 6/7 代码路径） |
 | 9 | 极大金额 × rate | float 精度内 floor，不 fatal | `(int) floor(...)`；管理员配置值，float 上限内安全 | **PASS**（逻辑审计；极端值未单独构造 NOT RUN） |
-| 10 | 重复完成事件（complete_order 二次调用） | 第二次拒绝，钩子不触发 | `at8_mluc_dup` WP_Error（矩阵断言） | **PASS** |
+| 10 | 重复完成事件（complete_order 二次调用） | 第二次拒绝，钩子不触发 | `at8mluc_dup` WP_Error（矩阵断言） | **PASS** |
 | 11 | 退款处理 | 无自动扣回；文档/readme/设置页声明一致 | 全仓无退款流程；说明一致 | **PASS**（按声明验证） |
 | 12 | WooCommerce 未启用 | 无 fatal | 插件无任何 WC 代码引用（grep 0 命中，无 WC hook/类依赖） | **PASS**（grep + 实测站未装 WC） |
 | 13 | 并发重复触发 | 唯一锁拒绝 | `add_post_meta(...unique)` 数据库级原子；并发压力测试未跑 | **NOT RUN**（真实并发环境不可得；锁机制为 DB 原子 add） |
@@ -55,12 +55,12 @@
 ## 并发与一致性（2.5.8 新增，真实多进程）
 
 执行方式：`bash _tools/v4_conc_run.sh <award|deduct|mixed> 8`。8 个独立 `wp eval-file` 进程对齐到同一
-barrier 后同时发起操作；临界区进出时间由 `at8_mluc_points_lock_acquired/released` 钩子记录。
+barrier 后同时发起操作；临界区进出时间由 `at8mluc_points_lock_acquired/released` 钩子记录。
 
 | # | 用例 | 预期 | 实际 | 结果 |
 |---|---|---|---|---|
 | 12 | **8 进程同时回调同一已支付订单** | 只产生 1 条流水、余额 = 单次发放 | 1 条流水，余额 20（2.5.7 实测为 8 条 / 160，已复现并修复） | **PASS**（`v4_conc_run.sh award 8`，6/0） |
-| 13 | **余额 100，8 进程各扣 30** | 3 成功 5 拒绝，余额 10，无透支 | 3 成功 / 5 拒绝（`at8_mluc_points_balance`），余额 10，账本合计 10 | **PASS**（2.5.7 实测 8 个全成功、账本 -140） |
+| 13 | **余额 100，8 进程各扣 30** | 3 成功 5 拒绝，余额 10，无透支 | 3 成功 / 5 拒绝（`at8mluc_points_balance`），余额 10，账本合计 10 | **PASS**（2.5.7 实测 8 个全成功、账本 -140） |
 | 14 | **4 加 10 / 4 扣 30 混合并发** | 余额恒等于账本合计且非负 | 余额 = 账本合计，无负值 | **PASS**（`v4_conc_run.sh mixed 8`，6/0） |
 | 15 | 临界区串行化 | 同一用户的临界区两两不重叠 | 8 个窗口，overlaps = 0 | **PASS**（lock acquired/released 时间戳） |
 | 16 | claim 行由数据库唯一约束建立 | 每订单一行 | 行存在；重复 INSERT 被拒 | **PASS** |

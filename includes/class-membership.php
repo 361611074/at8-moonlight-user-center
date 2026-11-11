@@ -3,8 +3,8 @@
  * Membership levels.
  *
  * Levels are defined by the admin under User Center → Settings → Membership
- * Levels and stored in `at8_mluc_options['membership_levels']`. A user's level
- * lives in user meta (`at8_mluc_membership_level` + `at8_mluc_membership_expires`).
+ * Levels and stored in `at8mluc_options['membership_levels']`. A user's level
+ * lives in user meta (`at8mluc_membership_level` + `at8mluc_membership_expires`).
  *
  * A site may define as many levels as it needs; there is no artificial
  * ceiling anywhere in this plugin.
@@ -17,7 +17,7 @@ defined( 'ABSPATH' ) || exit;
 /**
  * Membership level registry and per-user level state.
  */
-class AT8_MLUC_Membership {
+class AT8MLUC_Membership {
 
 	/**
 	 * Built-in fallback levels, used until the admin defines their own.
@@ -65,14 +65,14 @@ class AT8_MLUC_Membership {
 	/**
 	 * Singleton instance.
 	 *
-	 * @var AT8_MLUC_Membership|null
+	 * @var AT8MLUC_Membership|null
 	 */
 	private static $instance = null;
 
 	/**
 	 * Retrieve the singleton.
 	 *
-	 * @return AT8_MLUC_Membership
+	 * @return AT8MLUC_Membership
 	 */
 	public static function get_instance() {
 		if ( null === self::$instance ) {
@@ -101,7 +101,7 @@ class AT8_MLUC_Membership {
 	 * @return bool
 	 */
 	public static function free_enabled() {
-		return ! empty( at8_mluc_get_option( 'free_level_enabled', 1 ) );
+		return ! empty( at8mluc_get_option( 'free_level_enabled', 1 ) );
 	}
 
 	/**
@@ -119,19 +119,19 @@ class AT8_MLUC_Membership {
 			return $cache;
 		}
 
-		$saved = at8_mluc_get_option( 'membership_levels', array() );
+		$saved = at8mluc_get_option( 'membership_levels', array() );
 
 		// One-time import for sites that ran the Pro 1.x line, which kept its
 		// level definitions in its own option blob.
-		if ( ( ! is_array( $saved ) || empty( $saved ) ) && is_array( get_option( 'at8_mlucp_options', array() ) ) ) {
-			$legacy = get_option( 'at8_mlucp_options', array() );
+		if ( ( ! is_array( $saved ) || empty( $saved ) ) && is_array( get_option( 'at8mlucp_options', array() ) ) ) {
+			$legacy = get_option( 'at8mlucp_options', array() );
 
 			if ( ! empty( $legacy['membership_levels'] ) && is_array( $legacy['membership_levels'] ) ) {
 				$saved = $legacy['membership_levels'];
 
-				$options              = get_option( 'at8_mluc_options', array() );
+				$options              = get_option( 'at8mluc_options', array() );
 				$options['membership_levels'] = $saved;
-				update_option( 'at8_mluc_options', $options );
+				update_option( 'at8mluc_options', $options );
 			}
 		}
 
@@ -205,7 +205,7 @@ class AT8_MLUC_Membership {
 		 *
 		 * @param array $levels Level definitions keyed by level slug.
 		 */
-		$levels = apply_filters( 'at8_mluc_membership_levels', $levels );
+		$levels = apply_filters( 'at8mluc_membership_levels', $levels );
 
 		$cache = $levels;
 
@@ -302,7 +302,7 @@ class AT8_MLUC_Membership {
 			$style = ' style="background:' . esc_attr( $color ) . '1a;color:' . esc_attr( $color ) . ';border:1px solid ' . esc_attr( $color ) . '33;"';
 		}
 
-		return '<span class="at8-mluc-level-badge at8-mluc-level-' . esc_attr( $key ) . '"' . $style . '>' . esc_html( $label ) . '</span>';
+		return '<span class="at8mluc-level-badge at8mluc-level-' . esc_attr( $key ) . '"' . $style . '>' . esc_html( $label ) . '</span>';
 	}
 
 	/**
@@ -319,11 +319,11 @@ class AT8_MLUC_Membership {
 			return $default;
 		}
 
-		$level = get_user_meta( $user_id, 'at8_mluc_membership_level', true );
+		$level = get_user_meta( $user_id, 'at8mluc_membership_level', true );
 
 		// Legacy Pro 1.x meta key, read once for sites that migrate.
 		if ( ! $level ) {
-			$level = get_user_meta( $user_id, 'at8_mlucp_membership_level', true );
+			$level = get_user_meta( $user_id, 'at8mlucp_membership_level', true );
 		}
 
 		if ( ! $level || ! isset( self::get_levels()[ $level ] ) ) {
@@ -332,8 +332,8 @@ class AT8_MLUC_Membership {
 
 		if ( $level !== $default && self::is_user_expired( $user_id ) ) {
 			if ( '' === $default ) {
-				delete_user_meta( $user_id, 'at8_mluc_membership_level' );
-				delete_user_meta( $user_id, 'at8_mluc_membership_expires' );
+				delete_user_meta( $user_id, 'at8mluc_membership_level' );
+				delete_user_meta( $user_id, 'at8mluc_membership_expires' );
 			} else {
 				self::set_user_level( $user_id, $default, 0 );
 			}
@@ -357,10 +357,10 @@ class AT8_MLUC_Membership {
 			return true;
 		}
 
-		$expires = (int) get_user_meta( $user_id, 'at8_mluc_membership_expires', true );
+		$expires = (int) get_user_meta( $user_id, 'at8mluc_membership_expires', true );
 
 		if ( ! $expires ) {
-			$expires = (int) get_user_meta( $user_id, 'at8_mlucp_membership_expires', true );
+			$expires = (int) get_user_meta( $user_id, 'at8mlucp_membership_expires', true );
 		}
 
 		if ( ! $expires ) {
@@ -383,10 +383,10 @@ class AT8_MLUC_Membership {
 			return 0;
 		}
 
-		$expires = (int) get_user_meta( $user_id, 'at8_mluc_membership_expires', true );
+		$expires = (int) get_user_meta( $user_id, 'at8mluc_membership_expires', true );
 
 		if ( ! $expires ) {
-			$expires = (int) get_user_meta( $user_id, 'at8_mlucp_membership_expires', true );
+			$expires = (int) get_user_meta( $user_id, 'at8mlucp_membership_expires', true );
 		}
 
 		return $expires;
@@ -408,8 +408,8 @@ class AT8_MLUC_Membership {
 		}
 
 		if ( '' === $level ) {
-			delete_user_meta( $user_id, 'at8_mluc_membership_level' );
-			delete_user_meta( $user_id, 'at8_mluc_membership_expires' );
+			delete_user_meta( $user_id, 'at8mluc_membership_level' );
+			delete_user_meta( $user_id, 'at8mluc_membership_expires' );
 
 			/**
 			 * Fires after a user's membership level changed.
@@ -420,15 +420,15 @@ class AT8_MLUC_Membership {
 			 * @param string $level   New level slug, empty when cleared.
 			 * @param int    $expires New expiry timestamp, 0 for permanent.
 			 */
-			do_action( 'at8_mluc_membership_changed', $user_id, '', 0 );
+			do_action( 'at8mluc_membership_changed', $user_id, '', 0 );
 
 			return true;
 		}
 
-		update_user_meta( $user_id, 'at8_mluc_membership_level', $level );
-		update_user_meta( $user_id, 'at8_mluc_membership_expires', (int) $expires );
+		update_user_meta( $user_id, 'at8mluc_membership_level', $level );
+		update_user_meta( $user_id, 'at8mluc_membership_expires', (int) $expires );
 
-		do_action( 'at8_mluc_membership_changed', $user_id, $level, (int) $expires );
+		do_action( 'at8mluc_membership_changed', $user_id, $level, (int) $expires );
 
 		return true;
 	}
@@ -465,7 +465,7 @@ class AT8_MLUC_Membership {
 			return true;
 		}
 
-		$expires     = (int) get_user_meta( $user_id, 'at8_mluc_membership_expires', true );
+		$expires     = (int) get_user_meta( $user_id, 'at8mluc_membership_expires', true );
 		$base        = ( $expires && $expires > time() ) ? $expires : time();
 		$new_expires = (int) strtotime( '+' . $validity . ' days', $base );
 
@@ -510,8 +510,8 @@ class AT8_MLUC_Membership {
 			return;
 		}
 
-		$current_level   = get_user_meta( $user->ID, 'at8_mluc_membership_level', true );
-		$current_expires = (int) get_user_meta( $user->ID, 'at8_mluc_membership_expires', true );
+		$current_level   = get_user_meta( $user->ID, 'at8mluc_membership_level', true );
+		$current_expires = (int) get_user_meta( $user->ID, 'at8mluc_membership_expires', true );
 		$default_level   = self::free_enabled() ? 'free' : '';
 
 		if ( ! $current_level || ! isset( self::get_levels()[ $current_level ] ) ) {
@@ -524,9 +524,9 @@ class AT8_MLUC_Membership {
 		<h2><?php esc_html_e( 'Membership', 'at8-moonlight-user-center' ); ?></h2>
 		<table class="form-table" role="presentation">
 			<tr>
-				<th><label for="at8_mluc_membership_level"><?php esc_html_e( 'Level', 'at8-moonlight-user-center' ); ?></label></th>
+				<th><label for="at8mluc_membership_level"><?php esc_html_e( 'Level', 'at8-moonlight-user-center' ); ?></label></th>
 				<td>
-					<select name="at8_mluc_membership_level" id="at8_mluc_membership_level">
+					<select name="at8mluc_membership_level" id="at8mluc_membership_level">
 						<?php if ( ! self::free_enabled() ) : ?>
 							<option value=""<?php selected( $current_level, '' ); ?>><?php esc_html_e( '(no level)', 'at8-moonlight-user-center' ); ?></option>
 						<?php endif; ?>
@@ -540,11 +540,11 @@ class AT8_MLUC_Membership {
 				</td>
 			</tr>
 			<tr>
-				<th><label for="at8_mluc_membership_expires_date"><?php esc_html_e( 'Expires', 'at8-moonlight-user-center' ); ?></label></th>
+				<th><label for="at8mluc_membership_expires_date"><?php esc_html_e( 'Expires', 'at8-moonlight-user-center' ); ?></label></th>
 				<td>
-					<input type="date" name="at8_mluc_membership_expires_date" id="at8_mluc_membership_expires_date" value="<?php echo esc_attr( $expires_value ); ?>" />
+					<input type="date" name="at8mluc_membership_expires_date" id="at8mluc_membership_expires_date" value="<?php echo esc_attr( $expires_value ); ?>" />
 					<label style="margin-left:1em;">
-						<input type="checkbox" name="at8_mluc_membership_expires_never" value="1"<?php echo $expires_never; // phpcs:ignore WordPress.Security.EscapeOutput.OutputNotEscaped -- static attribute string. ?> />
+						<input type="checkbox" name="at8mluc_membership_expires_never" value="1"<?php echo $expires_never; // phpcs:ignore WordPress.Security.EscapeOutput.OutputNotEscaped -- static attribute string. ?> />
 						<?php esc_html_e( 'Never expires', 'at8-moonlight-user-center' ); ?>
 					</label>
 					<p class="description"><?php esc_html_e( 'With “Never expires” checked the date is ignored; otherwise the level ends at 23:59 site time on that day.', 'at8-moonlight-user-center' ); ?></p>
@@ -572,13 +572,13 @@ class AT8_MLUC_Membership {
 
 		// Nothing submitted means nothing to change: other plugins may fire
 		// the profile save hooks without rendering these fields.
-		if ( ! isset( $_POST['at8_mluc_membership_level'] ) ) {
+		if ( ! isset( $_POST['at8mluc_membership_level'] ) ) {
 			return;
 		}
 
-		$level  = sanitize_key( wp_unslash( $_POST['at8_mluc_membership_level'] ) );
-		$never  = ! empty( $_POST['at8_mluc_membership_expires_never'] );
-		$date   = isset( $_POST['at8_mluc_membership_expires_date'] ) ? sanitize_text_field( wp_unslash( $_POST['at8_mluc_membership_expires_date'] ) ) : '';
+		$level  = sanitize_key( wp_unslash( $_POST['at8mluc_membership_level'] ) );
+		$never  = ! empty( $_POST['at8mluc_membership_expires_never'] );
+		$date   = isset( $_POST['at8mluc_membership_expires_date'] ) ? sanitize_text_field( wp_unslash( $_POST['at8mluc_membership_expires_date'] ) ) : '';
 		$expires = 0;
 
 		if ( ! $never && $date ) {
@@ -599,8 +599,8 @@ class AT8_MLUC_Membership {
  * @param int $user_id Optional user ID, defaults to the current user.
  * @return string
  */
-function at8_mluc_user_level( $user_id = 0 ) {
-	return AT8_MLUC_Membership::get_user_level( $user_id );
+function at8mluc_user_level( $user_id = 0 ) {
+	return AT8MLUC_Membership::get_user_level( $user_id );
 }
 
 /**
@@ -610,8 +610,8 @@ function at8_mluc_user_level( $user_id = 0 ) {
  * @param int    $user_id        Optional user ID, defaults to the current user.
  * @return bool
  */
-function at8_mluc_user_can_access( $required_level, $user_id = 0 ) {
-	return AT8_MLUC_Membership::user_can_access( $required_level, $user_id );
+function at8mluc_user_can_access( $required_level, $user_id = 0 ) {
+	return AT8MLUC_Membership::user_can_access( $required_level, $user_id );
 }
 
 /**
@@ -620,6 +620,6 @@ function at8_mluc_user_can_access( $required_level, $user_id = 0 ) {
  * @param int $user_id Optional user ID, defaults to the current user.
  * @return bool
  */
-function at8_mluc_user_is_expired( $user_id = 0 ) {
-	return AT8_MLUC_Membership::is_user_expired( $user_id );
+function at8mluc_user_is_expired( $user_id = 0 ) {
+	return AT8MLUC_Membership::is_user_expired( $user_id );
 }

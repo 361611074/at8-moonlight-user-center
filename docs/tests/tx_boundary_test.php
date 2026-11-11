@@ -51,8 +51,8 @@ function bx_user() {
 function bx_cleanup( $uid ) {
 	global $wpdb;
 
-	$wpdb->query( $wpdb->prepare( "DELETE FROM {$wpdb->prefix}at8_mluc_points_ledger WHERE user_id = %d", $uid ) );
-	$wpdb->query( $wpdb->prepare( "DELETE FROM {$wpdb->prefix}at8_mluc_points_account WHERE user_id = %d", $uid ) );
+	$wpdb->query( $wpdb->prepare( "DELETE FROM {$wpdb->prefix}at8mluc_points_ledger WHERE user_id = %d", $uid ) );
+	$wpdb->query( $wpdb->prepare( "DELETE FROM {$wpdb->prefix}at8mluc_points_account WHERE user_id = %d", $uid ) );
 	wp_delete_user( $uid );
 }
 
@@ -66,7 +66,7 @@ function bx_rows( $uid ) {
 	global $wpdb;
 
 	return (int) $wpdb->get_var(
-		$wpdb->prepare( "SELECT COUNT(*) FROM {$wpdb->prefix}at8_mluc_points_ledger WHERE user_id = %d", $uid )
+		$wpdb->prepare( "SELECT COUNT(*) FROM {$wpdb->prefix}at8mluc_points_ledger WHERE user_id = %d", $uid )
 	);
 }
 
@@ -116,7 +116,7 @@ $errors = array();
 $catch  = function ( $error ) use ( &$errors ) {
 	$errors[] = $error->get_error_code() . ': ' . $error->get_error_message();
 };
-add_action( 'at8_mluc_points_transaction_error', $catch );
+add_action( 'at8mluc_points_transaction_error', $catch );
 
 $events  = array();
 $confirm = function () use ( &$events ) {
@@ -125,8 +125,8 @@ $confirm = function () use ( &$events ) {
 $defer   = function () use ( &$events ) {
 	$events[] = 'deferred';
 };
-add_action( 'at8_mluc_points_adjusted', $confirm );
-add_action( 'at8_mluc_points_adjusted_deferred', $defer );
+add_action( 'at8mluc_points_adjusted', $confirm );
+add_action( 'at8mluc_points_adjusted_deferred', $defer );
 
 /* ==========================================================================
  * 1. SELECT @@in_transaction answers 0 — a movement owns its transaction
@@ -135,7 +135,7 @@ add_action( 'at8_mluc_points_adjusted_deferred', $defer );
 $uid     = bx_user();
 $probes  = 0;
 $counter = function ( $query ) use ( &$probes ) {
-	if ( false !== strpos( $query, 'SAVEPOINT at8_mluc_points_probe' ) ) {
+	if ( false !== strpos( $query, 'SAVEPOINT at8mluc_points_probe' ) ) {
 		$probes++;
 	}
 
@@ -149,36 +149,36 @@ $own = bx_with(
 		return ( false !== strpos( $query, 'SELECT @@in_transaction' ) ) ? "SELECT '0' AS in_tx" : $query;
 	},
 	function () use ( $uid ) {
-		return AT8_MLUC_Points::adjust( $uid, 30, 'state 0', 'admin' );
+		return AT8MLUC_Points::adjust( $uid, 30, 'state 0', 'admin' );
 	}
 );
 
 bok( 30 === $own, 'state 0: the movement applies (30)' );
 bok( 0 === $probes, 'state 0: no savepoint probe is needed when the answer is known' );
 bok( 1 === bx_rows( $uid ), 'state 0: one ledger row' );
-bok( 30 === (int) get_user_meta( $uid, 'at8_mluc_points', true ), 'state 0: the mirror is written because this request owns the commit' );
+bok( 30 === (int) get_user_meta( $uid, 'at8mluc_points', true ), 'state 0: the mirror is written because this request owns the commit' );
 
 /* ==========================================================================
  * 2. SELECT @@in_transaction answers 1 — the savepoint path
  * ========================================================================== */
 
 $events = array();
-$mirror = (int) get_user_meta( $uid, 'at8_mluc_points', true );
+$mirror = (int) get_user_meta( $uid, 'at8mluc_points', true );
 
 $wpdb->query( 'START TRANSACTION' );
 $inside = bx_break(
 	'SELECT @@in_transaction',
 	"SELECT '1' AS in_tx",
 	function () use ( $uid ) {
-		return AT8_MLUC_Points::adjust( $uid, 10, 'state 1', 'admin' );
+		return AT8MLUC_Points::adjust( $uid, 10, 'state 1', 'admin' );
 	}
 );
 $wpdb->query( 'COMMIT' );
 
 bok( 40 === $inside, 'state 1: the movement applies inside the outer transaction (40)' );
 bok( in_array( 'deferred', $events, true ) && ! in_array( 'confirmed', $events, true ), 'state 1: only the deferred action fires' );
-bok( $mirror === (int) get_user_meta( $uid, 'at8_mluc_points', true ), 'state 1: the mirror is left alone while somebody else owns the commit' );
-bok( 2 === bx_rows( $uid ) && 40 === (int) AT8_MLUC_Points::balance( $uid ), 'state 1: the movement survives the outer commit (40, 2 rows)' );
+bok( $mirror === (int) get_user_meta( $uid, 'at8mluc_points', true ), 'state 1: the mirror is left alone while somebody else owns the commit' );
+bok( 2 === bx_rows( $uid ) && 40 === (int) AT8MLUC_Points::balance( $uid ), 'state 1: the movement survives the outer commit (40, 2 rows)' );
 
 /* ==========================================================================
  * 3. The state query fails — the probe answers, and only the probe
@@ -188,7 +188,7 @@ $uid = bx_user();
 
 $fallback = bx_no_state_query(
 	function () use ( $uid ) {
-		return AT8_MLUC_Points::adjust( $uid, 6, 'probe answer', 'admin' );
+		return AT8MLUC_Points::adjust( $uid, 6, 'probe answer', 'admin' );
 	}
 );
 
@@ -199,19 +199,19 @@ bok( 1 === bx_rows( $uid ), 'state query failure: one ledger row' );
 $blocked = bx_no_state_query(
 	function () use ( $uid ) {
 		return bx_break(
-			'SAVEPOINT at8_mluc_points_probe',
+			'SAVEPOINT at8mluc_points_probe',
 			'SAVEPOINT',
 			function () use ( $uid ) {
-				return AT8_MLUC_Points::adjust( $uid, 6, 'no answer', 'admin' );
+				return AT8MLUC_Points::adjust( $uid, 6, 'no answer', 'admin' );
 			}
 		);
 	}
 );
 
 bok( is_wp_error( $blocked ), 'state unknown: the movement is refused' );
-bok( is_wp_error( $blocked ) && 'at8_mluc_points_tx' === $blocked->get_error_code(), 'state unknown: the error is a transaction error' );
+bok( is_wp_error( $blocked ) && 'at8mluc_points_tx' === $blocked->get_error_code(), 'state unknown: the error is a transaction error' );
 bok( is_wp_error( $blocked ) && false !== strpos( $blocked->get_error_message(), 'could not be determined' ), 'state unknown: the message says the state could not be determined' );
-bok( 6 === (int) AT8_MLUC_Points::balance( $uid ), 'state unknown: nothing was written (6)' );
+bok( 6 === (int) AT8MLUC_Points::balance( $uid ), 'state unknown: nothing was written (6)' );
 bx_cleanup( $uid );
 
 /* ==========================================================================
@@ -219,23 +219,23 @@ bx_cleanup( $uid );
  * ========================================================================== */
 
 $uid = bx_user();
-AT8_MLUC_Points::adjust( $uid, 10, 'seed', 'admin' );
+AT8MLUC_Points::adjust( $uid, 10, 'seed', 'admin' );
 
 $no_probe = bx_no_state_query(
 	function () use ( $uid ) {
 		return bx_break(
-			'SAVEPOINT at8_mluc_points_probe',
+			'SAVEPOINT at8mluc_points_probe',
 			'SAVEPOINT',
 			function () use ( $uid ) {
-				return AT8_MLUC_Points::adjust( $uid, 5, 'probe refused', 'admin' );
+				return AT8MLUC_Points::adjust( $uid, 5, 'probe refused', 'admin' );
 			}
 		);
 	}
 );
 
 bok( is_wp_error( $no_probe ), 'probe create failure: the movement is refused' );
-bok( is_wp_error( $no_probe ) && 'at8_mluc_points_tx' === $no_probe->get_error_code(), 'probe create failure: the error is a transaction error' );
-bok( 10 === (int) AT8_MLUC_Points::balance( $uid ), 'probe create failure: the balance is unchanged (10)' );
+bok( is_wp_error( $no_probe ) && 'at8mluc_points_tx' === $no_probe->get_error_code(), 'probe create failure: the error is a transaction error' );
+bok( 10 === (int) AT8MLUC_Points::balance( $uid ), 'probe create failure: the balance is unchanged (10)' );
 bok( 1 === bx_rows( $uid ), 'probe create failure: no extra ledger row' );
 
 /* ==========================================================================
@@ -245,26 +245,26 @@ bok( 1 === bx_rows( $uid ), 'probe create failure: no extra ledger row' );
 $unexplained = bx_no_state_query(
 	function () use ( $uid ) {
 		return bx_break(
-			'ROLLBACK TO SAVEPOINT at8_mluc_points_probe',
+			'ROLLBACK TO SAVEPOINT at8mluc_points_probe',
 			'SELECT * FROM wp_table_that_does_not_exist',
 			function () use ( $uid ) {
-				return AT8_MLUC_Points::adjust( $uid, 5, 'probe rewind refused', 'admin' );
+				return AT8MLUC_Points::adjust( $uid, 5, 'probe rewind refused', 'admin' );
 			}
 		);
 	}
 );
 
 bok( is_wp_error( $unexplained ), 'probe rewind failure: the movement is refused instead of assuming "no transaction"' );
-bok( is_wp_error( $unexplained ) && 'at8_mluc_points_tx' === $unexplained->get_error_code(), 'probe rewind failure: the error is a transaction error' );
+bok( is_wp_error( $unexplained ) && 'at8mluc_points_tx' === $unexplained->get_error_code(), 'probe rewind failure: the error is a transaction error' );
 bok( is_wp_error( $unexplained ) && false !== strpos( $unexplained->get_error_message(), 'could not be determined' ), 'probe rewind failure: the message admits the state is unknown' );
-bok( 10 === (int) AT8_MLUC_Points::balance( $uid ), 'probe rewind failure: the balance is unchanged (10)' );
+bok( 10 === (int) AT8MLUC_Points::balance( $uid ), 'probe rewind failure: the balance is unchanged (10)' );
 bok( 1 === bx_rows( $uid ), 'probe rewind failure: no extra ledger row' );
 
 /* ==========================================================================
  * 6. The documented 1305 answer is the only one read as "no transaction"
  * ========================================================================== */
 
-$reflect = new ReflectionMethod( 'AT8_MLUC_Points', 'is_missing_savepoint_error' );
+$reflect = new ReflectionMethod( 'AT8MLUC_Points', 'is_missing_savepoint_error' );
 $reflect->setAccessible( true );
 
 bok( true === $reflect->invoke( null, 'SQLSTATE[42000]: Syntax error or access violation: 1305 SAVEPOINT `x` does not exist' ), 'classification: 1305 is the "no transaction" answer' );
@@ -278,49 +278,49 @@ bok( false === $reflect->invoke( null, 'Lock wait timeout exceeded' ), 'classifi
  * ========================================================================== */
 
 $uid    = bx_user();
-AT8_MLUC_Points::adjust( $uid, 10, 'seed', 'admin' );
+AT8MLUC_Points::adjust( $uid, 10, 'seed', 'admin' );
 $errors = array();
 $events = array();
-$mirror = (int) get_user_meta( $uid, 'at8_mluc_points', true );
+$mirror = (int) get_user_meta( $uid, 'at8mluc_points', true );
 
 $wpdb->query( 'START TRANSACTION' );
 $release_failed = bx_break(
-	'RELEASE SAVEPOINT at8_mluc_points_tx',
-	'RELEASE SAVEPOINT at8_mluc_points_absent',
+	'RELEASE SAVEPOINT at8mluc_points_tx',
+	'RELEASE SAVEPOINT at8mluc_points_absent',
 	function () use ( $uid ) {
-		return AT8_MLUC_Points::adjust( $uid, 5, 'release refused', 'admin' );
+		return AT8MLUC_Points::adjust( $uid, 5, 'release refused', 'admin' );
 	}
 );
 $wpdb->query( 'COMMIT' );
 
 bok( is_wp_error( $release_failed ), 'release failure: the movement is reported as not confirmed' );
-bok( is_wp_error( $release_failed ) && 'at8_mluc_points_tx' === $release_failed->get_error_code(), 'release failure: the error is a transaction error' );
+bok( is_wp_error( $release_failed ) && 'at8mluc_points_tx' === $release_failed->get_error_code(), 'release failure: the error is a transaction error' );
 bok( is_wp_error( $release_failed ) && false !== strpos( $release_failed->get_error_message(), 'undone inside the enclosing transaction' ), 'release failure: the message says the movement was undone' );
 bok( 1 === count( $errors ), 'release failure: the transaction error was reported once (' . count( $errors ) . ')' );
 bok( ! in_array( 'confirmed', $events, true ), 'release failure: no success action fired' );
-bok( 10 === (int) AT8_MLUC_Points::balance( $uid ), 'release failure: the outer commit leaves the balance at 10' );
-bok( $mirror === (int) get_user_meta( $uid, 'at8_mluc_points', true ), 'release failure: the mirror was not written' );
+bok( 10 === (int) AT8MLUC_Points::balance( $uid ), 'release failure: the outer commit leaves the balance at 10' );
+bok( $mirror === (int) get_user_meta( $uid, 'at8mluc_points', true ), 'release failure: the mirror was not written' );
 bok( 1 === bx_rows( $uid ), 'release failure: no extra ledger row' );
-bok( AT8_MLUC_Points::verify_balance( $uid ), 'release failure: the account is still consistent' );
+bok( AT8MLUC_Points::verify_balance( $uid ), 'release failure: the account is still consistent' );
 
 /* ==========================================================================
  * 8. RELEASE and the rewind both fail
  * ========================================================================== */
 
 $uid    = bx_user();
-AT8_MLUC_Points::adjust( $uid, 10, 'seed', 'admin' );
+AT8MLUC_Points::adjust( $uid, 10, 'seed', 'admin' );
 $errors = array();
 
 $wpdb->query( 'START TRANSACTION' );
 $double_failed = bx_break(
-	'RELEASE SAVEPOINT at8_mluc_points_tx',
-	'RELEASE SAVEPOINT at8_mluc_points_absent',
+	'RELEASE SAVEPOINT at8mluc_points_tx',
+	'RELEASE SAVEPOINT at8mluc_points_absent',
 	function () use ( $uid ) {
 		return bx_break(
-			'ROLLBACK TO SAVEPOINT at8_mluc_points_tx',
-			'ROLLBACK TO SAVEPOINT at8_mluc_points_absent_too',
+			'ROLLBACK TO SAVEPOINT at8mluc_points_tx',
+			'ROLLBACK TO SAVEPOINT at8mluc_points_absent_too',
 			function () use ( $uid ) {
-				return AT8_MLUC_Points::adjust( $uid, 5, 'release and rewind refused', 'admin' );
+				return AT8MLUC_Points::adjust( $uid, 5, 'release and rewind refused', 'admin' );
 			}
 		);
 	}
@@ -328,33 +328,33 @@ $double_failed = bx_break(
 $wpdb->query( 'ROLLBACK' );
 
 bok( is_wp_error( $double_failed ), 'release + rewind failure: the movement fails loudly' );
-bok( is_wp_error( $double_failed ) && 'at8_mluc_points_tx' === $double_failed->get_error_code(), 'release + rewind failure: the error is a transaction error' );
+bok( is_wp_error( $double_failed ) && 'at8mluc_points_tx' === $double_failed->get_error_code(), 'release + rewind failure: the error is a transaction error' );
 bok( is_wp_error( $double_failed ) && false !== strpos( $double_failed->get_error_message(), 'may still carry the unconfirmed points movement' ), 'release + rewind failure: the message warns that the outer transaction may still hold the movement' );
 bok( 1 === count( $errors ), 'release + rewind failure: the transaction error was reported once' );
-bok( 10 === (int) AT8_MLUC_Points::balance( $uid ), 'release + rewind failure: the outer rollback leaves the balance at 10' );
+bok( 10 === (int) AT8MLUC_Points::balance( $uid ), 'release + rewind failure: the outer rollback leaves the balance at 10' );
 
 /* ==========================================================================
  * 9. An outer transaction that commits, and one that rolls back
  * ========================================================================== */
 
 $events = array();
-$mirror = (int) get_user_meta( $uid, 'at8_mluc_points', true );
+$mirror = (int) get_user_meta( $uid, 'at8mluc_points', true );
 
 $wpdb->query( 'START TRANSACTION' );
-AT8_MLUC_Points::adjust( $uid, 10, 'outer commit', 'admin' );
+AT8MLUC_Points::adjust( $uid, 10, 'outer commit', 'admin' );
 $wpdb->query( 'COMMIT' );
 
-bok( 20 === (int) AT8_MLUC_Points::balance( $uid ), 'outer commit: the movement is durable (20)' );
-bok( $mirror === (int) get_user_meta( $uid, 'at8_mluc_points', true ), 'outer commit: the mirror was still not touched by this request' );
+bok( 20 === (int) AT8MLUC_Points::balance( $uid ), 'outer commit: the movement is durable (20)' );
+bok( $mirror === (int) get_user_meta( $uid, 'at8mluc_points', true ), 'outer commit: the mirror was still not touched by this request' );
 
 $events = array();
 $wpdb->query( 'START TRANSACTION' );
-AT8_MLUC_Points::adjust( $uid, 10, 'outer rollback', 'admin' );
+AT8MLUC_Points::adjust( $uid, 10, 'outer rollback', 'admin' );
 $wpdb->query( 'ROLLBACK' );
 
-bok( 20 === (int) AT8_MLUC_Points::balance( $uid ), 'outer rollback: the movement is gone (20)' );
+bok( 20 === (int) AT8MLUC_Points::balance( $uid ), 'outer rollback: the movement is gone (20)' );
 bok( ! in_array( 'confirmed', $events, true ), 'outer rollback: no success action fired' );
-bok( AT8_MLUC_Points::verify_balance( $uid ), 'outer rollback: the account is still consistent' );
+bok( AT8MLUC_Points::verify_balance( $uid ), 'outer rollback: the account is still consistent' );
 bx_cleanup( $uid );
 
 /* ==========================================================================
@@ -362,27 +362,27 @@ bx_cleanup( $uid );
  * ========================================================================== */
 
 $uid = bx_user();
-AT8_MLUC_Points::adjust( $uid, 100, 'seed', 'admin' );
+AT8MLUC_Points::adjust( $uid, 100, 'seed', 'admin' );
 
 // 10. The repair UPDATE is refused by the driver.
 $attempts = 0;
 $broken   = bx_with(
 	function ( $query ) use ( &$attempts ) {
-		if ( preg_match( '/^UPDATE \S*at8_mluc_points_account SET balance = -?\d+, fence =/', $query ) ) {
+		if ( preg_match( '/^UPDATE \S*at8mluc_points_account SET balance = -?\d+, fence =/', $query ) ) {
 			$attempts++;
 
-			return 'UPDATE ' . $GLOBALS['wpdb']->prefix . 'at8_mluc_points_account SET no_such_column = 1 WHERE user_id = 0';
+			return 'UPDATE ' . $GLOBALS['wpdb']->prefix . 'at8mluc_points_account SET no_such_column = 1 WHERE user_id = 0';
 		}
 
 		return $query;
 	},
 	function () use ( $uid ) {
-		return AT8_MLUC_Points::reconcile( $uid );
+		return AT8MLUC_Points::reconcile( $uid );
 	}
 );
 
 bok( is_wp_error( $broken ), 'repair write failure: reconcile() reports an error' );
-bok( is_wp_error( $broken ) && 'at8_mluc_points_busy' !== $broken->get_error_code(), 'repair write failure: it is not misreported as a busy account (' . ( is_wp_error( $broken ) ? $broken->get_error_code() : '-' ) . ')' );
+bok( is_wp_error( $broken ) && 'at8mluc_points_busy' !== $broken->get_error_code(), 'repair write failure: it is not misreported as a busy account (' . ( is_wp_error( $broken ) ? $broken->get_error_code() : '-' ) . ')' );
 bok( 1 === $attempts, 'repair write failure: the statement runs once, no pointless retry loop (' . $attempts . ')' );
 
 // 11. The repair UPDATE matches nothing: a real version conflict, retried.
@@ -400,33 +400,33 @@ $retried = bx_with(
 		return $query;
 	},
 	function () use ( $uid ) {
-		return AT8_MLUC_Points::reconcile( $uid );
+		return AT8MLUC_Points::reconcile( $uid );
 	}
 );
 
 bok( 100 === $retried, 'version conflict: the repair retries and reports the ledger sum (100)' );
 bok( $reads >= 2, 'version conflict: the account was read again after the conflict (' . $reads . ' reads)' );
-bok( 100 === (int) AT8_MLUC_Points::balance( $uid ), 'version conflict: the balance is intact (100)' );
+bok( 100 === (int) AT8MLUC_Points::balance( $uid ), 'version conflict: the balance is intact (100)' );
 
 // 12. The repair UPDATE matches exactly one row.
 $attempts = 0;
 $clean    = bx_with(
 	function ( $query ) use ( &$attempts ) {
-		if ( preg_match( '/^UPDATE \S*at8_mluc_points_account SET balance = -?\d+, fence =/', $query ) ) {
+		if ( preg_match( '/^UPDATE \S*at8mluc_points_account SET balance = -?\d+, fence =/', $query ) ) {
 			$attempts++;
 		}
 
 		return $query;
 	},
 	function () use ( $uid ) {
-		return AT8_MLUC_Points::reconcile( $uid );
+		return AT8MLUC_Points::reconcile( $uid );
 	}
 );
 
 bok( 100 === $clean, 'healthy repair: reconcile() returns the ledger sum (100)' );
 bok( 1 === $attempts, 'healthy repair: exactly one UPDATE, no conflict path (' . $attempts . ')' );
-bok( AT8_MLUC_Points::verify_balance( $uid ), 'healthy repair: balance equals the ledger sum' );
-bok( 100 === (int) get_user_meta( $uid, 'at8_mluc_points', true ), 'healthy repair: the mirror is refreshed when this request owns the commit' );
+bok( AT8MLUC_Points::verify_balance( $uid ), 'healthy repair: balance equals the ledger sum' );
+bok( 100 === (int) get_user_meta( $uid, 'at8mluc_points', true ), 'healthy repair: the mirror is refreshed when this request owns the commit' );
 
 bx_cleanup( $uid );
 
@@ -434,7 +434,7 @@ bx_cleanup( $uid );
  * 13. The misleading helper is gone
  * ========================================================================== */
 
-$methods = get_class_methods( 'AT8_MLUC_Points' );
+$methods = get_class_methods( 'AT8MLUC_Points' );
 bok( ! in_array( 'has_open_transaction', $methods, true ), 'cleanup: the obsolete has_open_transaction() is no longer present' );
 
 echo "==== {$GLOBALS['bp']} passed, {$GLOBALS['bf']} failed ====\n";

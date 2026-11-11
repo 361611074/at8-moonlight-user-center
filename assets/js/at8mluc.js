@@ -7,11 +7,11 @@
 ( function () {
 	'use strict';
 
-	if ( typeof window.at8MlucData === 'undefined' ) {
+	if ( typeof window.at8mlucData === 'undefined' ) {
 		return;
 	}
 
-	var data = window.at8MlucData;
+	var data = window.at8mlucData;
 
 	/**
 	 * Send a form to an admin-ajax action.
@@ -52,7 +52,7 @@
 				if ( success ) {
 					form.reset();
 					form.dispatchEvent(
-						new CustomEvent( 'at8-mluc:success', {
+						new CustomEvent( 'at8mluc:success', {
 							bubbles: true,
 							detail: payload.data || {}
 						} )
@@ -80,7 +80,7 @@
 		}
 
 		notice.textContent = message;
-		notice.className = 'at8-mluc-message at8-mluc-message--' + state;
+		notice.className = 'at8mluc-message at8mluc-message--' + state;
 
 		if ( ! message ) {
 			notice.hidden = true;
@@ -96,24 +96,24 @@
 	 * @return {HTMLElement|null} Notice element.
 	 */
 	function noticeFor( form ) {
-		var id = form.getAttribute( 'data-at8-mluc-notice' );
+		var id = form.getAttribute( 'data-at8mluc-notice' );
 
 		if ( id ) {
 			return document.getElementById( id );
 		}
 
-		return form.querySelector( '.at8-mluc-form-notice' );
+		return form.querySelector( '.at8mluc-form-notice' );
 	}
 
 	/**
 	 * Bind every AJAX form on the page.
 	 */
 	function bindForms() {
-		var forms = document.querySelectorAll( 'form[data-at8-mluc-action]' );
+		var forms = document.querySelectorAll( 'form[data-at8mluc-action]' );
 
 		Array.prototype.forEach.call( forms, function ( form ) {
-			var action = form.getAttribute( 'data-at8-mluc-action' );
-			var nonce = form.getAttribute( 'data-at8-mluc-nonce' );
+			var action = form.getAttribute( 'data-at8mluc-action' );
+			var nonce = form.getAttribute( 'data-at8mluc-nonce' );
 			var notice = noticeFor( form );
 
 			if ( ! action ) {
@@ -131,15 +131,15 @@
 	 * Bind the avatar picker.
 	 */
 	function bindAvatarPicker() {
-		var picker = document.querySelector( '[data-at8-mluc-avatar-picker]' );
+		var picker = document.querySelector( '[data-at8mluc-avatar-picker]' );
 
 		if ( ! picker ) {
 			return;
 		}
 
-		var notice = document.getElementById( picker.getAttribute( 'data-at8-mluc-notice' ) || '' );
-		var preview = document.querySelector( '[data-at8-mluc-avatar-preview]' );
-		var buttons = picker.querySelectorAll( '[data-at8-mluc-avatar-id]' );
+		var notice = document.getElementById( picker.getAttribute( 'data-at8mluc-notice' ) || '' );
+		var preview = document.querySelector( '[data-at8mluc-avatar-preview]' );
+		var buttons = picker.querySelectorAll( '[data-at8mluc-avatar-id]' );
 
 		Array.prototype.forEach.call( buttons, function ( button ) {
 			button.addEventListener( 'click', function ( event ) {
@@ -147,13 +147,13 @@
 
 				var body = new FormData();
 
-				body.append( 'action', 'at8_mluc_select_avatar' );
+				body.append( 'action', 'at8mluc_select_avatar' );
 				body.append( 'nonce', data.nonces.avatar );
 
-				if ( 'reset' === button.getAttribute( 'data-at8-mluc-avatar-reset' ) ) {
-					body.append( 'at8_mluc_reset', '1' );
+				if ( 'reset' === button.getAttribute( 'data-at8mluc-avatar-reset' ) ) {
+					body.append( 'at8mluc_reset', '1' );
 				} else {
-					body.append( 'avatar_id', button.getAttribute( 'data-at8-mluc-avatar-id' ) );
+					body.append( 'avatar_id', button.getAttribute( 'data-at8mluc-avatar-id' ) );
 				}
 
 				setNotice( notice, data.i18n.sending, 'pending' );
@@ -192,18 +192,18 @@
 	 * the server-side check stay authoritative.
 	 */
 	function bindStrength() {
-		var meters = document.querySelectorAll( '[data-at8-mluc-strength]' );
+		var meters = document.querySelectorAll( '[data-at8mluc-strength]' );
 
 		Array.prototype.forEach.call( meters, function ( meter ) {
-			var input = document.getElementById( meter.getAttribute( 'data-at8-mluc-strength' ) );
+			var input = document.getElementById( meter.getAttribute( 'data-at8mluc-strength' ) );
 			if ( ! input ) {
 				return;
 			}
 
 			var labels = meter.getAttribute( 'data-labels' );
 			labels = labels ? labels.split( '|' ) : [];
-			var fill = meter.querySelector( '.at8-mluc-strength-fill' );
-			var text = meter.querySelector( '.at8-mluc-strength-label' );
+			var fill = meter.querySelector( '.at8mluc-strength-fill' );
+			var text = meter.querySelector( '.at8mluc-strength-label' );
 
 			input.addEventListener( 'input', function () {
 				var score = scorePassword( input.value );
@@ -271,17 +271,17 @@
 	 * account reloads on success so the new level shows immediately.
 	 */
 	function bindRedeem() {
-		var buttons = document.querySelectorAll( '[data-at8-mluc-redeem]' );
+		var buttons = document.querySelectorAll( '[data-at8mluc-redeem]' );
 
 		Array.prototype.forEach.call( buttons, function ( button ) {
 			button.addEventListener( 'click', function () {
-				var card = button.closest( '.at8-mluc-upgrade-paths' );
-				var notice = card ? card.querySelector( '.at8-mluc-redeem-notice' ) : null;
+				var card = button.closest( '.at8mluc-upgrade-paths' );
+				var notice = card ? card.querySelector( '.at8mluc-redeem-notice' ) : null;
 				var body = new FormData();
 
-				body.append( 'action', 'at8_mluc_redeem_level' );
+				body.append( 'action', 'at8mluc_redeem_level' );
 				body.append( 'nonce', button.getAttribute( 'data-nonce' ) );
-				body.append( 'level', button.getAttribute( 'data-at8-mluc-redeem' ) );
+				body.append( 'level', button.getAttribute( 'data-at8mluc-redeem' ) );
 
 				button.disabled = true;
 
@@ -325,18 +325,18 @@
 	 * payment.
 	 */
 	function bindPaywall() {
-		var buttons = document.querySelectorAll( '[data-at8-mluc-paywall-buy]' );
+		var buttons = document.querySelectorAll( '[data-at8mluc-paywall-buy]' );
 
 		Array.prototype.forEach.call( buttons, function ( button ) {
 			button.addEventListener( 'click', function () {
-				var card = button.closest( '.at8-mluc-paywall' );
-				var notice = card ? card.querySelector( '.at8-mluc-paywall-notice' ) : null;
+				var card = button.closest( '.at8mluc-paywall' );
+				var notice = card ? card.querySelector( '.at8mluc-paywall-notice' ) : null;
 				var body = new FormData();
 
-				body.append( 'action', 'at8_mluc_paywall_buy' );
+				body.append( 'action', 'at8mluc_paywall_buy' );
 				body.append( 'nonce', button.getAttribute( 'data-nonce' ) );
 				body.append( 'post_id', button.getAttribute( 'data-post' ) );
-				body.append( 'gateway', button.getAttribute( 'data-at8-mluc-paywall-buy' ) );
+				body.append( 'gateway', button.getAttribute( 'data-at8mluc-paywall-buy' ) );
 
 				button.disabled = true;
 

@@ -31,7 +31,7 @@
 ```php
 // options.option_name 在 WordPress 核心 schema 里是 UNIQUE
 INSERT INTO {$wpdb->options} (option_name, option_value, autoload)
-VALUES ('at8_mluc_points_claim_<md5(user|key)>', '<token>|<expiry>', 'no')
+VALUES ('at8mluc_points_claim_<md5(user|key)>', '<token>|<expiry>', 'no')
 ```
 
 普通 `INSERT` 就是原子的 test-and-set：数据库决定谁赢，不是 PHP 的 `has_entry()`。
@@ -52,16 +52,16 @@ WHERE option_name = %s AND option_value = %s   -- 必须还是我刚读到的那
 
 所有"读账本 → 算 → 写流水 → 写余额"的序列都在 per-user 互斥行内完成：
 
-- 获取：`INSERT` 一行 `at8_mluc_points_lock_<user_id>`（同样靠 UNIQUE 索引原子）
+- 获取：`INSERT` 一行 `at8mluc_points_lock_<user_id>`（同样靠 UNIQUE 索引原子）
 - 续期/接管：只允许 CAS，不盲删
 - 释放：`DELETE ... WHERE option_name = %s AND option_value = %s`，**只有持有者能删自己的**
-- TTL 10 秒，等待上限 5 秒；等不到返回 `at8_mluc_points_busy`，调用方重试
+- TTL 10 秒，等待上限 5 秒；等不到返回 `at8mluc_points_busy`，调用方重试
 
 因为临界区里只有当前这一个写者，扣分预检查与流水插入之间不可能插进另一个扣分。
 
 ### 3. 余额不再是"真相"，也不再被读来决策
 
-- `balance()` / 扣分判定：**永远** `replay()` 求和账本行，不读 `at8_mluc_points` 镜像
+- `balance()` / 扣分判定：**永远** `replay()` 求和账本行，不读 `at8mluc_points` 镜像
 - `replay()` **不夹取**，负和如实返回，透支才看得见
 - 镜像只在临界区内、所有流水写完之后写一次，并**读回校验**
 - 镜像写失败不影响正确性（账本是承重结构），测试里专门注入了这个故障
@@ -99,12 +99,12 @@ bash _tools/v4_conc_run.sh mixed  8   # 6 passed, 0 failed
 ```
 
 做法：8 个独立 `wp eval-file` 进程先对齐到同一个 barrier 文件，再同时冲；
-子进程通过 `at8_mluc_points_lock_acquired/released` 钩子记录临界区进出时间。
+子进程通过 `at8mluc_points_lock_acquired/released` 钩子记录临界区进出时间。
 
 | 场景 | 结果 |
 |---|---|
 | 8 并发回调同一订单 | 1 条流水、余额 20、无任何进程观察到双发 |
-| 100 分余额，8 × 扣 30 | 3 成功 / 5 被拒（`at8_mluc_points_balance`）、余额 10、账本合计 10 |
+| 100 分余额，8 × 扣 30 | 3 成功 / 5 被拒（`at8mluc_points_balance`）、余额 10、账本合计 10 |
 | 4 加 10 / 4 扣 30 混合 | 余额恒等于账本合计（本轮 20 = 100+40−120），无负余额 |
 | 临界区重叠检测 | 8 个窗口，**overlaps = 0**（可串行化的直接证据） |
 
@@ -127,7 +127,7 @@ bash _tools/v4_conc_run.sh mixed  8   # 6 passed, 0 failed
 | 安全功能矩阵 `v4_matrix_test.php` | Free 独立 **49 / 0**（原 36 + 新增 13）；Pro 激活态 50 / 0 |
 | Pro 联合 `pro_test.php` | 64 / 0 |
 | 干净站安装 `v4_clean_install.php` | 12 / 0 |
-| 升级 2.5.7 → 2.5.8 | 数据计数不变，`at8_mluc_version` 自愈 |
+| 升级 2.5.7 → 2.5.8 | 数据计数不变，`at8mluc_version` 自愈 |
 | 卸载（delete_data=1 / 默认保留） | 插件状态清零 / 数据保留，核心数据均不变 |
 | Plugin Check（最终 ZIP） | 0 ERROR / 25 WARNING，改动文件零告警 |
 | debug.log 增量 | 0 行（7 个落败 INSERT 的错误被 `suppress_errors` 吞掉） |
@@ -144,7 +144,7 @@ bash _tools/v4_conc_run.sh mixed  8   # 6 passed, 0 failed
    登记簿（数量级 = 订单数）。卸载时按前缀删除。
 3. **临界区是阻塞式**：同一用户的并发变动会排队（最多等 5 秒）。积分变动是低频
    操作，排队优于静默丢更新；等不到会返回明确错误让调用方重试。
-4. **不在本轮范围**：`at8_mluc_redeem_level` 的两个并发请求可能各自扣分并各自
+4. **不在本轮范围**：`at8mluc_redeem_level` 的两个并发请求可能各自扣分并各自
    授予同一等级（钱不会丢，但用户可能为同一个等级付两次）。要彻底解决需要给兑换
    也引入请求级幂等键（例如客户端一次性 token），属于另一条独立改动。
 5. **多站点**：锁与 claim 行落在当前站点的 options 表，天然按站点隔离。

@@ -29,7 +29,7 @@ $result = array( 'pid' => getmypid(), 'ok' => false, 'error' => '', 'balance' =>
 try {
 	if ( 'observe' === $action ) {
 		$key   = (string) getenv( 'CONC_KEY' );
-		$rows  = AT8_MLUC_Points::ledger( $uid, 500 );
+		$rows  = AT8MLUC_Points::ledger( $uid, 500 );
 		$sum   = 0;
 		$keyed = 0;
 		$last  = '';
@@ -51,11 +51,11 @@ try {
 		$result['sum']     = $sum;
 		$result['keyed']   = $keyed;
 		$result['last']    = $last;
-		$result['balance'] = AT8_MLUC_Points::balance( $uid );
+		$result['balance'] = AT8MLUC_Points::balance( $uid );
 	} elseif ( 'grant' === $action ) {
-		AT8_MLUC_Points::get_instance()->grant_for_order( $order, $uid, 'monthly' );
+		AT8MLUC_Points::get_instance()->grant_for_order( $order, $uid, 'monthly' );
 		$result['ok']      = true;
-		$result['balance'] = AT8_MLUC_Points::balance( $uid );
+		$result['balance'] = AT8MLUC_Points::balance( $uid );
 	} elseif ( 'hold_txn' === $action ) {
 		/*
 		 * A writer that stalls in the middle of its transaction: the account
@@ -67,14 +67,14 @@ try {
 		$wpdb->query( 'START TRANSACTION' );
 		$wpdb->query(
 			$wpdb->prepare(
-				"UPDATE {$wpdb->prefix}at8_mluc_points_account SET balance = balance + %d, fence = fence + 1 WHERE user_id = %d",
+				"UPDATE {$wpdb->prefix}at8mluc_points_account SET balance = balance + %d, fence = fence + 1 WHERE user_id = %d",
 				$amount,
 				$uid
 			)
 		);
 		$wpdb->query(
 			$wpdb->prepare(
-				"INSERT INTO {$wpdb->prefix}at8_mluc_points_ledger (user_id, amount, reason, source, by_user, idem_key, fence, created_at) VALUES (%d, %d, 'held writer', 'admin', 0, %s, 0, %d)",
+				"INSERT INTO {$wpdb->prefix}at8mluc_points_ledger (user_id, amount, reason, source, by_user, idem_key, fence, created_at) VALUES (%d, %d, 'held writer', 'admin', 0, %s, 0, %d)",
 				$uid,
 				$amount,
 				'hold:' . getmypid(),
@@ -91,7 +91,7 @@ try {
 		$wpdb->query( 'commit' === getenv( 'CONC_END' ) ? 'COMMIT' : 'ROLLBACK' );
 
 		$result['ok']      = true;
-		$result['balance'] = AT8_MLUC_Points::balance( $uid );
+		$result['balance'] = AT8MLUC_Points::balance( $uid );
 	} elseif ( 'kill_mid' === $action ) {
 		/*
 		 * A request that dies inside its transaction: the process exits
@@ -102,14 +102,14 @@ try {
 		$wpdb->query( 'START TRANSACTION' );
 		$wpdb->query(
 			$wpdb->prepare(
-				"UPDATE {$wpdb->prefix}at8_mluc_points_account SET balance = balance + %d, fence = fence + 1 WHERE user_id = %d",
+				"UPDATE {$wpdb->prefix}at8mluc_points_account SET balance = balance + %d, fence = fence + 1 WHERE user_id = %d",
 				$amount,
 				$uid
 			)
 		);
 		$wpdb->query(
 			$wpdb->prepare(
-				"INSERT INTO {$wpdb->prefix}at8_mluc_points_ledger (user_id, amount, reason, source, by_user, idem_key, fence, created_at) VALUES (%d, %d, 'killed writer', 'admin', 0, %s, 0, %d)",
+				"INSERT INTO {$wpdb->prefix}at8mluc_points_ledger (user_id, amount, reason, source, by_user, idem_key, fence, created_at) VALUES (%d, %d, 'killed writer', 'admin', 0, %s, 0, %d)",
 				$uid,
 				$amount,
 				'kill:' . getmypid(),
@@ -121,7 +121,7 @@ try {
 	} else {
 		$signed = 'adjust_deduct' === $action ? -abs( $amount ) : $amount;
 		$key    = (string) getenv( 'CONC_KEY' );
-		$r      = AT8_MLUC_Points::adjust( $uid, $signed, 'concurrency ' . $signed, 'admin', $key );
+		$r      = AT8MLUC_Points::adjust( $uid, $signed, 'concurrency ' . $signed, 'admin', $key );
 
 		if ( is_wp_error( $r ) ) {
 			$result['error'] = $r->get_error_code() . ': ' . $r->get_error_message();

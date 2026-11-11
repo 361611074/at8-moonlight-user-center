@@ -19,79 +19,79 @@
 
 defined( 'ABSPATH' ) || exit;
 
-$at8_mluc_pw_post_id  = isset( $args['post_id'] ) ? (int) $args['post_id'] : 0;
-$at8_mluc_pw_price    = isset( $args['price'] ) ? (float) $args['price'] : 0.0;
-$at8_mluc_pw_symbol   = isset( $args['symbol'] ) ? (string) $args['symbol'] : '';
-$at8_mluc_pw_levels   = isset( $args['levels'] ) && is_array( $args['levels'] ) ? $args['levels'] : array();
-$at8_mluc_pw_nonce    = isset( $args['nonce'] ) ? (string) $args['nonce'] : '';
-$at8_mluc_pw_loggedin = ! empty( $args['loggedin'] );
-$at8_mluc_pw_login    = isset( $args['login_url'] ) ? (string) $args['login_url'] : '';
-$at8_mluc_pw_gateways = AT8_MLUC_Payments::get_gateways();
-$at8_mluc_pw_names    = array();
+$at8mluc_pw_post_id  = isset( $args['post_id'] ) ? (int) $args['post_id'] : 0;
+$at8mluc_pw_price    = isset( $args['price'] ) ? (float) $args['price'] : 0.0;
+$at8mluc_pw_symbol   = isset( $args['symbol'] ) ? (string) $args['symbol'] : '';
+$at8mluc_pw_levels   = isset( $args['levels'] ) && is_array( $args['levels'] ) ? $args['levels'] : array();
+$at8mluc_pw_nonce    = isset( $args['nonce'] ) ? (string) $args['nonce'] : '';
+$at8mluc_pw_loggedin = ! empty( $args['loggedin'] );
+$at8mluc_pw_login    = isset( $args['login_url'] ) ? (string) $args['login_url'] : '';
+$at8mluc_pw_gateways = AT8MLUC_Payments::get_gateways();
+$at8mluc_pw_names    = array();
 
-foreach ( $at8_mluc_pw_levels as $at8_mluc_pw_key ) {
-	$at8_mluc_pw_names[] = AT8_MLUC_Membership::get_level_label( $at8_mluc_pw_key );
+foreach ( $at8mluc_pw_levels as $at8mluc_pw_key ) {
+	$at8mluc_pw_names[] = AT8MLUC_Membership::get_level_label( $at8mluc_pw_key );
 }
 ?>
-<div class="at8-mluc-paywall" data-at8-mluc-paywall="<?php echo esc_attr( (string) $at8_mluc_pw_post_id ); ?>">
+<div class="at8mluc-paywall" data-at8mluc-paywall="<?php echo esc_attr( (string) $at8mluc_pw_post_id ); ?>">
 
-	<span class="at8-mluc-paywall-icon dashicons dashicons-lock" aria-hidden="true"></span>
+	<span class="at8mluc-paywall-icon dashicons dashicons-lock" aria-hidden="true"></span>
 
-	<h3 class="at8-mluc-paywall-title">
+	<h3 class="at8mluc-paywall-title">
 		<?php esc_html_e( 'This content is for members', 'at8-moonlight-user-center' ); ?>
 	</h3>
 
-	<p class="at8-mluc-paywall-price">
+	<p class="at8mluc-paywall-price">
 		<?php
 		printf(
 			/* translators: 1: currency symbol, 2: price. */
 			esc_html__( 'Unlock for %1$s%2$s', 'at8-moonlight-user-center' ),
-			esc_html( $at8_mluc_pw_symbol ),
-			esc_html( number_format_i18n( $at8_mluc_pw_price, 2 ) )
+			esc_html( $at8mluc_pw_symbol ),
+			esc_html( number_format_i18n( $at8mluc_pw_price, 2 ) )
 		);
 		?>
 	</p>
 
-	<?php if ( ! empty( $at8_mluc_pw_names ) ) : ?>
-		<p class="at8-mluc-paywall-levels">
+	<?php if ( ! empty( $at8mluc_pw_names ) ) : ?>
+		<p class="at8mluc-paywall-levels">
 			<?php
 			printf(
 				/* translators: %s: membership level names. */
 				esc_html__( 'Free for %s members.', 'at8-moonlight-user-center' ),
-				esc_html( implode( ', ', $at8_mluc_pw_names ) )
+				esc_html( implode( ', ', $at8mluc_pw_names ) )
 			);
 			?>
 		</p>
 	<?php endif; ?>
 
-	<?php if ( ! $at8_mluc_pw_loggedin ) : ?>
-		<p class="at8-mluc-paywall-actions">
-			<a class="at8-mluc-button" href="<?php echo esc_url( $at8_mluc_pw_login ); ?>">
+	<?php if ( ! $at8mluc_pw_loggedin ) : ?>
+		<p class="at8mluc-paywall-actions">
+			<a class="at8mluc-button" href="<?php echo esc_url( $at8mluc_pw_login ); ?>">
 				<?php esc_html_e( 'Log in to continue', 'at8-moonlight-user-center' ); ?>
 			</a>
 		</p>
-	<?php elseif ( empty( $at8_mluc_pw_gateways ) ) : ?>
-		<p class="at8-mluc-message at8-mluc-message--info">
+	<?php elseif ( empty( $at8mluc_pw_gateways ) ) : ?>
+		<p class="at8mluc-message at8mluc-message--info">
 			<?php esc_html_e( 'Payments are not being accepted at the moment.', 'at8-moonlight-user-center' ); ?>
 		</p>
 	<?php else : ?>
-		<p class="at8-mluc-paywall-gateways">
-			<?php foreach ( array_keys( $at8_mluc_pw_gateways ) as $at8_mluc_pw_gw ) : ?>
-				<button type="button" class="at8-mluc-button at8-mluc-paywall-buy"
-					data-at8-mluc-paywall-buy="<?php echo esc_attr( $at8_mluc_pw_gw ); ?>"
-					data-post="<?php echo esc_attr( (string) $at8_mluc_pw_post_id ); ?>"
-					data-nonce="<?php echo esc_attr( $at8_mluc_pw_nonce ); ?>">
+		<p class="at8mluc-paywall-gateways">
+			<?php foreach ( array_keys( $at8mluc_pw_gateways ) as $at8mluc_pw_gw ) : ?>
+				<button type="button" class="at8mluc-button at8mluc-paywall-buy"
+					data-at8mluc-paywall-buy="<?php echo esc_attr( $at8mluc_pw_gw ); ?>"
+					data-post="<?php echo esc_attr( (string) $at8mluc_pw_post_id ); ?>"
+					data-nonce="<?php echo esc_attr( $at8mluc_pw_nonce ); ?>">
 					<?php
 					printf(
 						/* translators: %s: gateway name. */
 						esc_html__( 'Pay with %s', 'at8-moonlight-user-center' ),
-						esc_html( $at8_mluc_pw_gateways[ $at8_mluc_pw_gw ] )
+						esc_html( $at8mluc_pw_gateways[ $at8mluc_pw_gw ] )
 					);
 					?>
 				</button>
 			<?php endforeach; ?>
 		</p>
 
-		<p class="at8-mluc-paywall-notice" role="status" aria-live="polite" hidden></p>
+		<p class="at8mluc-paywall-notice" role="status" aria-live="polite" hidden></p>
 	<?php endif; ?>
 </div>

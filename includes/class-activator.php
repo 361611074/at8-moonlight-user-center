@@ -2,7 +2,7 @@
 /**
  * Activation and deactivation routines.
  *
- * Persistent state lives in the `at8_mluc_options` option, in user meta owned
+ * Persistent state lives in the `at8mluc_options` option, in user meta owned
  * by the plugin, and — since 2.6.0 — in the points ledger and account tables
  * created here.
  *
@@ -14,7 +14,7 @@ defined( 'ABSPATH' ) || exit;
 /**
  * Lifecycle hooks.
  */
-class AT8_MLUC_Activator {
+class AT8MLUC_Activator {
 
 	/**
 	 * Default settings.
@@ -58,19 +58,19 @@ class AT8_MLUC_Activator {
 	 * @return void
 	 */
 	public static function activate() {
-		$existing = get_option( 'at8_mluc_options', array() );
+		$existing = get_option( 'at8mluc_options', array() );
 
 		if ( ! is_array( $existing ) ) {
 			$existing = array();
 		}
 
-		update_option( 'at8_mluc_options', array_merge( self::defaults(), $existing ), false );
+		update_option( 'at8mluc_options', array_merge( self::defaults(), $existing ), false );
 
 		// Create the points ledger and account tables.
-		AT8_MLUC_Points::install();
+		AT8MLUC_Points::install();
 
 		// Record the plugin version so upgrades can run migrations later.
-		update_option( 'at8_mluc_version', AT8_MLUC_VERSION, false );
+		update_option( 'at8mluc_version', AT8MLUC_VERSION, false );
 	}
 
 	/**
@@ -83,8 +83,12 @@ class AT8_MLUC_Activator {
 	 * @return void
 	 */
 	public static function sync_version() {
-		if ( (string) get_option( 'at8_mluc_version', '' ) !== AT8_MLUC_VERSION ) {
-			update_option( 'at8_mluc_version', AT8_MLUC_VERSION, false );
+		// Names changed in 2.7.0; the migration must run before any module
+		// reads an option or touches the points tables.
+		AT8MLUC_Prefix_Migration::maybe_run();
+
+		if ( (string) get_option( 'at8mluc_version', '' ) !== AT8MLUC_VERSION ) {
+			update_option( 'at8mluc_version', AT8MLUC_VERSION, false );
 		}
 	}
 

@@ -13,40 +13,40 @@ defined( 'ABSPATH' ) || exit;
 /**
  * Login and credential handling.
  */
-class AT8_MLUC_Login {
+class AT8MLUC_Login {
 
 	/**
 	 * Nonce action for the login form.
 	 *
 	 * @var string
 	 */
-	const NONCE_ACTION = 'at8_mluc_login';
+	const NONCE_ACTION = 'at8mluc_login';
 
 	/**
 	 * Nonce action for the password recovery form.
 	 *
 	 * @var string
 	 */
-	const LOST_NONCE_ACTION = 'at8_mluc_lost_password';
+	const LOST_NONCE_ACTION = 'at8mluc_lost_password';
 
 	/**
 	 * Nonce action for the change password form.
 	 *
 	 * @var string
 	 */
-	const PASSWORD_NONCE_ACTION = 'at8_mluc_change_password';
+	const PASSWORD_NONCE_ACTION = 'at8mluc_change_password';
 
 	/**
 	 * Singleton instance.
 	 *
-	 * @var AT8_MLUC_Login|null
+	 * @var AT8MLUC_Login|null
 	 */
 	private static $instance = null;
 
 	/**
 	 * Retrieve the singleton.
 	 *
-	 * @return AT8_MLUC_Login
+	 * @return AT8MLUC_Login
 	 */
 	public static function get_instance() {
 		if ( null === self::$instance ) {
@@ -60,11 +60,11 @@ class AT8_MLUC_Login {
 	 * Register hooks.
 	 */
 	private function __construct() {
-		add_action( 'wp_ajax_nopriv_at8_mluc_login', array( $this, 'handle_login' ) );
-		add_action( 'wp_ajax_at8_mluc_login', array( $this, 'handle_login' ) );
-		add_action( 'wp_ajax_nopriv_at8_mluc_lost_password', array( $this, 'handle_lost_password' ) );
-		add_action( 'wp_ajax_at8_mluc_lost_password', array( $this, 'handle_lost_password' ) );
-		add_action( 'wp_ajax_at8_mluc_change_password', array( $this, 'handle_change_password' ) );
+		add_action( 'wp_ajax_nopriv_at8mluc_login', array( $this, 'handle_login' ) );
+		add_action( 'wp_ajax_at8mluc_login', array( $this, 'handle_login' ) );
+		add_action( 'wp_ajax_nopriv_at8mluc_lost_password', array( $this, 'handle_lost_password' ) );
+		add_action( 'wp_ajax_at8mluc_lost_password', array( $this, 'handle_lost_password' ) );
+		add_action( 'wp_ajax_at8mluc_change_password', array( $this, 'handle_change_password' ) );
 	}
 
 	/**
@@ -73,12 +73,12 @@ class AT8_MLUC_Login {
 	 * @return void
 	 */
 	public function handle_login() {
-		if ( ! check_ajax_referer( self::NONCE_ACTION, AT8_MLUC_Security::NONCE_FIELD, false ) ) {
-			at8_mluc_send_json( false, __( 'The security check failed. Please reload the page and try again.', 'at8-moonlight-user-center' ) );
+		if ( ! check_ajax_referer( self::NONCE_ACTION, AT8MLUC_Security::NONCE_FIELD, false ) ) {
+			wp_send_json( at8mluc_json_payload( false, __( 'The security check failed. Please reload the page and try again.', 'at8-moonlight-user-center' ) ) );
 		}
 
-		if ( ! AT8_MLUC_Security::allow( 'login' ) ) {
-			AT8_MLUC_Security::reject_throttled();
+		if ( ! AT8MLUC_Security::allow( 'login' ) ) {
+			AT8MLUC_Security::reject_throttled();
 		}
 
 		$user_login = isset( $_POST['user_login'] ) ? sanitize_user( wp_unslash( $_POST['user_login'] ), true ) : '';
@@ -87,7 +87,7 @@ class AT8_MLUC_Login {
 		$remember   = isset( $_POST['remember'] ) && '1' === (string) sanitize_text_field( wp_unslash( $_POST['remember'] ) );
 
 		if ( '' === $user_login || '' === $password ) {
-			at8_mluc_send_json( false, __( 'Please enter your username and password.', 'at8-moonlight-user-center' ) );
+			at8mluc_send_json( false, __( 'Please enter your username and password.', 'at8-moonlight-user-center' ) );
 		}
 
 		/**
@@ -97,7 +97,7 @@ class AT8_MLUC_Login {
 		 *
 		 * @param string $user_login Submitted login name.
 		 */
-		do_action( 'at8_mluc_before_login', $user_login );
+		do_action( 'at8mluc_before_login', $user_login );
 
 		$user = wp_signon(
 			array(
@@ -113,10 +113,10 @@ class AT8_MLUC_Login {
 
 			// Do not reveal whether the account exists: both cases read the same.
 			if ( 'invalid_username' === $code || 'incorrect_password' === $code || 'invalid_email' === $code ) {
-				at8_mluc_send_json( false, __( 'Incorrect username or password.', 'at8-moonlight-user-center' ) );
+				at8mluc_send_json( false, __( 'Incorrect username or password.', 'at8-moonlight-user-center' ) );
 			}
 
-			at8_mluc_send_json( false, at8_mluc_translate_wp_error( $user ) );
+			at8mluc_send_json( false, at8mluc_translate_wp_error( $user ) );
 		}
 
 		wp_set_current_user( $user->ID );
@@ -127,7 +127,7 @@ class AT8_MLUC_Login {
 			$requested_redirect = esc_url_raw( wp_unslash( $_POST['redirect_to'] ) );
 		}
 
-		at8_mluc_send_json(
+		at8mluc_send_json(
 			true,
 			__( 'You are now logged in.', 'at8-moonlight-user-center' ),
 			array( 'redirect' => self::resolve_redirect( $user->ID, $requested_redirect ) )
@@ -146,14 +146,14 @@ class AT8_MLUC_Login {
 	 * @return string Safe absolute URL.
 	 */
 	private static function resolve_redirect( $user_id, $requested_redirect = '' ) {
-		$fallback = at8_mluc_get_account_url();
+		$fallback = at8mluc_get_account_url();
 		$admin    = admin_url();
 
 		if ( user_can( $user_id, 'edit_posts' ) && is_admin() ) {
 			$fallback = $admin;
 		}
 
-		$configured = (string) at8_mluc_get_option( 'redirect_after_login', '' );
+		$configured = (string) at8mluc_get_option( 'redirect_after_login', '' );
 		if ( '' !== $configured && wp_http_validate_url( $configured ) ) {
 			$fallback = $configured;
 		}
@@ -171,21 +171,21 @@ class AT8_MLUC_Login {
 	 * @return void
 	 */
 	public function handle_lost_password() {
-		if ( ! check_ajax_referer( self::LOST_NONCE_ACTION, AT8_MLUC_Security::NONCE_FIELD, false ) ) {
-			at8_mluc_send_json( false, __( 'The security check failed. Please reload the page and try again.', 'at8-moonlight-user-center' ) );
+		if ( ! check_ajax_referer( self::LOST_NONCE_ACTION, AT8MLUC_Security::NONCE_FIELD, false ) ) {
+			wp_send_json( at8mluc_json_payload( false, __( 'The security check failed. Please reload the page and try again.', 'at8-moonlight-user-center' ) ) );
 		}
 
-		if ( ! AT8_MLUC_Security::allow( 'lost_password' ) ) {
-			AT8_MLUC_Security::reject_throttled();
+		if ( ! AT8MLUC_Security::allow( 'lost_password' ) ) {
+			AT8MLUC_Security::reject_throttled();
 		}
 
 		$user_login = isset( $_POST['user_login'] ) ? sanitize_text_field( wp_unslash( $_POST['user_login'] ) ) : '';
 
 		if ( '' === $user_login ) {
-			at8_mluc_send_json( false, __( 'Please enter your username or email address.', 'at8-moonlight-user-center' ) );
+			at8mluc_send_json( false, __( 'Please enter your username or email address.', 'at8-moonlight-user-center' ) );
 		}
 
-		$lost_url = at8_mluc_get_lostpassword_url();
+		$lost_url = at8mluc_get_lostpassword_url();
 		$errors   = retrieve_password( $user_login );
 
 		/*
@@ -196,11 +196,11 @@ class AT8_MLUC_Login {
 			$code = $errors->get_error_code();
 
 			if ( 'invalidcombo' !== $code && 'invalid_email' !== $code && 'invalid_username' !== $code ) {
-				at8_mluc_send_json( false, at8_mluc_translate_wp_error( $errors ) );
+				at8mluc_send_json( false, at8mluc_translate_wp_error( $errors ) );
 			}
 		}
 
-		at8_mluc_send_json(
+		at8mluc_send_json(
 			true,
 			__( 'If that account exists, a password reset link has been sent to its email address.', 'at8-moonlight-user-center' ),
 			array( 'redirect' => $lost_url )
@@ -213,13 +213,13 @@ class AT8_MLUC_Login {
 	 * @return void
 	 */
 	public function handle_change_password() {
-		if ( ! check_ajax_referer( self::PASSWORD_NONCE_ACTION, AT8_MLUC_Security::NONCE_FIELD, false ) ) {
-			at8_mluc_send_json( false, __( 'The security check failed. Please reload the page and try again.', 'at8-moonlight-user-center' ) );
+		if ( ! check_ajax_referer( self::PASSWORD_NONCE_ACTION, AT8MLUC_Security::NONCE_FIELD, false ) ) {
+			wp_send_json( at8mluc_json_payload( false, __( 'The security check failed. Please reload the page and try again.', 'at8-moonlight-user-center' ) ) );
 		}
-		AT8_MLUC_Security::require_login();
+		AT8MLUC_Security::require_login();
 
-		if ( ! AT8_MLUC_Security::allow( 'password' ) ) {
-			AT8_MLUC_Security::reject_throttled();
+		if ( ! AT8MLUC_Security::allow( 'password' ) ) {
+			AT8MLUC_Security::reject_throttled();
 		}
 
 		$current = isset( $_POST['current_password'] ) ? wp_unslash( $_POST['current_password'] ) : ''; // phpcs:ignore WordPress.Security.ValidatedSanitizedInput.InputNotSanitized -- Passwords must not be altered before verification.
@@ -230,25 +230,25 @@ class AT8_MLUC_Login {
 		$confirm = is_string( $confirm ) ? $confirm : '';
 
 		if ( '' === $current || '' === $new || '' === $confirm ) {
-			at8_mluc_send_json( false, __( 'Please fill in every password field.', 'at8-moonlight-user-center' ) );
+			at8mluc_send_json( false, __( 'Please fill in every password field.', 'at8-moonlight-user-center' ) );
 		}
 
 		if ( $new !== $confirm ) {
-			at8_mluc_send_json( false, __( 'The two new passwords do not match.', 'at8-moonlight-user-center' ) );
+			at8mluc_send_json( false, __( 'The two new passwords do not match.', 'at8-moonlight-user-center' ) );
 		}
 
 		if ( strlen( $new ) < 8 ) {
-			at8_mluc_send_json( false, __( 'Please choose a password of at least 8 characters.', 'at8-moonlight-user-center' ) );
+			at8mluc_send_json( false, __( 'Please choose a password of at least 8 characters.', 'at8-moonlight-user-center' ) );
 		}
 
 		$user = wp_get_current_user();
 
 		if ( ! $user || ! $user->ID ) {
-			at8_mluc_send_json( false, __( 'Please log in first.', 'at8-moonlight-user-center' ) );
+			at8mluc_send_json( false, __( 'Please log in first.', 'at8-moonlight-user-center' ) );
 		}
 
 		if ( ! wp_check_password( $current, $user->user_pass, $user->ID ) ) {
-			at8_mluc_send_json( false, __( 'Your current password is incorrect.', 'at8-moonlight-user-center' ) );
+			at8mluc_send_json( false, __( 'Your current password is incorrect.', 'at8-moonlight-user-center' ) );
 		}
 
 		/**
@@ -258,9 +258,14 @@ class AT8_MLUC_Login {
 		 *
 		 * @param int $user_id User ID.
 		 */
-		do_action( 'at8_mluc_before_password_change', $user->ID );
+		do_action( 'at8mluc_before_password_change', $user->ID );
 
-		wp_set_password( $new, $user->ID );
+		/*
+		 * reset_password() is the core entry point: it hashes the password,
+		 * fires after_password_reset (which security and notification plugins
+		 * hook into) and clears the user's sessions.
+		 */
+		reset_password( $user, $new );
 
 		/*
 		 * `wp_set_password()` invalidates every session cookie, including this
@@ -281,8 +286,8 @@ class AT8_MLUC_Login {
 		 *
 		 * @param int $user_id User ID.
 		 */
-		do_action( 'at8_mluc_after_password_change', $user->ID );
+		do_action( 'at8mluc_after_password_change', $user->ID );
 
-		at8_mluc_send_json( true, __( 'Your password has been changed.', 'at8-moonlight-user-center' ) );
+		at8mluc_send_json( true, __( 'Your password has been changed.', 'at8-moonlight-user-center' ) );
 	}
 }

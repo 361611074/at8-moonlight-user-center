@@ -6,10 +6,10 @@
  * -------------
  * Two dedicated tables hold the whole system:
  *
- * - `{prefix}at8_mluc_points_ledger` — append-only movements, one row per
+ * - `{prefix}at8mluc_points_ledger` — append-only movements, one row per
  *   change, with a UNIQUE (user_id, idem_key) index that makes "award this
  *   order once" a database guarantee instead of an application promise.
- * - `{prefix}at8_mluc_points_account` — one row per user holding the running
+ * - `{prefix}at8mluc_points_account` — one row per user holding the running
  *   balance and a version number (`fence`).
  *
  * Every movement is a single transaction with two statements:
@@ -45,7 +45,7 @@ defined( 'ABSPATH' ) || exit;
 /**
  * Point balances and ledger.
  */
-class AT8_MLUC_Points {
+class AT8MLUC_Points {
 
 	/**
 	 * Legacy balance mirror. Still written for older integrations and for the
@@ -53,28 +53,28 @@ class AT8_MLUC_Points {
 	 *
 	 * @var string
 	 */
-	const BALANCE_META = 'at8_mluc_points';
+	const BALANCE_META = 'at8mluc_points';
 
 	/**
 	 * Legacy single-meta ledger (an array) written before 2.5.7.
 	 *
 	 * @var string
 	 */
-	const LEDGER_META = 'at8_mluc_points_log';
+	const LEDGER_META = 'at8mluc_points_log';
 
 	/**
 	 * Legacy per-row ledger entries written by 2.5.7 – 2.5.9.
 	 *
 	 * @var string
 	 */
-	const ENTRY_META = 'at8_mluc_points_entry';
+	const ENTRY_META = 'at8mluc_points_entry';
 
 	/**
 	 * Option holding the installed storage version.
 	 *
 	 * @var string
 	 */
-	const DB_OPTION = 'at8_mluc_points_db';
+	const DB_OPTION = 'at8mluc_points_db';
 
 	/**
 	 * Current storage version. Bump when the schema changes.
@@ -88,14 +88,14 @@ class AT8_MLUC_Points {
 	 *
 	 * @var string
 	 */
-	const SAVEPOINT = 'at8_mluc_points_tx';
+	const SAVEPOINT = 'at8mluc_points_tx';
 
 	/**
 	 * Savepoint used to find out whether somebody else owns a transaction.
 	 *
 	 * @since 2.6.4
 	 */
-	const PROBE_SAVEPOINT = 'at8_mluc_points_probe';
+	const PROBE_SAVEPOINT = 'at8mluc_points_probe';
 
 	/**
 	 * Transaction states reported with a failure.
@@ -124,7 +124,7 @@ class AT8_MLUC_Points {
 	/**
 	 * Singleton instance.
 	 *
-	 * @var AT8_MLUC_Points|null
+	 * @var AT8MLUC_Points|null
 	 */
 	private static $instance = null;
 
@@ -155,7 +155,7 @@ class AT8_MLUC_Points {
 	/**
 	 * Retrieve the singleton.
 	 *
-	 * @return AT8_MLUC_Points
+	 * @return AT8MLUC_Points
 	 */
 	public static function get_instance() {
 		if ( null === self::$instance ) {
@@ -169,13 +169,13 @@ class AT8_MLUC_Points {
 	 * Register hooks.
 	 */
 	private function __construct() {
-		add_action( 'at8_mluc_after_register', array( $this, 'grant_signup_bonus' ), 20 );
+		add_action( 'at8mluc_after_register', array( $this, 'grant_signup_bonus' ), 20 );
 		add_action( 'show_user_profile', array( $this, 'render_admin_balance' ) );
 		add_action( 'edit_user_profile', array( $this, 'render_admin_balance' ) );
 		add_action( 'admin_print_footer_scripts-profile.php', array( $this, 'enqueue_admin_script' ) );
 		add_action( 'admin_print_footer_scripts-user-edit.php', array( $this, 'enqueue_admin_script' ) );
-		add_action( 'wp_ajax_at8_mluc_adjust_points', array( $this, 'ajax_adjust' ) );
-		add_action( 'at8_mluc_payment_completed', array( $this, 'grant_for_order' ), 10, 3 );
+		add_action( 'wp_ajax_at8mluc_adjust_points', array( $this, 'ajax_adjust' ) );
+		add_action( 'at8mluc_payment_completed', array( $this, 'grant_for_order' ), 10, 3 );
 	}
 
 	/* ---------------------------------------------------------------------
@@ -201,8 +201,8 @@ class AT8_MLUC_Points {
 		require_once ABSPATH . 'wp-admin/includes/upgrade.php';
 
 		$charset = $wpdb->get_charset_collate();
-		$ledger  = $wpdb->prefix . 'at8_mluc_points_ledger';
-		$account = $wpdb->prefix . 'at8_mluc_points_account';
+		$ledger  = $wpdb->prefix . 'at8mluc_points_ledger';
+		$account = $wpdb->prefix . 'at8mluc_points_account';
 
 		dbDelta(
 			"CREATE TABLE {$ledger} (
@@ -237,7 +237,7 @@ class AT8_MLUC_Points {
 			self::$schema_ok = false;
 
 			return new WP_Error(
-				'at8_mluc_points_schema',
+				'at8mluc_points_schema',
 				sprintf(
 					/* translators: %s: semicolon separated list of schema problems. */
 					__( 'The points tables are not usable: %s', 'at8-moonlight-user-center' ),
@@ -262,8 +262,8 @@ class AT8_MLUC_Points {
 		global $wpdb;
 
 		$problems = array();
-		$ledger   = $wpdb->prefix . 'at8_mluc_points_ledger';
-		$account  = $wpdb->prefix . 'at8_mluc_points_account';
+		$ledger   = $wpdb->prefix . 'at8mluc_points_ledger';
+		$account  = $wpdb->prefix . 'at8mluc_points_account';
 
 		foreach ( array( $ledger, $account ) as $table ) {
 			// phpcs:ignore WordPress.DB.DirectDatabaseQuery.DirectQuery, WordPress.DB.DirectDatabaseQuery.NoCaching -- Verifying the plugin's own schema.
@@ -309,7 +309,7 @@ class AT8_MLUC_Points {
 
 		// The unique index is what makes "award once" a database guarantee.
 		// phpcs:ignore WordPress.DB.DirectDatabaseQuery.DirectQuery, WordPress.DB.DirectDatabaseQuery.NoCaching -- Index check on the plugin's own table.
-		$indexes = $wpdb->get_results( "SHOW INDEX FROM {$wpdb->prefix}at8_mluc_points_ledger", ARRAY_A );
+		$indexes = $wpdb->get_results( "SHOW INDEX FROM {$wpdb->prefix}at8mluc_points_ledger", ARRAY_A );
 		$unique  = array();
 
 		foreach ( (array) $indexes as $index ) {
@@ -337,7 +337,7 @@ class AT8_MLUC_Points {
 		}
 
 		// phpcs:ignore WordPress.DB.DirectDatabaseQuery.DirectQuery, WordPress.DB.DirectDatabaseQuery.NoCaching -- Primary key check on the plugin's own table.
-		$account_keys = $wpdb->get_results( "SHOW KEYS FROM {$wpdb->prefix}at8_mluc_points_account", ARRAY_A );
+		$account_keys = $wpdb->get_results( "SHOW KEYS FROM {$wpdb->prefix}at8mluc_points_account", ARRAY_A );
 		$has_pk       = false;
 
 		foreach ( (array) $account_keys as $key ) {
@@ -407,15 +407,15 @@ class AT8_MLUC_Points {
 		global $wpdb;
 
 		if ( 'ledger' === $which ) {
-			$table = $wpdb->prefix . 'at8_mluc_points_ledger';
+			$table = $wpdb->prefix . 'at8mluc_points_ledger';
 
 			// phpcs:ignore WordPress.DB.DirectDatabaseQuery.DirectQuery, WordPress.DB.DirectDatabaseQuery.NoCaching -- Column check on the plugin's own table.
-			$rows = $wpdb->get_results( "SHOW COLUMNS FROM {$wpdb->prefix}at8_mluc_points_ledger", ARRAY_A );
+			$rows = $wpdb->get_results( "SHOW COLUMNS FROM {$wpdb->prefix}at8mluc_points_ledger", ARRAY_A );
 		} else {
-			$table = $wpdb->prefix . 'at8_mluc_points_account';
+			$table = $wpdb->prefix . 'at8mluc_points_account';
 
 			// phpcs:ignore WordPress.DB.DirectDatabaseQuery.DirectQuery, WordPress.DB.DirectDatabaseQuery.NoCaching -- Column check on the plugin's own table.
-			$rows = $wpdb->get_results( "SHOW COLUMNS FROM {$wpdb->prefix}at8_mluc_points_account", ARRAY_A );
+			$rows = $wpdb->get_results( "SHOW COLUMNS FROM {$wpdb->prefix}at8mluc_points_account", ARRAY_A );
 		}
 
 		$error = self::clean_error( (string) $wpdb->last_error );
@@ -566,7 +566,7 @@ class AT8_MLUC_Points {
 			// phpcs:ignore WordPress.DB.DirectDatabaseQuery.DirectQuery, WordPress.DB.DirectDatabaseQuery.NoCaching -- Repair write, guarded by the row version.
 			$moved = $wpdb->query(
 				$wpdb->prepare(
-					"UPDATE {$wpdb->prefix}at8_mluc_points_account SET balance = %d, fence = %d, updated_at = %d WHERE user_id = %d AND fence = %d",
+					"UPDATE {$wpdb->prefix}at8mluc_points_account SET balance = %d, fence = %d, updated_at = %d WHERE user_id = %d AND fence = %d",
 					$sum,
 					$fence + 1,
 					time(),
@@ -593,7 +593,7 @@ class AT8_MLUC_Points {
 				}
 
 				return new WP_Error(
-					'at8_mluc_points_db',
+					'at8mluc_points_db',
 					sprintf(
 						/* translators: %s: database error message. */
 						__( 'The points balance could not be rewritten: %s', 'at8-moonlight-user-center' ),
@@ -624,7 +624,7 @@ class AT8_MLUC_Points {
 				}
 
 				return new WP_Error(
-					'at8_mluc_points_db',
+					'at8mluc_points_db',
 					sprintf(
 						/* translators: %d: number of rows. */
 						__( 'The points balance rewrite touched %d rows instead of one.', 'at8-moonlight-user-center' ),
@@ -651,7 +651,7 @@ class AT8_MLUC_Points {
 		}
 
 		return new WP_Error(
-			'at8_mluc_points_busy',
+			'at8mluc_points_busy',
 			__( 'The points account is busy. Please try again in a moment.', 'at8-moonlight-user-center' )
 		);
 	}
@@ -671,14 +671,14 @@ class AT8_MLUC_Points {
 
 		// phpcs:ignore WordPress.DB.DirectDatabaseQuery.DirectQuery, WordPress.DB.DirectDatabaseQuery.NoCaching -- Summing the ledger is the authoritative read.
 		$sum = $wpdb->get_var(
-			$wpdb->prepare( "SELECT COALESCE( SUM( amount ), 0 ) FROM {$wpdb->prefix}at8_mluc_points_ledger WHERE user_id = %d", (int) $user_id )
+			$wpdb->prepare( "SELECT COALESCE( SUM( amount ), 0 ) FROM {$wpdb->prefix}at8mluc_points_ledger WHERE user_id = %d", (int) $user_id )
 		);
 
 		$error = self::clean_error( (string) $wpdb->last_error );
 
 		if ( null === $sum || '' !== $error ) {
 			return new WP_Error(
-				'at8_mluc_points_read',
+				'at8mluc_points_read',
 				sprintf(
 					/* translators: %s: database error message. */
 					__( 'The points ledger could not be read: %s', 'at8-moonlight-user-center' ),
@@ -766,7 +766,7 @@ class AT8_MLUC_Points {
 		// phpcs:ignore WordPress.DB.DirectDatabaseQuery.DirectQuery, WordPress.DB.DirectDatabaseQuery.NoCaching -- Append-only table, read straight from the database.
 		$rows = $wpdb->get_results(
 			$wpdb->prepare(
-				"SELECT id, amount, reason, source, by_user, idem_key, created_at FROM {$wpdb->prefix}at8_mluc_points_ledger WHERE user_id = %d ORDER BY id DESC LIMIT %d",
+				"SELECT id, amount, reason, source, by_user, idem_key, created_at FROM {$wpdb->prefix}at8mluc_points_ledger WHERE user_id = %d ORDER BY id DESC LIMIT %d",
 				$user_id,
 				$limit
 			),
@@ -809,7 +809,7 @@ class AT8_MLUC_Points {
 
 		// phpcs:ignore WordPress.DB.DirectDatabaseQuery.DirectQuery, WordPress.DB.DirectDatabaseQuery.NoCaching -- The UNIQUE index answers this in the database; a cached answer could be stale.
 		$found = $wpdb->get_var(
-			$wpdb->prepare( "SELECT id FROM {$wpdb->prefix}at8_mluc_points_ledger WHERE user_id = %d AND idem_key = %s LIMIT 1", (int) $user_id, $key )
+			$wpdb->prepare( "SELECT id FROM {$wpdb->prefix}at8mluc_points_ledger WHERE user_id = %d AND idem_key = %s LIMIT 1", (int) $user_id, $key )
 		);
 
 		$error = self::clean_error( (string) $wpdb->last_error );
@@ -817,7 +817,7 @@ class AT8_MLUC_Points {
 		if ( '' !== $error ) {
 			// Reporting "not found" here would let a second award through.
 			return new WP_Error(
-				'at8_mluc_points_read',
+				'at8mluc_points_read',
 				sprintf(
 					/* translators: %s: database error message. */
 					__( 'The points ledger could not be read: %s', 'at8-moonlight-user-center' ),
@@ -856,7 +856,7 @@ class AT8_MLUC_Points {
 		$key     = (string) $key;
 
 		if ( $user_id <= 0 ) {
-			return new WP_Error( 'at8_mluc_points_user', __( 'Unknown user.', 'at8-moonlight-user-center' ) );
+			return new WP_Error( 'at8mluc_points_user', __( 'Unknown user.', 'at8-moonlight-user-center' ) );
 		}
 
 		if ( 0 === $amount ) {
@@ -899,7 +899,7 @@ class AT8_MLUC_Points {
 			}
 
 			if ( $amount < 0 && $balance + $amount < 0 ) {
-				return new WP_Error( 'at8_mluc_points_balance', __( 'That would take the balance below zero.', 'at8-moonlight-user-center' ) );
+				return new WP_Error( 'at8mluc_points_balance', __( 'That would take the balance below zero.', 'at8-moonlight-user-center' ) );
 			}
 
 			$next = $fence + 1;
@@ -921,7 +921,7 @@ class AT8_MLUC_Points {
 			// phpcs:ignore WordPress.DB.DirectDatabaseQuery.DirectQuery, WordPress.DB.DirectDatabaseQuery.NoCaching -- Conditional account update; the meta API cannot express compare-and-swap plus an overdraft guard.
 			$moved = $wpdb->query(
 				$wpdb->prepare(
-					"UPDATE {$wpdb->prefix}at8_mluc_points_account SET balance = balance + %d, fence = %d, updated_at = %d WHERE user_id = %d AND fence = %d AND balance + %d >= 0",
+					"UPDATE {$wpdb->prefix}at8mluc_points_account SET balance = balance + %d, fence = %d, updated_at = %d WHERE user_id = %d AND fence = %d AND balance + %d >= 0",
 					$amount,
 					$next,
 					$processed,
@@ -947,7 +947,7 @@ class AT8_MLUC_Points {
 				list( $now, $now_fence ) = $current;
 
 				if ( $amount < 0 && $now + $amount < 0 ) {
-					return new WP_Error( 'at8_mluc_points_balance', __( 'That would take the balance below zero.', 'at8-moonlight-user-center' ) );
+					return new WP_Error( 'at8mluc_points_balance', __( 'That would take the balance below zero.', 'at8-moonlight-user-center' ) );
 				}
 
 				if ( $now_fence === $fence ) {
@@ -1039,16 +1039,16 @@ class AT8_MLUC_Points {
 				 * @param int   $balance Balance including this movement.
 				 * @param array $entry   Ledger entry.
 				 */
-				do_action( 'at8_mluc_points_adjusted_deferred', $user_id, $amount, $new_balance, $entry );
+				do_action( 'at8mluc_points_adjusted_deferred', $user_id, $amount, $new_balance, $entry );
 			} else {
-				do_action( 'at8_mluc_points_adjusted', $user_id, $amount, $new_balance, $entry );
+				do_action( 'at8mluc_points_adjusted', $user_id, $amount, $new_balance, $entry );
 			}
 
 			return $new_balance;
 		}
 
 		return new WP_Error(
-			'at8_mluc_points_busy',
+			'at8mluc_points_busy',
 			__( 'The points account is busy. Please try again in a moment.', 'at8-moonlight-user-center' )
 		);
 	}
@@ -1078,7 +1078,7 @@ class AT8_MLUC_Points {
 		// Defensive status check: the hook is documented to fire on completed
 		// orders only, so anything still pending, cancelled or failed earns
 		// nothing even if another plugin fires the hook prematurely.
-		if ( 'paid' !== (string) get_post_meta( $order_id, '_at8_mluc_pay_status', true ) ) {
+		if ( 'paid' !== (string) get_post_meta( $order_id, '_at8mluc_pay_status', true ) ) {
 			return;
 		}
 
@@ -1089,7 +1089,7 @@ class AT8_MLUC_Points {
 		// Compute first: an invalid amount or a zero result returns without
 		// touching any state, so a corrected order can be awarded later.
 		// The price comes from the order record; client input is never trusted.
-		$price = (float) get_post_meta( $order_id, '_at8_mluc_pay_price', true );
+		$price = (float) get_post_meta( $order_id, '_at8mluc_pay_price', true );
 
 		if ( $price <= 0 ) {
 			return;
@@ -1123,7 +1123,7 @@ class AT8_MLUC_Points {
 		 * object cache while the movement itself disappears.
 		 */
 		if ( ! self::$last_deferred ) {
-			add_post_meta( $order_id, '_at8_mluc_points_awarded', 1, true );
+			add_post_meta( $order_id, '_at8mluc_points_awarded', 1, true );
 		}
 	}
 
@@ -1166,7 +1166,7 @@ class AT8_MLUC_Points {
 
 		// phpcs:ignore WordPress.DB.DirectDatabaseQuery.DirectQuery, WordPress.DB.DirectDatabaseQuery.NoCaching -- Must observe the row another process just committed.
 		$row = $wpdb->get_row(
-			$wpdb->prepare( "SELECT balance, fence FROM {$wpdb->prefix}at8_mluc_points_account WHERE user_id = %d", $user_id ),
+			$wpdb->prepare( "SELECT balance, fence FROM {$wpdb->prefix}at8mluc_points_account WHERE user_id = %d", $user_id ),
 			ARRAY_A
 		);
 
@@ -1176,7 +1176,7 @@ class AT8_MLUC_Points {
 			// A failed read is not an empty account: migrating here would
 			// import the same history a second time.
 			return new WP_Error(
-				'at8_mluc_points_read',
+				'at8mluc_points_read',
 				sprintf(
 					/* translators: %s: database error message. */
 					__( 'The points account could not be read: %s', 'at8-moonlight-user-center' ),
@@ -1250,7 +1250,7 @@ class AT8_MLUC_Points {
 
 		// phpcs:ignore WordPress.DB.DirectDatabaseQuery.DirectQuery, WordPress.DB.DirectDatabaseQuery.NoCaching -- Creating the account row is the migration's mutual exclusion; a cached API cannot express it.
 		$created = $wpdb->insert(
-			$wpdb->prefix . 'at8_mluc_points_account',
+			$wpdb->prefix . 'at8mluc_points_account',
 			array(
 				'user_id'    => $user_id,
 				'balance'    => 0,
@@ -1295,7 +1295,7 @@ class AT8_MLUC_Points {
 			for ( $i = 0; $i < 10; $i++ ) {
 				// phpcs:ignore WordPress.DB.DirectDatabaseQuery.DirectQuery, WordPress.DB.DirectDatabaseQuery.NoCaching -- Reading the row the other request is committing.
 				$row = $wpdb->get_row(
-					$wpdb->prepare( "SELECT balance, fence FROM {$wpdb->prefix}at8_mluc_points_account WHERE user_id = %d", $user_id ),
+					$wpdb->prepare( "SELECT balance, fence FROM {$wpdb->prefix}at8mluc_points_account WHERE user_id = %d", $user_id ),
 					ARRAY_A
 				);
 
@@ -1308,7 +1308,7 @@ class AT8_MLUC_Points {
 
 			// Not a race: the row simply could not be created.
 			return new WP_Error(
-				'at8_mluc_points_schema',
+				'at8mluc_points_schema',
 				sprintf(
 					/* translators: %s: database error message. */
 					__( 'The points account could not be created: %s', 'at8-moonlight-user-center' ),
@@ -1353,7 +1353,7 @@ class AT8_MLUC_Points {
 		// phpcs:ignore WordPress.DB.DirectDatabaseQuery.DirectQuery, WordPress.DB.DirectDatabaseQuery.NoCaching -- Setting the freshly created account row.
 		$updated = $wpdb->query(
 			$wpdb->prepare(
-				"UPDATE {$wpdb->prefix}at8_mluc_points_account SET balance = %d, updated_at = %d WHERE user_id = %d AND fence = 0",
+				"UPDATE {$wpdb->prefix}at8mluc_points_account SET balance = %d, updated_at = %d WHERE user_id = %d AND fence = 0",
 				$balance,
 				$when,
 				$user_id
@@ -1367,12 +1367,12 @@ class AT8_MLUC_Points {
 				$user_id,
 				false === $updated || '' !== $update_error
 					? new WP_Error(
-						'at8_mluc_points_db',
+						'at8mluc_points_db',
 						__( 'The points balance could not be written while the history was imported.', 'at8-moonlight-user-center' ),
 						array( 'original_error' => '' !== $update_error ? $update_error : __( 'the statement was refused', 'at8-moonlight-user-center' ) )
 					)
 					: new WP_Error(
-						'at8_mluc_points_db',
+						'at8mluc_points_db',
 						__( 'The points account changed while the history was imported, so the import was abandoned.', 'at8-moonlight-user-center' )
 					)
 			);
@@ -1430,7 +1430,7 @@ class AT8_MLUC_Points {
 		}
 
 		return new WP_Error(
-			'at8_mluc_points_save',
+			'at8mluc_points_save',
 			__( 'The points history could not be imported, so nothing was imported. Please retry.', 'at8-moonlight-user-center' ),
 			array( 'original_error' => self::clean_error( $detail ) )
 		);
@@ -1538,7 +1538,7 @@ class AT8_MLUC_Points {
 			// An unreadable history must not look like "no history": that
 			// would migrate nothing and report a zero balance as truth.
 			return new WP_Error(
-				'at8_mluc_points_read',
+				'at8mluc_points_read',
 				sprintf(
 					/* translators: %s: database error message. */
 					__( 'The legacy points history could not be read: %s', 'at8-moonlight-user-center' ),
@@ -1628,7 +1628,7 @@ class AT8_MLUC_Points {
 		// phpcs:ignore WordPress.DB.DirectDatabaseQuery.DirectQuery, WordPress.DB.DirectDatabaseQuery.NoCaching -- Append-only insert; the UNIQUE index is the idempotency guard.
 		$inserted = $wpdb->query(
 			$wpdb->prepare(
-				"INSERT INTO {$wpdb->prefix}at8_mluc_points_ledger (user_id, amount, reason, source, by_user, idem_key, fence, created_at) VALUES (%d, %d, %s, %s, %d, NULLIF(%s, ''), %d, %d)",
+				"INSERT INTO {$wpdb->prefix}at8mluc_points_ledger (user_id, amount, reason, source, by_user, idem_key, fence, created_at) VALUES (%d, %d, %s, %s, %d, NULLIF(%s, ''), %d, %d)",
 				(int) $user_id,
 				(int) $amount,
 				(string) $reason,
@@ -1702,7 +1702,7 @@ class AT8_MLUC_Points {
 	 * @return WP_Error
 	 */
 	private static function save_error() {
-		return new WP_Error( 'at8_mluc_points_save', __( 'The points update could not be saved, please retry.', 'at8-moonlight-user-center' ) );
+		return new WP_Error( 'at8mluc_points_save', __( 'The points update could not be saved, please retry.', 'at8-moonlight-user-center' ) );
 	}
 
 	/**
@@ -1760,9 +1760,7 @@ class AT8_MLUC_Points {
 			return $mode;
 		}
 
-		$sql = 'savepoint' === $mode ? 'SAVEPOINT ' . self::SAVEPOINT : 'START TRANSACTION';
-
-		if ( ! self::run_sql( $sql ) ) {
+		if ( ! self::run_statement( 'savepoint' === $mode ? 'savepoint' : 'start' ) ) {
 			return self::tx_failure(
 				'begin',
 				self::TX_UNKNOWN,
@@ -1818,7 +1816,7 @@ class AT8_MLUC_Points {
 		self::$tx_mode = '';
 
 		if ( 'savepoint' === $mode ) {
-			if ( self::run_sql( 'RELEASE SAVEPOINT ' . self::SAVEPOINT ) ) {
+			if ( self::run_statement( 'release_savepoint' ) ) {
 				return true;
 			}
 
@@ -1826,7 +1824,7 @@ class AT8_MLUC_Points {
 
 			// The savepoint still exists: undo the movement inside the
 			// caller's transaction instead of leaving it half applied.
-			if ( ! self::run_sql( 'ROLLBACK TO SAVEPOINT ' . self::SAVEPOINT ) ) {
+			if ( ! self::run_statement( 'rollback_to_savepoint' ) ) {
 				return self::report_tx_error(
 					self::tx_failure(
 						'release',
@@ -1845,7 +1843,7 @@ class AT8_MLUC_Points {
 			// transaction does not inherit it; the outcome is already decided,
 			// so a failure here is recorded in the same report instead of
 			// producing a second one.
-			$cleaned     = self::run_sql( 'RELEASE SAVEPOINT ' . self::SAVEPOINT );
+			$cleaned     = self::run_statement( 'release_savepoint' );
 			$clean_error = $cleaned ? '' : self::last_error_text();
 
 			return self::report_tx_error(
@@ -1862,13 +1860,13 @@ class AT8_MLUC_Points {
 			);
 		}
 
-		if ( self::run_sql( 'COMMIT' ) ) {
+		if ( self::run_statement( 'commit' ) ) {
 			return true;
 		}
 
 		$commit_error = self::last_error_text();
 
-		if ( ! self::run_sql( 'ROLLBACK' ) ) {
+		if ( ! self::run_statement( 'rollback' ) ) {
 			return self::report_tx_error(
 				self::tx_failure(
 					'commit',
@@ -1926,7 +1924,7 @@ class AT8_MLUC_Points {
 		self::$tx_mode = '';
 
 		if ( 'savepoint' === $mode ) {
-			if ( ! self::run_sql( 'ROLLBACK TO SAVEPOINT ' . self::SAVEPOINT ) ) {
+			if ( ! self::run_statement( 'rollback_to_savepoint' ) ) {
 				return self::report_tx_error(
 					self::tx_failure(
 						'rollback',
@@ -1941,7 +1939,7 @@ class AT8_MLUC_Points {
 				);
 			}
 
-			if ( ! self::run_sql( 'RELEASE SAVEPOINT ' . self::SAVEPOINT ) ) {
+			if ( ! self::run_statement( 'release_savepoint' ) ) {
 				// The movement is undone; only the marker is left behind and
 				// the outer owner discards it on commit. Report it without
 				// turning a successful rollback into a failure.
@@ -1962,7 +1960,7 @@ class AT8_MLUC_Points {
 			return true;
 		}
 
-		if ( ! self::run_sql( 'ROLLBACK' ) ) {
+		if ( ! self::run_statement( 'rollback' ) ) {
 			return self::report_tx_error(
 				self::tx_failure(
 					'rollback',
@@ -1998,7 +1996,7 @@ class AT8_MLUC_Points {
 	 */
 	private static function tx_failure( $operation, $state, $original, $rollback, $context, $user_id, $failure, $message ) {
 		return new WP_Error(
-			'at8_mluc_points_tx',
+			'at8mluc_points_tx',
 			$message,
 			array(
 				'operation'         => sanitize_key( (string) $operation ),
@@ -2032,7 +2030,7 @@ class AT8_MLUC_Points {
 		 * @param WP_Error $error What went wrong.
 		 * @param array    $data  operation, failure, transaction_state, original_error, rollback_error, user_id, context.
 		 */
-		do_action( 'at8_mluc_points_transaction_error', $error, $data );
+		do_action( 'at8mluc_points_transaction_error', $error, $data );
 
 		if ( defined( 'WP_DEBUG' ) && WP_DEBUG ) {
 			/* translators: 1: operation, 2: failure, 3: transaction state, 4: context, 5: user ID, 6: original error, 7: rollback error. */
@@ -2271,13 +2269,46 @@ class AT8_MLUC_Points {
 	 * @param string $sql Statement.
 	 * @return bool
 	 */
-	private static function run_sql( $sql ) {
+	private static function run_statement( $statement ) {
 		global $wpdb;
 
 		$suppress = $wpdb->suppress_errors( true );
-		// phpcs:ignore WordPress.DB.DirectDatabaseQuery.DirectQuery, WordPress.DB.DirectDatabaseQuery.NoCaching, WordPress.DB.PreparedSQL.NotPrepared, PluginCheck.Security.DirectDB.UnescapedDBParameter -- Only the fixed transaction statements built inside this class reach this call.
-		$result = $wpdb->query( $sql );
-		$error  = self::clean_error( (string) $wpdb->last_error );
+
+		/*
+		 * Every statement is a literal. Nothing is interpolated into a query
+		 * here, so there is nothing to prepare and no variable SQL for a
+		 * reviewer to reason about.
+		 */
+		switch ( $statement ) {
+			case 'start':
+				// phpcs:ignore WordPress.DB.DirectDatabaseQuery.DirectQuery, WordPress.DB.DirectDatabaseQuery.NoCaching -- Fixed transaction control statement.
+				$result = $wpdb->query( 'START TRANSACTION' );
+				break;
+			case 'savepoint':
+				// phpcs:ignore WordPress.DB.DirectDatabaseQuery.DirectQuery, WordPress.DB.DirectDatabaseQuery.NoCaching -- Fixed transaction control statement.
+				$result = $wpdb->query( 'SAVEPOINT at8mluc_points_tx' );
+				break;
+			case 'commit':
+				// phpcs:ignore WordPress.DB.DirectDatabaseQuery.DirectQuery, WordPress.DB.DirectDatabaseQuery.NoCaching -- Fixed transaction control statement.
+				$result = $wpdb->query( 'COMMIT' );
+				break;
+			case 'rollback':
+				// phpcs:ignore WordPress.DB.DirectDatabaseQuery.DirectQuery, WordPress.DB.DirectDatabaseQuery.NoCaching -- Fixed transaction control statement.
+				$result = $wpdb->query( 'ROLLBACK' );
+				break;
+			case 'rollback_to_savepoint':
+				// phpcs:ignore WordPress.DB.DirectDatabaseQuery.DirectQuery, WordPress.DB.DirectDatabaseQuery.NoCaching -- Fixed transaction control statement.
+				$result = $wpdb->query( 'ROLLBACK TO SAVEPOINT at8mluc_points_tx' );
+				break;
+			case 'release_savepoint':
+				// phpcs:ignore WordPress.DB.DirectDatabaseQuery.DirectQuery, WordPress.DB.DirectDatabaseQuery.NoCaching -- Fixed transaction control statement.
+				$result = $wpdb->query( 'RELEASE SAVEPOINT at8mluc_points_tx' );
+				break;
+			default:
+				$result = false;
+		}
+
+		$error = self::clean_error( (string) $wpdb->last_error );
 
 		$wpdb->suppress_errors( $suppress );
 
@@ -2328,7 +2359,7 @@ class AT8_MLUC_Points {
 
 		if ( '' !== $error ) {
 			return new WP_Error(
-				'at8_mluc_points_read',
+				'at8mluc_points_read',
 				sprintf(
 					/* translators: %s: database error message. */
 					__( 'The stored points balance could not be read: %s', 'at8-moonlight-user-center' ),
@@ -2355,21 +2386,21 @@ class AT8_MLUC_Points {
 	public function enqueue_admin_script() {
 		$config = array(
 			'ajaxUrl' => admin_url( 'admin-ajax.php' ),
-			'nonce'   => wp_create_nonce( 'at8_mluc_nonce' ),
+			'nonce'   => wp_create_nonce( 'at8mluc_nonce' ),
 		);
 
-		wp_register_script( 'at8-mluc-points-admin', '', array(), AT8_MLUC_VERSION, true );
+		wp_register_script( 'at8mluc-points-admin', '', array(), AT8MLUC_VERSION, true );
 		wp_add_inline_script(
-			'at8-mluc-points-admin',
-			'window.at8MlucData = ' . wp_json_encode( $config ) . ';',
+			'at8mluc-points-admin',
+			'window.at8mlucData = ' . wp_json_encode( $config ) . ';',
 			'before'
 		);
-		wp_enqueue_script( 'at8-mluc-points-admin' );
+		wp_enqueue_script( 'at8mluc-points-admin' );
 		wp_enqueue_script(
-			'at8-mluc-points-admin-buttons',
-			AT8_MLUC_PLUGIN_URL . 'assets/js/at8-mluc-points-admin.js',
-			array( 'at8-mluc-points-admin' ),
-			AT8_MLUC_VERSION,
+			'at8mluc-points-admin-buttons',
+			AT8MLUC_PLUGIN_URL . 'assets/js/at8mluc-points-admin.js',
+			array( 'at8mluc-points-admin' ),
+			AT8MLUC_VERSION,
 			true
 		);
 	}
@@ -2380,7 +2411,7 @@ class AT8_MLUC_Points {
 	 * @return string
 	 */
 	public static function label() {
-		$label = (string) at8_mluc_get_option( 'points_label', 'points' );
+		$label = (string) at8mluc_get_option( 'points_label', 'points' );
 
 		return '' !== $label ? $label : 'points';
 	}
@@ -2419,7 +2450,7 @@ class AT8_MLUC_Points {
 	 * @return float
 	 */
 	public static function rate() {
-		return (float) at8_mluc_get_option( 'points_per_currency', 1 );
+		return (float) at8mluc_get_option( 'points_per_currency', 1 );
 	}
 
 	/**
@@ -2428,7 +2459,7 @@ class AT8_MLUC_Points {
 	 * @return int
 	 */
 	public static function signup_bonus() {
-		return max( 0, (int) at8_mluc_get_option( 'points_signup_bonus', 0 ) );
+		return max( 0, (int) at8mluc_get_option( 'points_signup_bonus', 0 ) );
 	}
 
 	/**
@@ -2456,24 +2487,24 @@ class AT8_MLUC_Points {
 		<h2><?php esc_html_e( 'Points', 'at8-moonlight-user-center' ); ?></h2>
 		<table class="form-table" role="presentation">
 			<tr>
-				<th><label for="at8-mluc-points-balance"><?php esc_html_e( 'Balance', 'at8-moonlight-user-center' ); ?></label></th>
+				<th><label for="at8mluc-points-balance"><?php esc_html_e( 'Balance', 'at8-moonlight-user-center' ); ?></label></th>
 				<td>
-					<input type="number" id="at8-mluc-points-balance" value="<?php echo esc_attr( (string) $balance ); ?>" class="small-text" readonly />
+					<input type="number" id="at8mluc-points-balance" value="<?php echo esc_attr( (string) $balance ); ?>" class="small-text" readonly />
 					<p class="description">
 						<?php esc_html_e( 'Adjust the balance with the buttons below; every change is written to the ledger.', 'at8-moonlight-user-center' ); ?>
 					</p>
 
 					<p>
-						<input type="number" id="at8-mluc-points-amount" value="10" class="small-text" step="1" min="1" />
-						<button type="button" class="button" id="at8-mluc-points-add"
+						<input type="number" id="at8mluc-points-amount" value="10" class="small-text" step="1" min="1" />
+						<button type="button" class="button" id="at8mluc-points-add"
 							data-user="<?php echo esc_attr( (string) $user->ID ); ?>">
 							<?php esc_html_e( 'Grant', 'at8-moonlight-user-center' ); ?>
 						</button>
-						<button type="button" class="button" id="at8-mluc-points-deduct"
+						<button type="button" class="button" id="at8mluc-points-deduct"
 							data-user="<?php echo esc_attr( (string) $user->ID ); ?>">
 							<?php esc_html_e( 'Deduct', 'at8-moonlight-user-center' ); ?>
 						</button>
-						<span id="at8-mluc-points-status" role="status" aria-live="polite"></span>
+						<span id="at8mluc-points-status" role="status" aria-live="polite"></span>
 					</p>
 				</td>
 			</tr>
@@ -2511,7 +2542,7 @@ class AT8_MLUC_Points {
 	 * @return void
 	 */
 	public function ajax_adjust() {
-		if ( ! check_ajax_referer( 'at8_mluc_nonce', 'nonce', false ) ) {
+		if ( ! check_ajax_referer( 'at8mluc_nonce', 'nonce', false ) ) {
 			wp_send_json_error( array( 'message' => __( 'The link has expired. Please refresh the page.', 'at8-moonlight-user-center' ) ) );
 		}
 

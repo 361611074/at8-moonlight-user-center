@@ -155,8 +155,8 @@ function cp_user() {
 function cp_cleanup( $uid ) {
 	global $wpdb;
 
-	$wpdb->query( $wpdb->prepare( "DELETE FROM {$wpdb->prefix}at8_mluc_points_ledger WHERE user_id = %d", $uid ) );
-	$wpdb->query( $wpdb->prepare( "DELETE FROM {$wpdb->prefix}at8_mluc_points_account WHERE user_id = %d", $uid ) );
+	$wpdb->query( $wpdb->prepare( "DELETE FROM {$wpdb->prefix}at8mluc_points_ledger WHERE user_id = %d", $uid ) );
+	$wpdb->query( $wpdb->prepare( "DELETE FROM {$wpdb->prefix}at8mluc_points_account WHERE user_id = %d", $uid ) );
 	wp_delete_user( $uid );
 }
 
@@ -244,7 +244,7 @@ cp_cleanup( $uid );
 /* ------------------------------------------- 场景 2：10 个请求同时 -5（初始 100） */
 
 $uid = cp_user();
-AT8_MLUC_Points::adjust( $uid, 100, 'seed', 'admin' );
+AT8MLUC_Points::adjust( $uid, 100, 'seed', 'admin' );
 $res = cp_spawn( 10, array( 'CONC_ACTION' => 'adjust_deduct', 'CONC_UID' => (string) $uid, 'CONC_AMOUNT' => '5' ) );
 $obs = cp_observe( $uid );
 $okc = cp_okcount( $res );
@@ -259,7 +259,7 @@ cp_cleanup( $uid );
 /* ------------------------------------------- 场景 2b：并发扣款不能突破零 */
 
 $uid = cp_user();
-AT8_MLUC_Points::adjust( $uid, 7, 'seed', 'admin' );
+AT8MLUC_Points::adjust( $uid, 7, 'seed', 'admin' );
 $res = cp_spawn( 10, array( 'CONC_ACTION' => 'adjust_deduct', 'CONC_UID' => (string) $uid, 'CONC_AMOUNT' => '5' ) );
 $obs = cp_observe( $uid );
 $okc = cp_okcount( $res );
@@ -272,15 +272,15 @@ cp_cleanup( $uid );
 /* ------------------------------------------- 场景 3：两笔不同订单同时发放 */
 
 $uid     = cp_user();
-$orig_rate = at8_mluc_get_option( 'points_per_currency', 1 );
-update_option( 'at8_mluc_options', array_merge( (array) get_option( 'at8_mluc_options' ), array( 'points_per_currency' => 2 ) ) );
+$orig_rate = at8mluc_get_option( 'points_per_currency', 1 );
+update_option( 'at8mluc_options', array_merge( (array) get_option( 'at8mluc_options' ), array( 'points_per_currency' => 2 ) ) );
 
 $cp_orders = array();
 for ( $i = 0; $i < 2; $i++ ) {
-	$oid = wp_insert_post( array( 'post_type' => AT8_MLUC_Payments::CPT, 'post_status' => 'publish', 'post_title' => 'cp order ' . $i ) );
-	update_post_meta( $oid, '_at8_mluc_pay_user', $uid );
-	update_post_meta( $oid, '_at8_mluc_pay_status', 'paid' );
-	update_post_meta( $oid, '_at8_mluc_pay_price', '10.00' );
+	$oid = wp_insert_post( array( 'post_type' => AT8MLUC_Payments::CPT, 'post_status' => 'publish', 'post_title' => 'cp order ' . $i ) );
+	update_post_meta( $oid, '_at8mluc_pay_user', $uid );
+	update_post_meta( $oid, '_at8mluc_pay_status', 'paid' );
+	update_post_meta( $oid, '_at8mluc_pay_price', '10.00' );
 	$cp_orders[] = $oid;
 }
 
@@ -301,10 +301,10 @@ cp_invariants( $uid, 'scenario 3' );
 
 /* ------------------------------------------- 场景 4：10 次并发回调，同一订单 */
 
-$one = wp_insert_post( array( 'post_type' => AT8_MLUC_Payments::CPT, 'post_status' => 'publish', 'post_title' => 'cp same order' ) );
-update_post_meta( $one, '_at8_mluc_pay_user', $uid );
-update_post_meta( $one, '_at8_mluc_pay_status', 'paid' );
-update_post_meta( $one, '_at8_mluc_pay_price', '10.00' );
+$one = wp_insert_post( array( 'post_type' => AT8MLUC_Payments::CPT, 'post_status' => 'publish', 'post_title' => 'cp same order' ) );
+update_post_meta( $one, '_at8mluc_pay_user', $uid );
+update_post_meta( $one, '_at8mluc_pay_status', 'paid' );
+update_post_meta( $one, '_at8mluc_pay_price', '10.00' );
 
 $res = cp_spawn( 10, array( 'CONC_ACTION' => 'grant', 'CONC_UID' => (string) $uid, 'CONC_ORDER' => (string) $one ) );
 $obs = cp_observe( $uid, 'purchase:' . $one );
@@ -313,10 +313,10 @@ cok( 1 === $obs['keyed'], 'scenario 4: ten simultaneous callbacks write exactly 
 cok( 60 === $obs['balance'], 'scenario 4: the order was awarded once (40 + 20 = 60, got ' . $obs['balance'] . ')' );
 cp_invariants( $uid, 'scenario 4' );
 
-update_option( 'at8_mluc_options', array_merge( (array) get_option( 'at8_mluc_options' ), array( 'points_per_currency' => $orig_rate ) ) );
+update_option( 'at8mluc_options', array_merge( (array) get_option( 'at8mluc_options' ), array( 'points_per_currency' => $orig_rate ) ) );
 $cp_orders[] = $one;
 foreach ( $cp_orders as $oid ) {
-	delete_post_meta( $oid, '_at8_mluc_points_awarded' );
+	delete_post_meta( $oid, '_at8mluc_points_awarded' );
 	wp_delete_post( $oid, true );
 }
 cp_cleanup( $uid );
@@ -384,20 +384,20 @@ foreach ( array( 'rollback', 'commit' ) as $cp_end ) {
 global $wpdb;
 
 $uid = cp_user();
-AT8_MLUC_Points::adjust( $uid, 20, 'seed', 'admin' );
+AT8MLUC_Points::adjust( $uid, 20, 'seed', 'admin' );
 
 $cp_acct = $wpdb->get_row(
-	$wpdb->prepare( "SELECT balance, fence FROM {$wpdb->prefix}at8_mluc_points_account WHERE user_id = %d", $uid ),
+	$wpdb->prepare( "SELECT balance, fence FROM {$wpdb->prefix}at8mluc_points_account WHERE user_id = %d", $uid ),
 	ARRAY_A
 );
 $cp_seen_fence = (int) $cp_acct['fence'];
 
 // Somebody else moves the account while our writer is "paused".
-AT8_MLUC_Points::adjust( $uid, 5, 'other request', 'admin' );
+AT8MLUC_Points::adjust( $uid, 5, 'other request', 'admin' );
 
 $stale = $wpdb->query(
 	$wpdb->prepare(
-		"UPDATE {$wpdb->prefix}at8_mluc_points_account SET balance = balance + %d, fence = %d WHERE user_id = %d AND fence = %d AND balance + %d >= 0",
+		"UPDATE {$wpdb->prefix}at8mluc_points_account SET balance = balance + %d, fence = %d WHERE user_id = %d AND fence = %d AND balance + %d >= 0",
 		1000,
 		$cp_seen_fence + 1,
 		$uid,
@@ -407,36 +407,36 @@ $stale = $wpdb->query(
 );
 
 cok( 0 === (int) $stale, 'scenario 7: a writer holding a stale version cannot write the balance' );
-cok( 25 === (int) AT8_MLUC_Points::balance( $uid ), 'scenario 7: the newer balance survives untouched (25)' );
+cok( 25 === (int) AT8MLUC_Points::balance( $uid ), 'scenario 7: the newer balance survives untouched (25)' );
 cp_invariants( $uid, 'scenario 7' );
 cp_cleanup( $uid );
 
 /* ------------------------------------------- 场景 8：数据库拒绝写入 */
 
 $uid = cp_user();
-AT8_MLUC_Points::adjust( $uid, 30, 'seed', 'admin' );
+AT8MLUC_Points::adjust( $uid, 30, 'seed', 'admin' );
 
 $cp_break = function ( $query ) {
-	if ( false !== strpos( $query, 'INSERT INTO wp_at8_mluc_points_ledger' ) ) {
-		return 'INSERT INTO wp_at8_mluc_points_ledger (no_such_column) VALUES (1)';
+	if ( false !== strpos( $query, 'INSERT INTO wp_at8mluc_points_ledger' ) ) {
+		return 'INSERT INTO wp_at8mluc_points_ledger (no_such_column) VALUES (1)';
 	}
 
 	return $query;
 };
 add_filter( 'query', $cp_break );
-$cp_failed = AT8_MLUC_Points::adjust( $uid, 10, 'write failure', 'admin' );
+$cp_failed = AT8MLUC_Points::adjust( $uid, 10, 'write failure', 'admin' );
 remove_filter( 'query', $cp_break );
 
 cok( is_wp_error( $cp_failed ), 'scenario 8: a refused ledger write is reported as an error' );
-cok( 30 === (int) AT8_MLUC_Points::balance( $uid ), 'scenario 8: the refused write left the balance unchanged (30)' );
-cok( 1 === count( AT8_MLUC_Points::ledger( $uid, 50 ) ), 'scenario 8: the refused write left no ledger row behind' );
-cok( 40 === AT8_MLUC_Points::adjust( $uid, 10, 'retry', 'admin' ), 'scenario 8: the retry after the failure succeeds (40)' );
+cok( 30 === (int) AT8MLUC_Points::balance( $uid ), 'scenario 8: the refused write left the balance unchanged (30)' );
+cok( 1 === count( AT8MLUC_Points::ledger( $uid, 50 ) ), 'scenario 8: the refused write left no ledger row behind' );
+cok( 40 === AT8MLUC_Points::adjust( $uid, 10, 'retry', 'admin' ), 'scenario 8: the retry after the failure succeeds (40)' );
 cp_cleanup( $uid );
 
 /* ------------------------------------------- 场景 9：进程在事务中被杀 */
 
 $uid = cp_user();
-AT8_MLUC_Points::adjust( $uid, 50, 'seed', 'admin' );
+AT8MLUC_Points::adjust( $uid, 50, 'seed', 'admin' );
 
 $killed = cp_spawn( 1, array( 'CONC_ACTION' => 'kill_mid', 'CONC_UID' => (string) $uid, 'CONC_AMOUNT' => '25' ) );
 $obs    = cp_observe( $uid );
@@ -445,25 +445,25 @@ cok( empty( $killed[0]['ok'] ), 'scenario 9: the killed worker produced no resul
 cok( 50 === $obs['balance'], 'scenario 9: the killed transaction left the balance untouched (' . $obs['balance'] . ')' );
 cok( 1 === $obs['rows'], 'scenario 9: the killed transaction left no ledger row (' . $obs['rows'] . ' rows)' );
 
-AT8_MLUC_Points::adjust( $uid, 25, 'retry after kill', 'admin' );
-cok( 75 === (int) AT8_MLUC_Points::balance( $uid ), 'scenario 9: the retry applies exactly once (75)' );
+AT8MLUC_Points::adjust( $uid, 25, 'retry after kill', 'admin' );
+cok( 75 === (int) AT8MLUC_Points::balance( $uid ), 'scenario 9: the retry applies exactly once (75)' );
 cp_invariants( $uid, 'scenario 9' );
 cp_cleanup( $uid );
 
 /* ------------------------------------------- 场景 10：提交后崩溃，回调重试 */
 
 $uid = cp_user();
-update_option( 'at8_mluc_options', array_merge( (array) get_option( 'at8_mluc_options' ), array( 'points_per_currency' => 2 ) ) );
+update_option( 'at8mluc_options', array_merge( (array) get_option( 'at8mluc_options' ), array( 'points_per_currency' => 2 ) ) );
 
-$order_c = wp_insert_post( array( 'post_type' => AT8_MLUC_Payments::CPT, 'post_status' => 'publish', 'post_title' => 'cp crash order' ) );
-update_post_meta( $order_c, '_at8_mluc_pay_user', $uid );
-update_post_meta( $order_c, '_at8_mluc_pay_status', 'paid' );
-update_post_meta( $order_c, '_at8_mluc_pay_price', '10.00' );
+$order_c = wp_insert_post( array( 'post_type' => AT8MLUC_Payments::CPT, 'post_status' => 'publish', 'post_title' => 'cp crash order' ) );
+update_post_meta( $order_c, '_at8mluc_pay_user', $uid );
+update_post_meta( $order_c, '_at8mluc_pay_status', 'paid' );
+update_post_meta( $order_c, '_at8mluc_pay_price', '10.00' );
 
 cp_spawn( 1, array( 'CONC_ACTION' => 'grant', 'CONC_UID' => (string) $uid, 'CONC_ORDER' => (string) $order_c ) );
 
 // The process died after the commit but before writing the fast-path marker.
-delete_post_meta( $order_c, '_at8_mluc_points_awarded' );
+delete_post_meta( $order_c, '_at8mluc_points_awarded' );
 cp_spawn( 3, array( 'CONC_ACTION' => 'grant', 'CONC_UID' => (string) $uid, 'CONC_ORDER' => (string) $order_c ) );
 
 $obs = cp_observe( $uid, 'purchase:' . $order_c );
@@ -472,7 +472,7 @@ cok( 20 === $obs['balance'], 'scenario 10: a crashed-and-retried callback awards
 cok( 1 === $obs['keyed'], 'scenario 10: exactly one ledger row for the order (' . $obs['keyed'] . ')' );
 cp_invariants( $uid, 'scenario 10' );
 
-update_option( 'at8_mluc_options', array_merge( (array) get_option( 'at8_mluc_options' ), array( 'points_per_currency' => $orig_rate ) ) );
+update_option( 'at8mluc_options', array_merge( (array) get_option( 'at8mluc_options' ), array( 'points_per_currency' => $orig_rate ) ) );
 wp_delete_post( $order_c, true );
 cp_cleanup( $uid );
 

@@ -7,7 +7,7 @@
 - 审计日期：2026-10-13
 - 仓库：`github.com/361611074/at8-moonlight-user-center`
 - 分支 / commit：`master` @ `c9ac41a`
-- 插件版本：2.5.0（主文件 / `AT8_MLUC_VERSION` / readme `Stable tag` 三处一致）
+- 插件版本：2.5.0（主文件 / `AT8MLUC_VERSION` / readme `Stable tag` 三处一致）
 - 审计依据：《AT8-Moonlight-User-Center-Free-Pro-WP官方终审整改执行.md》
 - 结论：**建议提交**（见文末结论段）
 
@@ -22,18 +22,18 @@
 
 | # | 严重性 | 文件 / 位置 | 原问题 | 修复 | 验证证据 |
 |---|---|---|---|---|---|
-| P0-1 | P0 | `includes/class-membership.php:113-121,226-238`；`class-settings.php:385,574,1524` | 会员等级人为上限 3：`at8_mluc_membership_level_limit` 过滤器 + 注册表超限静默截断 + 设置屏"Levels beyond the limit are dropped on save" | 删除 `level_limit()` 与过滤器、删除 `get_levels()` 截断、删除 sanitize 丢弃逻辑与设置错误提示、分区文案改为"no limit" | 回归断言：sanitize 提交 6 个等级全部保留（76/0）；`method_exists('…','level_limit')` 为 false |
+| P0-1 | P0 | `includes/class-membership.php:113-121,226-238`；`class-settings.php:385,574,1524` | 会员等级人为上限 3：`at8mluc_membership_level_limit` 过滤器 + 注册表超限静默截断 + 设置屏"Levels beyond the limit are dropped on save" | 删除 `level_limit()` 与过滤器、删除 `get_levels()` 截断、删除 sanitize 丢弃逻辑与设置错误提示、分区文案改为"no limit" | 回归断言：sanitize 提交 6 个等级全部保留（76/0）；`method_exists('…','level_limit')` 为 false |
 | P0-2 | P0 | `includes/class-avatar.php:150,174-200,208-252`；`class-upgrade.php:105` | 头像库人为上限 12：超出强制转 draft（`wp_insert_post_data` 过滤器）+ 管理员notice + transient 提示 | 删除 `limit()`、`enforce_avatar_limit()`、`render_limit_notice()` 与两个钩子；`get_library()` 固定分页 200 | 回归断言：任意数量新头像直接 publish；编辑已发布头像不受影响 |
 | P0-3 | P0 | `includes/class-payments.php:132-171`；`class-upgrade.php:114` | 网关货架被人为裁到 1（`cap_gateways()`，manual 保活） | 删除 `cap_gateways()`，`get_gateways()` 原样返回过滤器结果 | 回归断言：注册 3 个网关全部出现在货架 |
-| P0-4 | P0 | `includes/class-paywall.php:111-113` | `at8_mluc_paywall_level_limit` 死过滤器（无执行、无消费者） | 删除方法 | 回归断言：`method_exists` 为 false |
+| P0-4 | P0 | `includes/class-paywall.php:111-113` | `at8mluc_paywall_level_limit` 死过滤器（无执行、无消费者） | 删除方法 | 回归断言：`method_exists` 为 false |
 | P0-5 | P0 | `readme.txt:28,34,141`；主文件 Description | 文档宣称"最多 3 个等级，Pro 抬到 8"，与实际功能边界冲突 | readme 功能清单重写（补齐付费墙 / 积分 / 自定义字段 / TOS / 密码强度），删除全部配额宣称 | 文本核对；PCP 扫描 |
-| P0-6 | P0 | `includes/class-upgrade.php:78-121,204,311` | 对比表以配额差异为主卖点（"Up to 3 / Up to 8 / 12 / Unlimited"），`ceiling_notice()` 解锁引导 | `features()` 目录重写为 6 行"Pro 新增能力"；删除 `limit()/level_limit()/avatar_limit()/gateway_limit()/ceiling_notice()` 与 `at8_mluc_limit_*` 过滤器 | 回归断言：目录无 `membership_levels/avatars` 行、无 "Up to"/"nlimited" 字样 |
+| P0-6 | P0 | `includes/class-upgrade.php:78-121,204,311` | 对比表以配额差异为主卖点（"Up to 3 / Up to 8 / 12 / Unlimited"），`ceiling_notice()` 解锁引导 | `features()` 目录重写为 6 行"Pro 新增能力"；删除 `limit()/level_limit()/avatar_limit()/gateway_limit()/ceiling_notice()` 与 `at8mluc_limit_*` 过滤器 | 回归断言：目录无 `membership_levels/avatars` 行、无 "Up to"/"nlimited" 字样 |
 
 ### 附带修复（同一提交内）
 
 - 付费墙 meta box 单选改**多选**（`META_LEVEL` 存数组），旧单值 meta 兼容读取；`save_meta` 白名单校验等级存在性。
-- `assets/css/at8-mluc-admin.css`：删除 `.at8-mluc-ceiling` 样式块。
-- 2.4.x 用户 meta 补入卸载/隐私清单（`at8_mluc_points`、`at8_mluc_points_log`、`at8_mluc_pay_unlocks`；自定义字段按 `at8_mluc_field_` 前缀删）。
+- `assets/css/at8mluc-admin.css`：删除 `.at8mluc-ceiling` 样式块。
+- 2.4.x 用户 meta 补入卸载/隐私清单（`at8mluc_points`、`at8mluc_points_log`、`at8mluc_pay_unlocks`；自定义字段按 `at8mluc_field_` 前缀删）。
 
 ## 3. P1 / P2 问题与修复
 
@@ -46,7 +46,7 @@
 
 ## 4. 通过项（无需整改，附证据）
 
-- **Free 无许可证逻辑**：`grep is_active|is_valid|license` 仅命中 GPL 头与 `at8_mluc_is_pro` 桥（`functions.php:25`），后者只影响 UI 与文案，不锁任何功能；付费墙的 is_pro 早退已于 2.4.1 移除。
+- **Free 无许可证逻辑**：`grep is_active|is_valid|license` 仅命中 GPL 头与 `at8mluc_is_pro` 桥（`functions.php:25`），后者只影响 UI 与文案，不锁任何功能；付费墙的 is_pro 早退已于 2.4.1 移除。
 - **Free 无可执行远程代码**：`wp_remote_*` 仅 OAuth 提供商（class-oauth.php:359,402,583），无更新检查、无遥测、无下载执行。
 - **安全入口**：14 个 `wp_ajax_*`（含 3 个 nopriv）+ `admin_post_*` 均走内联 nonce 校验 + capability + `wp_unslash` 后按上下文清理；登录 CSRF、OAuth state 会话绑定、开放重定向防护均在既有回归覆盖内。
 - **卸载**：仅删本插件前缀 meta/option/CPT，`delete_data` 开关门控，多站点逐站处理（`uninstall.php`）。
@@ -58,7 +58,7 @@
 | 项 | 值 |
 |---|---|
 | 主文件 Version | 2.5.0 |
-| `AT8_MLUC_VERSION` | 2.5.0 |
+| `AT8MLUC_VERSION` | 2.5.0 |
 | readme `Stable tag` | 2.5.0 |
 | `Requires at least` | 5.8 |
 | `Tested up to` | 7.1（本地测试站实测 7.1.3） |

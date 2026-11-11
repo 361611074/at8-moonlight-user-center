@@ -12,16 +12,16 @@
 
 defined( 'ABSPATH' ) || exit;
 
-$at8_mluc_orders = isset( $args['orders'] ) && is_array( $args['orders'] ) ? $args['orders'] : array();
-$at8_mluc_symbol = isset( $args['symbol'] ) ? (string) $args['symbol'] : '$';
+$at8mluc_orders = isset( $args['orders'] ) && is_array( $args['orders'] ) ? $args['orders'] : array();
+$at8mluc_symbol = isset( $args['symbol'] ) ? (string) $args['symbol'] : '$';
 
-if ( empty( $at8_mluc_orders ) ) {
+if ( empty( $at8mluc_orders ) ) {
 	return;
 }
 ?>
-<div class="at8-mluc-order-list">
+<div class="at8mluc-order-list">
 	<strong><?php esc_html_e( 'My Purchase History', 'at8-moonlight-user-center' ); ?></strong>
-	<table class="at8-mluc-table">
+	<table class="at8mluc-table">
 		<thead>
 			<tr>
 				<th><?php esc_html_e( 'Order', 'at8-moonlight-user-center' ); ?></th>
@@ -33,17 +33,17 @@ if ( empty( $at8_mluc_orders ) ) {
 		</thead>
 		<tbody>
 			<?php
-			$at8_mluc_status_labels = AT8_MLUC_Payments::status_labels();
+			$at8mluc_status_labels = AT8MLUC_Payments::status_labels();
 
-			foreach ( $at8_mluc_orders as $at8_mluc_o ) :
-				$at8_mluc_st = isset( $at8_mluc_status_labels[ $at8_mluc_o['status'] ] ) ? $at8_mluc_status_labels[ $at8_mluc_o['status'] ] : $at8_mluc_o['status'];
+			foreach ( $at8mluc_orders as $at8mluc_o ) :
+				$at8mluc_st = isset( $at8mluc_status_labels[ $at8mluc_o['status'] ] ) ? $at8mluc_status_labels[ $at8mluc_o['status'] ] : $at8mluc_o['status'];
 				?>
 				<tr>
-					<td><?php echo esc_html( $at8_mluc_o['title'] ); ?></td>
-					<td><?php echo esc_html( AT8_MLUC_Membership::get_level_label( $at8_mluc_o['level'] ) ); ?></td>
-					<td><?php echo esc_html( $at8_mluc_symbol . number_format( $at8_mluc_o['price'], 2 ) ); ?></td>
-					<td><span class="at8-mluc-pill at8-mluc-pill-<?php echo esc_attr( $at8_mluc_o['status'] ); ?>"><?php echo esc_html( $at8_mluc_st ); ?></span></td>
-					<td><?php echo esc_html( $at8_mluc_o['date'] ); ?></td>
+					<td><?php echo esc_html( $at8mluc_o['title'] ); ?></td>
+					<td><?php echo esc_html( AT8MLUC_Membership::get_level_label( $at8mluc_o['level'] ) ); ?></td>
+					<td><?php echo esc_html( $at8mluc_symbol . number_format( $at8mluc_o['price'], 2 ) ); ?></td>
+					<td><span class="at8mluc-pill at8mluc-pill-<?php echo esc_attr( $at8mluc_o['status'] ); ?>"><?php echo esc_html( $at8mluc_st ); ?></span></td>
+					<td><?php echo esc_html( $at8mluc_o['date'] ); ?></td>
 				</tr>
 			<?php endforeach; ?>
 		</tbody>

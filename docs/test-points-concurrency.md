@@ -30,24 +30,24 @@
 
 | 表 | 用途 |
 |---|---|
-| `{prefix}at8_mluc_points_ledger` | 只追加的流水，一次变动一行。`UNIQUE KEY idem_key (user_id, idem_key)` 由数据库保证"同一订单只发一次" |
-| `{prefix}at8_mluc_points_account` | 每用户一行：`balance`（余额）+ `fence`（版本号） |
+| `{prefix}at8mluc_points_ledger` | 只追加的流水，一次变动一行。`UNIQUE KEY idem_key (user_id, idem_key)` 由数据库保证"同一订单只发一次" |
+| `{prefix}at8mluc_points_account` | 每用户一行：`balance`（余额）+ `fence`（版本号） |
 
-两张表都显式 `ENGINE=InnoDB`（`AT8_MLUC_Points::install()`），因此账户行与流水行可以处在同一个事务里。
+两张表都显式 `ENGINE=InnoDB`（`AT8MLUC_Points::install()`），因此账户行与流水行可以处在同一个事务里。
 
 ### 2.2 一次变动 = 一个事务、两条语句
 
 ```sql
 START TRANSACTION;
 
-UPDATE {prefix}at8_mluc_points_account
+UPDATE {prefix}at8mluc_points_account
    SET balance = balance + :amount,
        fence   = :next
  WHERE user_id = :user
    AND fence   = :seen        -- 版本号就在写入语句的 WHERE 里
    AND balance + :amount >= 0; -- 透支守卫也是全有或全无
 
-INSERT INTO {prefix}at8_mluc_points_ledger (..., fence, idem_key) VALUES (...);
+INSERT INTO {prefix}at8mluc_points_ledger (..., fence, idem_key) VALUES (...);
 
 COMMIT;
 ```
@@ -114,8 +114,8 @@ COMMIT;
 
 - 首次读取某用户时按需迁移（`migrate_user()`），迁移本身在事务内完成，账户行 `PRIMARY KEY` 即互斥：并发首读只会有一个成功，其余等它提交后读同一行。
 - 迁移后余额与 2.5.9 的 `balance()` **逐用户相等**：本次对 23 个老用户实测 `users_with_entries_same=23 mismatched=0 total_before=2669 total_after=2669`。
-- 只有 `at8_mluc_points` 余额、没有任何流水行的极老账户：导入为一条 `Opening balance`（source=`migrate`），余额不丢。
-- **旧 meta 一律保留不删**（`at8_mluc_points_entry` / `at8_mluc_points_log` / `at8_mluc_points`）。
+- 只有 `at8mluc_points` 余额、没有任何流水行的极老账户：导入为一条 `Opening balance`（source=`migrate`），余额不丢。
+- **旧 meta 一律保留不删**（`at8mluc_points_entry` / `at8mluc_points_log` / `at8mluc_points`）。
 - **迁移保留原始幂等键**：已发放过的订单迁移后 `has_entry('purchase:<id>')` 仍为真，重复回调不会再发一次（升级实测 70 → 70）。
 - 升级实测（2.5.9 → 2.6.0）：余额 70 → 70，流水 2 → 2 行，`key_kept=true`，重发不变，升级后新增变动正常（→ 75）。
 - **过程记录**：本轮第一次升级测试发现迁移把原始键改写成了 `legacy:<hash>`，导致升级后同一订单可再发一次 —— 已修复（保留原键；若旧数据里同键重复，第二条回退到 `legacy:` 指纹键以免丢历史），并补了 2 条回归断言。
@@ -131,7 +131,7 @@ COMMIT;
 | 后端矩阵（含积分/P0 项） | **50 / 0** |
 | 并发套件 | **54 / 0** |
 | 存储层套件 | **32 / 0** |
-| 卸载（delete_data=1） | 两张表被 DROP、`at8_mluc_%` usermeta 归零、`at8_mluc_points_db` 删除；核心数据不变（users 26→26、posts 30→30、comments 1→1） |
+| 卸载（delete_data=1） | 两张表被 DROP、`at8mluc_%` usermeta 归零、`at8mluc_points_db` 删除；核心数据不变（users 26→26、posts 30→30、comments 1→1） |
 | 卸载（默认保留） | 两张表与数据保留，仅清运行态 |
 | 隐私导出/擦除 | 导出含积分流水分组；擦除同时删除该用户的流水与账户行 |
 | PHP 7.4 实机 | **NOT RUN**（无 7.4 环境；代码未使用 7.4 以上语法） |
@@ -146,7 +146,7 @@ COMMIT;
 | `includes/class-activator.php` | 激活时建表；文件头说明同步更新 |
 | `at8-moonlight-user-center.php` | bootstrap 在 `plugins_loaded` 调 `maybe_install()`，插件原地升级也能建表 |
 | `includes/class-privacy.php` | 导出增加积分流水分组；擦除同时删流水与账户行 |
-| `uninstall.php` | `delete_data=1` 时 DROP 两张表并删 `at8_mluc_points_db` |
+| `uninstall.php` | `delete_data=1` 时 DROP 两张表并删 `at8mluc_points_db` |
 | `readme.txt` / `README.md` | 版本 2.6.0 + changelog |
 | `docs/tests/*` | 新增 `concurrency_test.php`（10 场景）、`atomicity_test.php`；移除已无意义的 `lock_semantics_test.php` |
 
@@ -169,14 +169,14 @@ COMMIT;
 | P1-01 任一流水失败必须 ROLLBACK | 每条失败分支都显式 `rollback()` 后才返回错误 | `migrate_user()` |
 | P1-01 流水未完整不得更新账户余额 | 只有全部流水写入成功后才执行 `UPDATE ... SET balance` | `migrate_user()` |
 | P1-01 余额更新失败必须 ROLLBACK | `UPDATE ... AND fence = 0` 影响行数 ≠ 1 → ROLLBACK + 错误 | `migrate_user()` |
-| P1-01 COMMIT 失败不得报成功 | `commit()` 返回实际结果；失败返回 `at8_mluc_points_tx` 且不写镜像、不返回余额 | `commit()` / `migrate_user()` |
+| P1-01 COMMIT 失败不得报成功 | `commit()` 返回实际结果；失败返回 `at8mluc_points_tx` 且不写镜像、不返回余额 | `commit()` / `migrate_user()` |
 | P1-01 失败不留半迁移状态 | 全部写入在单事务内；失败整笔回滚，账户行一起消失 | `migrate_user()` |
-| P1-01 保留旧 usermeta | 迁移只读不删，`at8_mluc_points_entry`/`_log`/`at8_mluc_points` 原样保留 | `legacy_entries()` |
+| P1-01 保留旧 usermeta | 迁移只读不删，`at8mluc_points_entry`/`_log`/`at8mluc_points` 原样保留 | `legacy_entries()` |
 | P1-02 begin() 必须检查结果 | `begin()` 返回 bool，失败时 `adjust()`/`migrate_user()` 直接返回错误，不写任何东西 | `begin()` |
-| P1-02 commit() 必须检查结果 | 同上；失败时不触发 `at8_mluc_points_adjusted` | `commit()` / `adjust()` |
+| P1-02 commit() 必须检查结果 | 同上；失败时不触发 `at8mluc_points_adjusted` | `commit()` / `adjust()` |
 | P1-02 事务失败必须回滚 | `commit()` 在 COMMIT 失败时补一次 ROLLBACK，避免把连接留在幽灵事务里 | `commit()` |
 | P1-02 兼容 WP 请求生命周期 | 每个请求最多开一层事务；静态 `$tx_mode` 记录状态，重复 `begin()` 直接拒绝（不静默加入外层事务） | `$tx_mode` |
-| P1-02 与外部插件事务冲突 | 开事务前用 `SELECT @@in_transaction` 检测；检测到外层事务时改用 `SAVEPOINT at8_mluc_points_tx`，提交/回滚只作用于自己的 SAVEPOINT | `has_open_transaction()` / `begin()` |
+| P1-02 与外部插件事务冲突 | 开事务前用 `SELECT @@in_transaction` 检测；检测到外层事务时改用 `SAVEPOINT at8mluc_points_tx`，提交/回滚只作用于自己的 SAVEPOINT | `has_open_transaction()` / `begin()` |
 | P1-03 两表真实存在 | `SHOW TABLES LIKE` 逐一核对 | `schema_problems()` |
 | P1-03 必须 InnoDB | `SHOW TABLE STATUS` 读 Engine，非 InnoDB 记为问题（服务器不报告引擎时跳过） | `schema_problems()` |
 | P1-03 UNIQUE 索引真实存在 | `SHOW INDEX` 按 `Seq_in_index` 排序后精确比对 `(user_id, idem_key)` | `schema_problems()` |
@@ -184,7 +184,7 @@ COMMIT;
 | P1-03 字段类型与写入逻辑一致 | `SHOW COLUMNS` 逐列比对类型前缀（bigint/int/varchar） | `column_problems()` |
 | P1-03 dbDelta 失败不得写 DB_OPTION | 先验证后 `update_option`；验证失败返回 `WP_Error` 且不写选项 | `install()` |
 | P1-03 验证成功才 schema_ok | `self::$schema_ok = true` 只在验证通过后设置 | `install()` / `schema_ready()` |
-| P1-03 不符合要求必须明确报错 | `adjust()`/`migrate_user()`/`reconcile()` 先过 `schema_ready()`，失败返回 `at8_mluc_points_schema` | `schema_ready()` |
+| P1-03 不符合要求必须明确报错 | `adjust()`/`migrate_user()`/`reconcile()` 先过 `schema_ready()`，失败返回 `at8mluc_points_schema` | `schema_ready()` |
 | P2-01 不能用旧快照覆盖新余额 | `reconcile()` 读版本 → 事务内求和 → `UPDATE ... WHERE fence = 读到的版本` | `reconcile()` |
 | P2-01 事务 + 版本 CAS | 同上，CAS 失败即整笔重来 | `reconcile()` |
 | P2-01 修复后同步验证 | `verify_balance()`：账户余额与流水合计逐一比对 | `verify_balance()` |
@@ -200,7 +200,7 @@ COMMIT;
 | 3 | 中间一条流水写入失败 | **PASS**（已写入的前几条一并回滚，账户行未提交，重试完整迁移） |
 | 4 | 历史流水存在重复幂等键 | **PASS**（两条都保留，第一条保原键、第二条用指纹键；重复回调不再加分） |
 | 5 | 数据库 COMMIT 失败 | **PASS**（迁移：无残留、读取回落；`adjust()`：返回错误、**不触发成功回调**、余额不变） |
-| 6 | 数据库表不存在 | **PASS**（返回 `at8_mluc_points_schema` 明确错误且不写入；恢复后自动重建并正常写入） |
+| 6 | 数据库表不存在 | **PASS**（返回 `at8mluc_points_schema` 明确错误且不写入；恢复后自动重建并正常写入） |
 | 7 | 积分表不是 InnoDB | **NOT RUN**（本机 SQLite 集成硬编码报告 InnoDB，无法造出非 InnoDB 表）；引擎检查代码已实现，实测对健康表返回 InnoDB 并通过 |
 | 8 | 同一订单 10 个并发请求 | **PASS**（`concurrency_test.php` 场景 4：恰好 1 行、只加一次） |
 | 9 | 同一用户 10 个并发加分 | **PASS**（场景 1：10/10 成功、10 行、合计 100） |
@@ -244,7 +244,7 @@ COMMIT;
 
 `get_var()` 在**查询失败**和**没有行**时都返回 null，而 `SUM` 外面套了 `COALESCE` 后本来必定返回一行，所以 null 只可能是失败——原代码 `(int) $wpdb->get_var(...)` 把这两种情况压成了 0，一旦读失败就会把真实余额覆盖成 0。
 
-修复：新增 `ledger_sum()`，`null === $sum || last_error 非空` 时返回 `WP_Error('at8_mluc_points_read')`；`reconcile()` 拿到错误先 `ROLLBACK` 再返回，**不更新账户余额、不写 meta 镜像**；`verify_balance()` 在同样情况下返回 false（"无法校验"而不是"一致"）。
+修复：新增 `ledger_sum()`，`null === $sum || last_error 非空` 时返回 `WP_Error('at8mluc_points_read')`；`reconcile()` 拿到错误先 `ROLLBACK` 再返回，**不更新账户余额、不写 meta 镜像**；`verify_balance()` 在同样情况下返回 false（"无法校验"而不是"一致"）。
 
 ## 二、P1-02：引擎验证不再"查不到就放行"
 
@@ -275,9 +275,9 @@ COMMIT;
 | # | 场景 | 结果 |
 |---|---|---|
 | 1 | reconcile 正常修复余额 | **PASS**（4 → 42，读回一致） |
-| 2 | reconcile 查询失败 | **PASS**（`at8_mluc_points_read`；余额 25 未被清零；meta 镜像未动；流水条数不变；`verify_balance` 返回 false） |
+| 2 | reconcile 查询失败 | **PASS**（`at8mluc_points_read`；余额 25 未被清零；meta 镜像未动；流水条数不变；`verify_balance` 返回 false） |
 | 3 | reconcile 与 adjust 同时执行 | **PASS**（5 轮修复穿插 5 次变动，0 错误，150 = 流水合计） |
-| 4 | SHOW TABLE STATUS 查询失败 | **PASS**（写入被拒、错误码 `at8_mluc_points_schema`、余额与流水均未变） |
+| 4 | SHOW TABLE STATUS 查询失败 | **PASS**（写入被拒、错误码 `at8mluc_points_schema`、余额与流水均未变） |
 | 5 | Engine 字段缺失 | **PASS**（同上） |
 | 6 | 表不是 InnoDB | **PASS**（伪造 Engine=MyISAM，写入被拒） |
 | 7 | 表缺少唯一索引 | **PASS**（把 SHOW INDEX 指向无该索引的表，写入被拒） |
@@ -329,7 +329,7 @@ COMMIT;
 |---|---|---|
 | 1 | `SELECT @@in_transaction` 返回 0 / 1 且无错误 | 直接采用（MySQL 5.7.36+ / MariaDB 10.3+ 精确） |
 | 2 | 否则用一次性 SAVEPOINT 探测：`SAVEPOINT x` → `ROLLBACK TO SAVEPOINT x` | 能回滚 = **在事务中** → `savepoint` 模式；报错 = **无事务** → `own` 模式（SAVEPOINT 本身就是空操作，未改动任何数据） |
-| 3 | 两级都拿不到答案（SAVEPOINT 都建不出来） | 返回 `WP_Error('at8_mluc_points_tx')`，**不写入** |
+| 3 | 两级都拿不到答案（SAVEPOINT 都建不出来） | 返回 `WP_Error('at8mluc_points_tx')`，**不写入** |
 
 这样既满足"查询结果为 NULL 或无法识别时必须返回明确错误"（第 3 级），也不会因为 SQLite 不支持 `@@in_transaction` 而把整个插件判死（第 2 级兜底），且**任何情况下都不会盲目 `START TRANSACTION`**——那会隐式提交别人的事务。
 
@@ -338,13 +338,13 @@ COMMIT;
 | 要求 | 实现 |
 |---|---|
 | 自己的事务自己提交/回滚 | `begin()` 记录 `$tx_mode`（own / savepoint），`commit()`/`rollback()` 按模式走不同语句 |
-| 外部事务必须用 SAVEPOINT | 探测到在事务中即走 `SAVEPOINT at8_mluc_points_tx` |
+| 外部事务必须用 SAVEPOINT | 探测到在事务中即走 `SAVEPOINT at8mluc_points_tx` |
 | SAVEPOINT 创建失败必须终止 | `begin()` 返回 `WP_Error`，调用方立即返回，零写入 |
-| RELEASE 失败必须返回错误 | 返回 `at8_mluc_points_tx`，并**补一次 `ROLLBACK TO SAVEPOINT`** 撤销本次变动，避免留下半笔 |
-| ROLLBACK TO 失败必须记录明确错误 | 触发 `at8_mluc_points_transaction_error` 动作 + `WP_DEBUG` 下写 error_log |
-| 外部事务未提交时不得宣称已持久化 | savepoint 模式：**不写 usermeta 镜像**（缓存会活过回滚）、**不触发 `at8_mluc_points_adjusted`**，改发 `at8_mluc_points_adjusted_deferred` |
+| RELEASE 失败必须返回错误 | 返回 `at8mluc_points_tx`，并**补一次 `ROLLBACK TO SAVEPOINT`** 撤销本次变动，避免留下半笔 |
+| ROLLBACK TO 失败必须记录明确错误 | 触发 `at8mluc_points_transaction_error` 动作 + `WP_DEBUG` 下写 error_log |
+| 外部事务未提交时不得宣称已持久化 | savepoint 模式：**不写 usermeta 镜像**（缓存会活过回滚）、**不触发 `at8mluc_points_adjusted`**，改发 `at8mluc_points_adjusted_deferred` |
 | 成功钩子与镜像同步时机 | 同上，只在 own 模式下执行 |
-| 外部事务回滚不得留下镜像/副作用 | `grant_for_order()` 的 `_at8_mluc_points_awarded` 快路径标记在 deferred 模式下也跳过（否则缓存会残留"已发放"） |
+| 外部事务回滚不得留下镜像/副作用 | `grant_for_order()` 的 `_at8mluc_points_awarded` 快路径标记在 deferred 模式下也跳过（否则缓存会残留"已发放"） |
 
 ## 四、P2-01：余额读取
 
@@ -362,11 +362,11 @@ COMMIT;
 | 3 | 外部事务中执行积分操作 | **PASS**（外层事务内 +10 生效于事务内；只触发 deferred，不触发 confirmed；镜像未写） |
 | 4 | 外部事务最终 COMMIT | **PASS**（提交后 35 分、3 行、余额一致） |
 | 5 | 外部事务最终 ROLLBACK | **PASS**（回到 35、3 行、镜像未被污染、confirmed 动作未触发） |
-| 6 | `SELECT @@in_transaction` 查询失败 | **PASS**（回落到 SAVEPOINT 探测仍正确加分；两级探测都失败时返回 `at8_mluc_points_tx` 且零写入） |
+| 6 | `SELECT @@in_transaction` 查询失败 | **PASS**（回落到 SAVEPOINT 探测仍正确加分；两级探测都失败时返回 `at8mluc_points_tx` 且零写入） |
 | 7 | SAVEPOINT 创建失败 | **PASS**（返回事务错误，余额不变） |
 | 8 | RELEASE SAVEPOINT 失败 | **PASS**（返回未确认错误、触发 transaction_error、本次变动被撤销、无多余流水） |
 | 9 | ROLLBACK TO SAVEPOINT 失败 | **PASS**（报错并触发 transaction_error；外层回滚后余额不变） |
-| 10 | 旧版 usermeta 查询失败 | **PASS**（`balance()` 返回 `at8_mluc_points_read` 而不是 0；未发生迁移；恢复后正常迁移 7 分） |
+| 10 | 旧版 usermeta 查询失败 | **PASS**（`balance()` 返回 `at8mluc_points_read` 而不是 0；未发生迁移；恢复后正常迁移 7 分） |
 | 11 | reconcile 与 adjust 并发执行 | **PASS**（5 轮交替，0 失败，150 = 流水合计） |
 | 12 | 同一订单 10 次回调 | **PASS**（只发 20 分、1 条流水） |
 
@@ -416,14 +416,14 @@ COMMIT;
 | 任务书要求 | 2.6.3 行为 | 2.6.4 实现 |
 |---|---|---|
 | 区分"查询失败"与"状态为 0" | 失败 → 落到 SAVEPOINT 探测 | 失败只当失败；只有 `'0'` / `'1'` 且无错误才采信 |
-| 无法解释的数据库错误返回 WP_Error | — | 新增 `unknown_transaction_state()`，统一返回 `at8_mluc_points_tx`，消息含 "could not be determined" 与原始驱动错误 |
+| 无法解释的数据库错误返回 WP_Error | — | 新增 `unknown_transaction_state()`，统一返回 `at8mluc_points_tx`，消息含 "could not be determined" 与原始驱动错误 |
 | SAVEPOINT 创建失败不得假定无事务 | 已返回 WP_Error | 保持，并在消息中带上驱动原文或 "the database refused to create a savepoint" |
 | **SAVEPOINT 回滚失败不得返回 own** | **返回 `own`（缺陷）** | 仅当错误是 1305 / 3B001 / "savepoint … does not exist" 时返回 `own`；其余一律 WP_Error |
 | 无法确定时禁止 START TRANSACTION | 部分 | `begin()` 拿到 WP_Error 立即返回，零写入 |
 | 不误提交调用方事务 | 是 | 是（`own` 只可能来自确定性证据） |
 | 删除/修正误导性的 `has_open_transaction()` | 仍存在（探测失败即 false） | **已删除**；断言用 `get_class_methods()` 确认不再存在 |
 
-探测失败且无法判定时，会先 `RELEASE SAVEPOINT at8_mluc_points_probe` 清掉探针（结果忽略，因为它没有携带任何数据变更），再返回错误，避免在调用方事务里留下残留标记。
+探测失败且无法判定时，会先 `RELEASE SAVEPOINT at8mluc_points_probe` 清掉探针（结果忽略，因为它没有携带任何数据变更），再返回错误，避免在调用方事务里留下残留标记。
 
 ## 三、P1-02：`commit()` 的 SAVEPOINT 清理
 
@@ -433,8 +433,8 @@ COMMIT;
 | 检查 ROLLBACK TO 的结果 | 是（`run_sql()` 判定，含 `last_error` 检查） |
 | 回滚失败调用 `report_tx_error()` | 是（两条分支都走） |
 | 明确告知外层事务可能仍含未确认变动 | 消息原文：`… undoing the movement inside the enclosing transaction failed as well (…). That transaction may still carry the unconfirmed points movement, so it must not be treated as if the movement were gone.` |
-| 不得伪装成普通积分失败 | 错误码固定 `at8_mluc_points_tx`，并触发 `at8_mluc_points_transaction_error` |
-| 不得触发成功钩子 | 调用方在 `commit()` 返回错误后立即返回，不触发 `at8_mluc_points_adjusted`（测试断言 confirmed 未触发） |
+| 不得伪装成普通积分失败 | 错误码固定 `at8mluc_points_tx`，并触发 `at8mluc_points_transaction_error` |
+| 不得触发成功钩子 | 调用方在 `commit()` 返回错误后立即返回，不触发 `at8mluc_points_adjusted`（测试断言 confirmed 未触发） |
 | 不得同步 usermeta 镜像 | 同上（测试断言镜像值未变） |
 
 `rollback()` 侧保持原有严格性（ROLLBACK TO / ROLLBACK 失败都 `report_tx_error()`）。
@@ -443,10 +443,10 @@ COMMIT;
 
 | UPDATE 返回 | 2.6.3 | 2.6.4 |
 |---|---|---|
-| `false`（驱动拒绝） | 当并发冲突 → 重试 40 次 → 报 `at8_mluc_points_busy` | **回滚后返回 `at8_mluc_points_db`**，只执行一次，不重试 |
+| `false`（驱动拒绝） | 当并发冲突 → 重试 40 次 → 报 `at8mluc_points_busy` | **回滚后返回 `at8mluc_points_db`**，只执行一次，不重试 |
 | `0`（CAS 不匹配） | 回滚后重试 | 回滚后重试（检查回滚结果，失败即返回） |
 | `1` | 成功 | 成功 |
-| 其他（>1） | 归入"非 1"重试 | 回滚后返回 `at8_mluc_points_db`（"touched N rows instead of one"） |
+| 其他（>1） | 归入"非 1"重试 | 回滚后返回 `at8mluc_points_db`（"touched N rows instead of one"） |
 
 重试上限沿用 `MAX_ATTEMPTS = 40`（配 `RETRY_USLEEP = 15ms`，递增至 4 倍），有界、不无限。
 
@@ -456,14 +456,14 @@ COMMIT;
 |---|---|---|
 | 1 | `@@in_transaction` 返回 0 | **PASS**（加分成功、走 own 路径、**未发起 SAVEPOINT 探测**、镜像写入） |
 | 2 | `@@in_transaction` 返回 1 | **PASS**（外层事务内加分、只触发 deferred、镜像不写、外层 COMMIT 后持久） |
-| 3 | `@@in_transaction` 查询失败 | **PASS**（回落到 SAVEPOINT 探测并正确加分；两级都失败时返回 `at8_mluc_points_tx` 且零写入） |
+| 3 | `@@in_transaction` 查询失败 | **PASS**（回落到 SAVEPOINT 探测并正确加分；两级都失败时返回 `at8mluc_points_tx` 且零写入） |
 | 4 | SAVEPOINT 创建失败 | **PASS**（返回事务错误、余额不变、无新增流水） |
 | 5 | SAVEPOINT 创建成功但 ROLLBACK TO 失败（非 1305 的"表不存在"错误） | **PASS**（返回事务错误、消息含"could not be determined"、余额不变、无新增流水） |
 | 6 | RELEASE SAVEPOINT 失败 | **PASS**（返回未确认错误、消息含"undone inside the enclosing transaction"、transaction_error 触发 1 次、无成功钩子、镜像未写、外层 COMMIT 后余额仍为 10） |
 | 7 | RELEASE 与 ROLLBACK TO 均失败 | **PASS**（错误消息含"may still carry the unconfirmed points movement"、transaction_error 触发 1 次） |
 | 8 | 外部事务最终 COMMIT | **PASS** |
 | 9 | 外部事务最终 ROLLBACK | **PASS**（变动消失、无 confirmed 钩子、账目仍一致） |
-| 10 | reconcile 的 UPDATE 返回 false | **PASS**（`at8_mluc_points_db`，**不是** `at8_mluc_points_busy`；UPDATE 只执行 1 次） |
+| 10 | reconcile 的 UPDATE 返回 false | **PASS**（`at8mluc_points_db`，**不是** `at8mluc_points_busy`；UPDATE 只执行 1 次） |
 | 11 | reconcile 的 UPDATE 返回 0 | **PASS**（确定性地造出过期版本 → 重试 → 返回流水合计 100，账户被读取 2 次） |
 | 12 | reconcile 的 UPDATE 返回 1 | **PASS**（返回 100、UPDATE 恰好 1 次、`verify_balance` 通过、镜像刷新） |
 
@@ -503,7 +503,7 @@ COMMIT;
 | 情况 | 处理 | 返回 |
 |---|---|---|
 | COMMIT 成功 | — | `true` |
-| COMMIT 失败，ROLLBACK 成功 | 记录 COMMIT 原始错误；`transaction_state = rolled_back`；不触发成功钩子；不写镜像 | `WP_Error('at8_mluc_points_tx')`，`failure = commit_failed` |
+| COMMIT 失败，ROLLBACK 成功 | 记录 COMMIT 原始错误；`transaction_state = rolled_back`；不触发成功钩子；不写镜像 | `WP_Error('at8mluc_points_tx')`，`failure = commit_failed` |
 | COMMIT 失败，ROLLBACK 失败 | 同时记录两个错误；`transaction_state = unknown`；`failure = transaction_state_unknown`；调用 `report_tx_error()` | 同上，并明确"状态未知、不自动重试" |
 
 `adjust()` / `migrate_user()` / `reconcile()` 在 `commit()` 返回错误时直接返回，**不重试**——状态未知时重放可能重复入账。测试用「COMMIT 语句被改写为必失败」实测：COMMIT 只执行 1 次。
@@ -514,7 +514,7 @@ COMMIT;
 
 ```
 失败 → rollback()
-     ├─ 回滚成功 → 返回原始错误（业务失败照旧，如 at8_mluc_points_save / at8_mluc_points_schema）
+     ├─ 回滚成功 → 返回原始错误（业务失败照旧，如 at8mluc_points_save / at8mluc_points_schema）
      └─ 回滚失败 → 返回 transaction_state_unknown，同时携带 original_error + rollback_error
 ```
 
@@ -522,7 +522,7 @@ COMMIT;
 
 ## 三、P1-03：统一的事务错误结构
 
-所有事务错误统一为 `WP_Error('at8_mluc_points_tx')`，`get_error_data()` 固定包含：
+所有事务错误统一为 `WP_Error('at8mluc_points_tx')`，`get_error_data()` 固定包含：
 
 | 字段 | 说明 |
 |---|---|
@@ -534,7 +534,7 @@ COMMIT;
 | `user_id` | 涉及用户 |
 | `context` | adjust / migrate / reconcile / probe |
 
-**驱动原文不再进入面向用户的消息**，只进错误数据与 `WP_DEBUG` 日志；日志只记录上述结构，不含 SQL 参数、密码、OAuth token 等敏感值；日志写入失败不会影响返回值。`at8_mluc_points_transaction_error` 动作新增第二个参数（结构数组），旧的一参回调不受影响。
+**驱动原文不再进入面向用户的消息**，只进错误数据与 `WP_DEBUG` 日志；日志只记录上述结构，不含 SQL 参数、密码、OAuth token 等敏感值；日志写入失败不会影响返回值。`at8mluc_points_transaction_error` 动作新增第二个参数（结构数组），旧的一参回调不受影响。
 
 ## 四、P2-01：SAVEPOINT 全生命周期 + 探针双信号
 
@@ -638,3 +638,76 @@ COMMIT;
 | `php -l`（40 文件） | 0 失败 |
 | **Plugin Check 2.1.0（ZIP 解压扫描）** | **0 ERROR / 0 WARNING** |
 | 升级 2.6.5 → 2.6.6 | 余额 50→50、流水 1→1、幂等键保留、OAuth 绑定可查、`verify_balance` 通过、升级后变动 55 |
+
+---
+
+# 2.7.0：目录审核整改（前缀改名 + 链接 + 非ce + SQL）
+
+- 日期：2026-11-11
+- 触发：WordPress.org 人工复核（Review ID `at8-moonlight-user-center/x361611074/22Oct26/T2 10Nov26/4.2`，基于 2.6.6）
+- 交付 ZIP：`at8-moonlight-user-center-2.7.0.zip`（51 文件 / 184,166 B / SHA-256 `ed20c5cc40f972a6618562feb83232434acc14ddefa65cb1ee9c6ae41796a76f`）
+
+## 一、审核提了 6 类问题，逐条处置
+
+| # | 审核意见 | 实情 | 处置 |
+|---|---|---|---|
+| 1 | readme 里 GitHub 的条款/隐私链接 404 | 真（少了路径段） | 换成 `docs.github.com/.../github-terms/github-terms-of-service` 与 `.../privacy-policies/github-privacy-statement`（实测 200）；QQ 的 `www.qq.com/contract/` 实测 **501**，换成 `www.qq.com/contract.shtml`（200）、隐私换 `privacy.qq.com/policy/tencent-privacypolicy`（200） |
+| 2 | 外部服务披露不足（api.weixin.qq.com / graph.qq.com） | 部分真：5 家都写了，但没有逐域名对应到各自条款页 | External services 整章重写：每家列出 **Domains contacted**、用途、发送的数据与时点、以及该 provider 自己的条款与隐私链接；开头说明"仅当管理员启用且访客点击时才发生" |
+| 3 | 创建/登录用户（9 处） | 产品本身 | 不能删。readme 新增 **User accounts and authentication** 章节，逐条说明用的是核心 API（`wp_create_user`/`wp_signon`/`retrieve_password`/`reset_password`/`wp_set_auth_cookie`），不绕过安全插件的 `authenticate`/`wp_login_failed` 钩子，新用户只拿站点默认角色 |
+| 4 | Nonce（7 处） | 部分真 | `ajax_buy_level`、`ajax_buy` 原来把 `check_ajax_referer()` 的返回值丢掉（**真漏洞**，任何请求都能进），改为 `if ( ! check_ajax_referer(..., false) ) { wp_send_json(...) }`；其余 9 个守卫统一改为在失败分支直接调用核心 `wp_send_json()` 终止；`templates/login.php` 不再读 `$_GET`，错误码改走 5 分钟 cookie；OAuth 回调无法带 nonce（第三方跳转），保留 state 双因子并在回信中说明 |
+| 5 | 前缀 `at8` 太短（124 处） | 真要求 | **全局改名**，见下节 |
+| 6 | `class-points.php:2279` 变量 SQL | 真 | `run_sql( $sql )` 改为 `run_statement( $statement )`，六条事务控制语句全部字面量，无变量 SQL |
+
+## 二、前缀改名（2.7.0）
+
+| 旧 | 新 |
+|---|---|
+| `at8_mluc_*`（函数/hook/option/meta/AJAX/短代码/CPT/nonce） | `at8mluc_*` |
+| `AT8_MLUC_*`（类/常量） | `AT8MLUC_*` |
+| `at8-mluc-*`（脚本/样式 handle、CSS 类） | `at8mluc-*` |
+| `at8Mluc*`（JS 全局） | `at8mluc*` |
+| `at8_mlucp_*` / `AT8_MLUCP_*`（Pro 附加包） | `at8mlucp_*` / `AT8MLUCP_*` |
+
+- 替换总量：**4,481 处**，Free 96 个文件（含 7 个资产文件改名），Pro 同步改名并升到 1.7.0（要求 Free ≥ 2.7.0）
+- 改名后 **shipped 包里只有 1 处**旧前缀字面量：迁移类里用于**推导**旧名的 `str_replace` 参数（附注释说明），其余全是 `at8mluc*`（282 个不同标识符）
+- 文本域 `at8-moonlight-user-center` 与目录 slug 未动（必须与 slug 一致）
+
+## 三、数据迁移（`includes/class-prefix-migration.php`）
+
+在 `sync_version()` 里、任何模块读 option 之前执行一次，记录 `at8mluc_prefix_migrated`：
+
+| 对象 | 做法 | 实测结果（本站真实数据） |
+|---|---|---|
+| option | 旧名有、新名无 → 复制（旧行保留） | 18 旧 / 4 新，值正确 |
+| user meta | 按 (user, key) 组迁移，避免多值键只搬一行；新键预先存在则跳过 | 302 → 302，旧键剩 0 |
+| post meta | 同上，模式含前导下划线；同时覆盖 `at8_mlucp_*`（Pro） | 1,018 → 1,018，旧键剩 0 |
+| post type | avatar / order 逐条改 `post_type` | 104 篇全部迁移 |
+| 积分表 | 优先 `RENAME TABLE`；驱动不支持时（本站 SQLite 集成即如此）→ 建新表 + `INSERT ... SELECT`，旧表保留 | ledger 23 行/合计 546 → 23 行/546；account 3 → 3 |
+
+迁移后功能抽查：积分余额 472、`verify_balance` 通过、等级 3 个、汇率 2、订单 104 篇、短代码全部以 `at8mluc_` 注册、`adjust()` 正常（473）、Pro 网关 `paypal,stripe,manual` 全部注册。
+
+## 四、回归（全部在 2.7.0 安装包上跑）
+
+| 套件 | 结果 |
+|---|---|
+| `tx_final_test.php` | 114 / 0 |
+| `tx_boundary_test.php` | 58 / 0 |
+| `transaction_test.php` | 45 / 0 |
+| `db_safety_test.php` | 47 / 0 |
+| `migration_test.php` | 41 / 0 |
+| `atomicity_test.php` | 32 / 0 |
+| `concurrency_test.php`（10 进程） | 54 / 0 |
+| `oauth_refactor_test.php` | 22 / 0 |
+| `final_checklist_test.php`（OAuth state 重放/跨身份） | 6 / 0 |
+| `v4_matrix_test.php` | 50 / 0 |
+| Free 独立 `reg_test.php` | 76 / 0 |
+| Free + Pro `pro_test.php` | 64 / 0 |
+| `php -l`（Free 41 文件 + Pro 35 文件） | 0 失败 |
+| **Plugin Check 2.1.0（ZIP 解压扫描）** | **0 ERROR / 0 WARNING** |
+
+`final_checklist_test.php` 因 OAuth 错误码不再走 URL，改为监听新增的 `at8mluc_oauth_fail` 动作（也顺带给集成方一个扩展点）。
+
+## 五、未执行
+
+- 真实 MySQL/MariaDB 上的 `RENAME TABLE` 分支（本站驱动不支持重命名，走的是复制分支；真机应走重命名分支）
+- PHP 7.4 实机、多站点、真实 OAuth 凭据端到端

@@ -26,6 +26,6 @@
 
 ## 凭据与日志
 
-- client secret 仅在 token 交换请求头/体内发送，不写日志、不写 options（仅存于管理员配置的 `at8_mluc_options` 中，与 WP 其他凭据同生命周期）
+- client secret 仅在 token 交换请求头/体内发送，不写日志、不写 options（仅存于管理员配置的 `at8mluc_options` 中，与 WP 其他凭据同生命周期）
 - access token 仅存在于请求周期内存变量；OAuth 失败路径返回 `WP_Error` 人类可读消息，不包含 token 或完整 API 响应体（`oauth_fail()` 只输出固定文案）
 - 安全验证：回调强制 state transient（一次性消费）+ provider 绑定校验 + 同源 cookie；redirect 目标经白名单校验；失败降级为跳转错误提示页，不泄露内部错误

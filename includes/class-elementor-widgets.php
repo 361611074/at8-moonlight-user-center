@@ -13,7 +13,7 @@ if (!defined('ABSPATH')) {
 	exit;
 }
 
-abstract class AT8_MLUC_Elementor_Widget_Base extends \Elementor\Widget_Base
+abstract class AT8MLUC_Elementor_Widget_Base extends \Elementor\Widget_Base
 {
 	abstract protected function shortcode_tag();
 
@@ -43,11 +43,11 @@ abstract class AT8_MLUC_Elementor_Widget_Base extends \Elementor\Widget_Base
 	}
 }
 
-class AT8_MLUC_Elementor_Login extends AT8_MLUC_Elementor_Widget_Base
+class AT8MLUC_Elementor_Login extends AT8MLUC_Elementor_Widget_Base
 {
 	public function get_name()
 	{
-		return 'at8_mluc_login';
+		return 'at8mluc_login';
 	}
 
 	public function get_title()
@@ -57,15 +57,15 @@ class AT8_MLUC_Elementor_Login extends AT8_MLUC_Elementor_Widget_Base
 
 	protected function shortcode_tag()
 	{
-		return 'at8_mluc_login';
+		return 'at8mluc_login';
 	}
 }
 
-class AT8_MLUC_Elementor_Register extends AT8_MLUC_Elementor_Widget_Base
+class AT8MLUC_Elementor_Register extends AT8MLUC_Elementor_Widget_Base
 {
 	public function get_name()
 	{
-		return 'at8_mluc_register';
+		return 'at8mluc_register';
 	}
 
 	public function get_title()
@@ -75,15 +75,15 @@ class AT8_MLUC_Elementor_Register extends AT8_MLUC_Elementor_Widget_Base
 
 	protected function shortcode_tag()
 	{
-		return 'at8_mluc_register';
+		return 'at8mluc_register';
 	}
 }
 
-class AT8_MLUC_Elementor_Profile extends AT8_MLUC_Elementor_Widget_Base
+class AT8MLUC_Elementor_Profile extends AT8MLUC_Elementor_Widget_Base
 {
 	public function get_name()
 	{
-		return 'at8_mluc_profile';
+		return 'at8mluc_profile';
 	}
 
 	public function get_title()
@@ -93,6 +93,6 @@ class AT8_MLUC_Elementor_Profile extends AT8_MLUC_Elementor_Widget_Base
 
 	protected function shortcode_tag()
 	{
-		return 'at8_mluc_account';
+		return 'at8mluc_account';
 	}
 }

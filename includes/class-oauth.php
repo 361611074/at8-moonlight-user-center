@@ -3,7 +3,7 @@
  * 第三方登录（OAuth2）：微信 / QQ / GitHub / Google / Apple。
  *
  * 各提供商的 client_id / client_secret 在后台「第三方登录」区块配置；
- * 未配置则对应按钮不显示。回调地址固定为 home_url('/?at8_mluc_oauth=提供商')。
+ * 未配置则对应按钮不显示。回调地址固定为 home_url('/?at8mluc_oauth=提供商')。
  * 真实密钥由站点管理员填写，本类只负责标准 OAuth2 流程与账号绑定。
  *
  * @package AT8_Moonlight_User_Center
@@ -13,7 +13,7 @@ if (!defined('ABSPATH')) {
 	exit;
 }
 
-class AT8_MLUC_OAuth
+class AT8MLUC_OAuth
 {
 	private static $instance;
 
@@ -28,12 +28,12 @@ class AT8_MLUC_OAuth
 	private function __construct()
 	{
 		add_action('init', array($this, 'maybe_handle_callback'), 5);
-		add_shortcode('at8_mluc_oauth_buttons', array($this, 'shortcode_buttons'));
+		add_shortcode('at8mluc_oauth_buttons', array($this, 'shortcode_buttons'));
 		// 挂在 Free 登录/注册表单底部；主题或其它插件也可自行挂这个 action。
-		add_action('at8_mluc_login_form_bottom', array($this, 'render_buttons'));
-		add_action('at8_mluc_register_form_bottom', array($this, 'render_buttons'));
+		add_action('at8mluc_login_form_bottom', array($this, 'render_buttons'));
+		add_action('at8mluc_register_form_bottom', array($this, 'render_buttons'));
 		// 兼容动作名（历史版本）。
-		add_action('at8_mluc_oauth_buttons', array($this, 'render_buttons'));
+		add_action('at8mluc_oauth_buttons', array($this, 'render_buttons'));
 	}
 
 	/**
@@ -41,7 +41,7 @@ class AT8_MLUC_OAuth
 	 */
 	public static function providers()
 	{
-		return apply_filters('at8_mluc_oauth_providers', array(
+		return apply_filters('at8mluc_oauth_providers', array(
 			'wechat' => array(
 				'label' => __('微信', 'at8-moonlight-user-center'),
 				'color' => '#07c160',
@@ -105,11 +105,11 @@ class AT8_MLUC_OAuth
 	}
 
 	/**
-	 * 读取某提供商的 client_id / client_secret（存于 at8_mluc_options['oauth']）。
+	 * 读取某提供商的 client_id / client_secret（存于 at8mluc_options['oauth']）。
 	 */
 	private function get_creds($id)
 	{
-		$all = at8_mluc_get_option('oauth', array());
+		$all = at8mluc_get_option('oauth', array());
 		$c   = isset($all[$id]) ? $all[$id] : array();
 		return array(
 			'client_id'     => isset($c['client_id']) ? trim($c['client_id']) : '',
@@ -125,7 +125,7 @@ class AT8_MLUC_OAuth
 
 	public function get_redirect_uri($id)
 	{
-		return home_url('/?at8_mluc_oauth=' . rawurlencode($id));
+		return home_url('/?at8mluc_oauth=' . rawurlencode($id));
 	}
 
 	/**
@@ -144,7 +144,7 @@ class AT8_MLUC_OAuth
 		$creds = $this->get_creds($id);
 		$state = wp_generate_password(12, false);
 		// state 同时记录 provider、回跳意图与发起时的登录身份，回调据此还原
-		set_transient('at8_mluc_oauth_state_' . $state, array(
+		set_transient('at8mluc_oauth_state_' . $state, array(
 			'provider'  => $id,
 			'redirect'  => $redirect_to ? esc_url_raw($redirect_to) : '',
 			// 安全：记录发起授权时的用户。回调时若当前登录用户与之不同，
@@ -188,10 +188,10 @@ class AT8_MLUC_OAuth
 			'samesite' => 'Lax',
 		);
 		if (PHP_VERSION_ID >= 70300) {
-			setcookie('at8_mluc_oauth_state', $state, $opts);
+			setcookie('at8mluc_oauth_state', $state, $opts);
 		} else {
 			setcookie(
-				'at8_mluc_oauth_state',
+				'at8mluc_oauth_state',
 				$state,
 				$opts['expires'],
 				$opts['path'] . '; SameSite=Lax',
@@ -209,7 +209,7 @@ class AT8_MLUC_OAuth
 		}
 		$path   = defined('COOKIEPATH') && COOKIEPATH ? COOKIEPATH : '/';
 		$domain = defined('COOKIE_DOMAIN') ? COOKIE_DOMAIN : '';
-		setcookie('at8_mluc_oauth_state', '', time() - 3600, $path, $domain, is_ssl(), true);
+		setcookie('at8mluc_oauth_state', '', time() - 3600, $path, $domain, is_ssl(), true);
 	}
 
 	/**
@@ -233,12 +233,12 @@ class AT8_MLUC_OAuth
 		if (!$redirect_to) {
 			$redirect_to = $this->requested_redirect();
 		}
-		echo '<div class="at8-mluc-oauth">';
-		echo '<div class="at8-mluc-oauth-divider"><span>' . esc_html__('或使用第三方账号登录', 'at8-moonlight-user-center') . '</span></div>';
-		echo '<div class="at8-mluc-oauth-buttons">';
+		echo '<div class="at8mluc-oauth">';
+		echo '<div class="at8mluc-oauth-divider"><span>' . esc_html__('或使用第三方账号登录', 'at8-moonlight-user-center') . '</span></div>';
+		echo '<div class="at8mluc-oauth-buttons">';
 		foreach ($enabled as $id => $p) {
 			printf(
-				'<a class="at8-mluc-oauth-btn at8-mluc-oauth-%s" href="%s" style="background:%s" aria-label="%s" rel="noopener">',
+				'<a class="at8mluc-oauth-btn at8mluc-oauth-%s" href="%s" style="background:%s" aria-label="%s" rel="noopener">',
 				esc_attr($id),
 				esc_url($this->get_auth_url($id, $redirect_to)),
 				esc_attr($p['color']),
@@ -376,7 +376,7 @@ class AT8_MLUC_OAuth
 	}
 
 	/**
-	 * 回调处理：?at8_mluc_oauth=provider&code=...&state=...
+	 * 回调处理：?at8mluc_oauth=provider&code=...&state=...
 	 * Apple 在某些配置下以 form_post 回传，故 code/state 同时兼容 GET 与 POST。
 	 *
 	 * 第三方回调没有 WP nonce 可校验，改用 state（transient）+ 同源 cookie
@@ -385,7 +385,7 @@ class AT8_MLUC_OAuth
 	// phpcs:ignore WordPress.Security.NonceVerification.Missing -- Third-party OAuth callback; CSRF is covered by the state transient + cookie pair below.
 	public function maybe_handle_callback()
 	{
-		$id = sanitize_key($this->callback_param('at8_mluc_oauth'));
+		$id = sanitize_key($this->callback_param('at8mluc_oauth'));
 		if (!$id) {
 			return;
 		}
@@ -404,13 +404,13 @@ class AT8_MLUC_OAuth
 		$code  = $this->callback_param('code');
 		$state = $this->callback_param('state');
 
-		$st = $state ? get_transient('at8_mluc_oauth_state_' . $state) : null;
+		$st = $state ? get_transient('at8mluc_oauth_state_' . $state) : null;
 		if (!$code || !$state || !is_array($st) || empty($st['provider']) || $st['provider'] !== $id) {
 			$this->oauth_fail('state', __('安全校验失败（state 无效），请重试。', 'at8-moonlight-user-center'));
 		}
 		// 安全校验一：state 必须来自本浏览器会话（本浏览器确实发起过这次授权），
 		// 防止攻击者用自己的 state+code 构造回调链接让他人点击（登录 CSRF）。
-		$cookie_state = isset($_COOKIE['at8_mluc_oauth_state']) ? sanitize_text_field(wp_unslash($_COOKIE['at8_mluc_oauth_state'])) : '';
+		$cookie_state = isset($_COOKIE['at8mluc_oauth_state']) ? sanitize_text_field(wp_unslash($_COOKIE['at8mluc_oauth_state'])) : '';
 		if ('' === $cookie_state || !hash_equals((string) $cookie_state, (string) $state)) {
 			$this->clear_state_cookie();
 			$this->oauth_fail('state', __('安全校验失败（state 不匹配），请重试。', 'at8-moonlight-user-center'));
@@ -421,7 +421,7 @@ class AT8_MLUC_OAuth
 			$this->clear_state_cookie();
 			$this->oauth_fail('state', __('安全校验失败（登录身份不一致），请重试。', 'at8-moonlight-user-center'));
 		}
-		delete_transient('at8_mluc_oauth_state_' . $state);
+		delete_transient('at8mluc_oauth_state_' . $state);
 		$this->clear_state_cookie();
 		$redirect_to = !empty($st['redirect']) ? $st['redirect'] : '';
 
@@ -444,8 +444,37 @@ class AT8_MLUC_OAuth
 	 */
 	private function oauth_fail($code, $message)
 	{
-		$url = add_query_arg('oauth_error', $code, at8_mluc_get_login_url());
-		wp_safe_redirect($url);
+		/**
+		 * Fires when a social-login attempt is refused.
+		 *
+		 * @since 2.7.0
+		 *
+		 * @param string $code    Short reason (state, cancelled, token, profile, unsupported, register_closed, register_fail).
+		 * @param string $message Human-readable explanation.
+		 */
+		do_action('at8mluc_oauth_fail', (string) $code, (string) $message);
+
+		/*
+		 * The notice travels in a short-lived cookie instead of the query
+		 * string: the login page can then show it without reading request
+		 * input, and the value is a whitelisted code either way.
+		 */
+		if (!headers_sent()) {
+			setcookie(
+				'at8mluc_oauth_notice',
+				(string) $code,
+				array(
+					'expires'  => time() + 300,
+					'path'     => defined('COOKIEPATH') && COOKIEPATH ? COOKIEPATH : '/',
+					'domain'   => defined('COOKIE_DOMAIN') ? COOKIE_DOMAIN : '',
+					'secure'   => is_ssl(),
+					'httponly' => true,
+					'samesite' => 'Lax',
+				)
+			);
+		}
+
+		wp_safe_redirect(at8mluc_get_login_url());
 		exit;
 	}
 
@@ -615,7 +644,7 @@ class AT8_MLUC_OAuth
 	 */
 	private function login_or_register($id, $profile, $redirect_to = '')
 	{
-		$meta_key = 'at8_mluc_oauth_' . $id . '_id';
+		$meta_key = 'at8mluc_oauth_' . $id . '_id';
 
 		// 已登录：直接绑定到当前账户
 		if (is_user_logged_in()) {
@@ -665,12 +694,12 @@ class AT8_MLUC_OAuth
 	{
 		wp_set_current_user($user_id);
 		wp_set_auth_cookie($user_id, true);
-		do_action('at8_mluc_oauth_login', $user_id, $profile);
+		do_action('at8mluc_oauth_login', $user_id, $profile);
 		// 优先回跳到 OAuth 发起时携带的同站地址；否则回账户中心
 		if ($redirect_to && wp_validate_redirect($redirect_to, false)) {
 			wp_safe_redirect($redirect_to);
 		} else {
-			wp_safe_redirect(at8_mluc_get_account_url());
+			wp_safe_redirect(at8mluc_get_account_url());
 		}
 		exit;
 	}

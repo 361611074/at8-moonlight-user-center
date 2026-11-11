@@ -13,7 +13,7 @@ defined( 'ABSPATH' ) || exit;
 /**
  * Privacy exporter, eraser and policy suggestions.
  */
-class AT8_MLUC_Privacy {
+class AT8MLUC_Privacy {
 
 	/**
 	 * Exporter identifier.
@@ -32,14 +32,14 @@ class AT8_MLUC_Privacy {
 	/**
 	 * Singleton instance.
 	 *
-	 * @var AT8_MLUC_Privacy|null
+	 * @var AT8MLUC_Privacy|null
 	 */
 	private static $instance = null;
 
 	/**
 	 * Retrieve the singleton.
 	 *
-	 * @return AT8_MLUC_Privacy
+	 * @return AT8MLUC_Privacy
 	 */
 	public static function get_instance() {
 		if ( null === self::$instance ) {
@@ -94,7 +94,7 @@ class AT8_MLUC_Privacy {
 	 * @return array<string, string> Meta key => field label.
 	 */
 	private function export_fields() {
-		return at8_mluc_meta_labels();
+		return at8mluc_meta_labels();
 	}
 
 	/**
@@ -127,7 +127,7 @@ class AT8_MLUC_Privacy {
 				continue;
 			}
 
-			if ( 'at8_mluc_last_login' === $meta_key && is_numeric( $value ) ) {
+			if ( 'at8mluc_last_login' === $meta_key && is_numeric( $value ) ) {
 				$value = date_i18n( (string) get_option( 'date_format' ) . ' ' . (string) get_option( 'time_format' ), (int) $value );
 			}
 
@@ -148,10 +148,10 @@ class AT8_MLUC_Privacy {
 
 		// Since 2.6.0 the points ledger lives in its own table, so it is not
 		// covered by the meta loop above.
-		if ( class_exists( 'AT8_MLUC_Points' ) ) {
+		if ( class_exists( 'AT8MLUC_Points' ) ) {
 			$movements = array();
 
-			foreach ( AT8_MLUC_Points::ledger( $user->ID, 100 ) as $entry ) {
+			foreach ( AT8MLUC_Points::ledger( $user->ID, 100 ) as $entry ) {
 				$movements[] = array(
 					'name'  => __( 'Points movement', 'at8-moonlight-user-center' ),
 					'value' => sprintf(
@@ -219,12 +219,12 @@ class AT8_MLUC_Privacy {
 
 		// phpcs:ignore WordPress.DB.DirectDatabaseQuery.DirectQuery, WordPress.DB.DirectDatabaseQuery.NoCaching -- Erasing one user's rows on request.
 		$moved = $wpdb->query(
-			$wpdb->prepare( "DELETE FROM {$wpdb->prefix}at8_mluc_points_ledger WHERE user_id = %d", $user->ID )
+			$wpdb->prepare( "DELETE FROM {$wpdb->prefix}at8mluc_points_ledger WHERE user_id = %d", $user->ID )
 		);
 
 		// phpcs:ignore WordPress.DB.DirectDatabaseQuery.DirectQuery, WordPress.DB.DirectDatabaseQuery.NoCaching -- Erasing one user's row on request.
 		$wpdb->query(
-			$wpdb->prepare( "DELETE FROM {$wpdb->prefix}at8_mluc_points_account WHERE user_id = %d", $user->ID )
+			$wpdb->prepare( "DELETE FROM {$wpdb->prefix}at8mluc_points_account WHERE user_id = %d", $user->ID )
 		);
 
 		if ( (int) $moved > 0 ) {

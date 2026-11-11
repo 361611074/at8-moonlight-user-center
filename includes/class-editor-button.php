@@ -13,12 +13,12 @@ defined( 'ABSPATH' ) || exit;
 /**
  * Editor button for the hidden-content shortcode.
  */
-class AT8_MLUC_Editor_Button {
+class AT8MLUC_Editor_Button {
 
 	/**
 	 * Retrieve the singleton.
 	 *
-	 * @return AT8_MLUC_Editor_Button
+	 * @return AT8MLUC_Editor_Button
 	 */
 	public static function get_instance() {
 		static $instance = null;
@@ -60,13 +60,13 @@ class AT8_MLUC_Editor_Button {
 	}
 
 	/**
-	 * Inject at8-mluc-tinymce.js as a TinyMCE plugin.
+	 * Inject at8mluc-tinymce.js as a TinyMCE plugin.
 	 *
 	 * @param array $plugins Plugin map.
 	 * @return array
 	 */
 	public function add_tinymce_plugin( $plugins ) {
-		$plugins['at8_mluc_hidecontent'] = AT8_MLUC_PLUGIN_URL . 'assets/js/at8-mluc-tinymce.js?ver=' . AT8_MLUC_VERSION;
+		$plugins['at8mluc_hidecontent'] = AT8MLUC_PLUGIN_URL . 'assets/js/at8mluc-tinymce.js?ver=' . AT8MLUC_VERSION;
 
 		return $plugins;
 	}
@@ -78,7 +78,7 @@ class AT8_MLUC_Editor_Button {
 	 * @return array
 	 */
 	public function register_toolbar_button( $buttons ) {
-		$buttons[] = 'at8_mluc_hidecontent';
+		$buttons[] = 'at8mluc_hidecontent';
 
 		return $buttons;
 	}

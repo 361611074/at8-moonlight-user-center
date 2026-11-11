@@ -13,7 +13,7 @@ if (!defined('ABSPATH')) {
 	exit;
 }
 
-class AT8_MLUC_Elementor
+class AT8MLUC_Elementor
 {
 	private static $instance;
 
@@ -54,8 +54,8 @@ class AT8_MLUC_Elementor
 
 		require_once __DIR__ . '/class-elementor-widgets.php';
 
-		$widgets_manager->register(new AT8_MLUC_Elementor_Login());
-		$widgets_manager->register(new AT8_MLUC_Elementor_Register());
-		$widgets_manager->register(new AT8_MLUC_Elementor_Profile());
+		$widgets_manager->register(new AT8MLUC_Elementor_Login());
+		$widgets_manager->register(new AT8MLUC_Elementor_Register());
+		$widgets_manager->register(new AT8MLUC_Elementor_Profile());
 	}
 }

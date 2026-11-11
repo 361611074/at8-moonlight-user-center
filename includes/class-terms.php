@@ -14,19 +14,19 @@ defined( 'ABSPATH' ) || exit;
 /**
  * Terms checkbox and password meter rendering.
  */
-class AT8_MLUC_Terms {
+class AT8MLUC_Terms {
 
 	/**
 	 * Singleton instance.
 	 *
-	 * @var AT8_MLUC_Terms|null
+	 * @var AT8MLUC_Terms|null
 	 */
 	private static $instance = null;
 
 	/**
 	 * Retrieve the singleton.
 	 *
-	 * @return AT8_MLUC_Terms
+	 * @return AT8MLUC_Terms
 	 */
 	public static function get_instance() {
 		if ( null === self::$instance ) {
@@ -40,8 +40,8 @@ class AT8_MLUC_Terms {
 	 * Register hooks.
 	 */
 	private function __construct() {
-		add_action( 'at8_mluc_register_form_fields', array( $this, 'render_terms' ), 5 );
-		add_action( 'at8_mluc_register_form_fields', array( $this, 'render_strength' ), 20 );
+		add_action( 'at8mluc_register_form_fields', array( $this, 'render_terms' ), 5 );
+		add_action( 'at8mluc_register_form_fields', array( $this, 'render_strength' ), 20 );
 	}
 
 	/**
@@ -55,10 +55,10 @@ class AT8_MLUC_Terms {
 	 */
 	public function render_strength() {
 		?>
-		<div class="at8-mluc-strength" data-at8-mluc-strength="at8-mluc-register-pass"
+		<div class="at8mluc-strength" data-at8mluc-strength="at8mluc-register-pass"
 			data-labels="<?php echo esc_attr( implode( '|', $this->strength_labels() ) ); ?>">
-			<span class="at8-mluc-strength-track" aria-hidden="true"><span class="at8-mluc-strength-fill"></span></span>
-			<span class="at8-mluc-strength-label"></span>
+			<span class="at8mluc-strength-track" aria-hidden="true"><span class="at8mluc-strength-fill"></span></span>
+			<span class="at8mluc-strength-label"></span>
 		</div>
 		<?php
 	}
@@ -84,7 +84,7 @@ class AT8_MLUC_Terms {
 	 * @return bool
 	 */
 	public static function enabled() {
-		return (bool) at8_mluc_get_option( 'terms_enabled', 0 );
+		return (bool) at8mluc_get_option( 'terms_enabled', 0 );
 	}
 
 	/**
@@ -93,7 +93,7 @@ class AT8_MLUC_Terms {
 	 * @return string
 	 */
 	public static function terms_url() {
-		$page_id = (int) at8_mluc_get_option( 'terms_page_id', 0 );
+		$page_id = (int) at8mluc_get_option( 'terms_page_id', 0 );
 
 		return $page_id > 0 ? (string) get_permalink( $page_id ) : '';
 	}
@@ -108,7 +108,7 @@ class AT8_MLUC_Terms {
 			return;
 		}
 
-		$label = (string) at8_mluc_get_option( 'terms_text', '' );
+		$label = (string) at8mluc_get_option( 'terms_text', '' );
 
 		if ( '' === $label ) {
 			$label = __( 'I have read and agree to the terms of service.', 'at8-moonlight-user-center' );
@@ -116,9 +116,9 @@ class AT8_MLUC_Terms {
 
 		$link = self::terms_url();
 		?>
-		<p class="at8-mluc-field at8-mluc-field--tos">
-			<input type="checkbox" id="at8-mluc-register-terms" name="at8_mluc_terms" value="1" required />
-			<label for="at8-mluc-register-terms">
+		<p class="at8mluc-field at8mluc-field--tos">
+			<input type="checkbox" id="at8mluc-register-terms" name="at8mluc_terms" value="1" required />
+			<label for="at8mluc-register-terms">
 				<?php echo esc_html( $label ); ?>
 			<?php if ( '' !== $link ) : ?>
 					<a href="<?php echo esc_url( $link ); ?>" target="_blank" rel="noopener noreferrer">

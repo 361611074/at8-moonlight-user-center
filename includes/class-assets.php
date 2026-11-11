@@ -13,26 +13,26 @@ defined( 'ABSPATH' ) || exit;
 /**
  * Conditional asset registration.
  */
-class AT8_MLUC_Assets {
+class AT8MLUC_Assets {
 
 	/**
 	 * Shortcodes that need front-end assets when they are present.
 	 *
 	 * @var string[]
 	 */
-	const SHORTCODES = array( 'at8_mluc_login', 'at8_mluc_register', 'at8_mluc_lostpassword', 'at8_mluc_account', 'at8_mluc_hide', 'at8_mluc_oauth_buttons' );
+	const SHORTCODES = array( 'at8mluc_login', 'at8mluc_register', 'at8mluc_lostpassword', 'at8mluc_account', 'at8mluc_hide', 'at8mluc_oauth_buttons' );
 
 	/**
 	 * Singleton instance.
 	 *
-	 * @var AT8_MLUC_Assets|null
+	 * @var AT8MLUC_Assets|null
 	 */
 	private static $instance = null;
 
 	/**
 	 * Retrieve the singleton.
 	 *
-	 * @return AT8_MLUC_Assets
+	 * @return AT8MLUC_Assets
 	 */
 	public static function get_instance() {
 		if ( null === self::$instance ) {
@@ -61,34 +61,34 @@ class AT8_MLUC_Assets {
 		}
 
 		wp_enqueue_style(
-			'at8-mluc-frontend',
-			AT8_MLUC_PLUGIN_URL . 'assets/css/at8-mluc.css',
+			'at8mluc-frontend',
+			AT8MLUC_PLUGIN_URL . 'assets/css/at8mluc.css',
 			array( 'dashicons' ),
-			AT8_MLUC_VERSION
+			AT8MLUC_VERSION
 		);
 
-		wp_add_inline_style( 'at8-mluc-frontend', $this->theme_variables() );
+		wp_add_inline_style( 'at8mluc-frontend', $this->theme_variables() );
 
 		wp_enqueue_script(
-			'at8-mluc-frontend',
-			AT8_MLUC_PLUGIN_URL . 'assets/js/at8-mluc.js',
+			'at8mluc-frontend',
+			AT8MLUC_PLUGIN_URL . 'assets/js/at8mluc.js',
 			array(),
-			AT8_MLUC_VERSION,
+			AT8MLUC_VERSION,
 			true
 		);
 
 		wp_localize_script(
-			'at8-mluc-frontend',
-			'at8MlucData',
+			'at8mluc-frontend',
+			'at8mlucData',
 			array(
 				'ajaxUrl' => admin_url( 'admin-ajax.php' ),
 				'nonces'  => array(
-					'login'          => wp_create_nonce( AT8_MLUC_Login::NONCE_ACTION ),
-					'lostPassword'   => wp_create_nonce( AT8_MLUC_Login::LOST_NONCE_ACTION ),
-					'changePassword' => wp_create_nonce( AT8_MLUC_Login::PASSWORD_NONCE_ACTION ),
-					'register'       => wp_create_nonce( AT8_MLUC_Register::NONCE_ACTION ),
-					'profile'        => wp_create_nonce( AT8_MLUC_Profile::NONCE_ACTION ),
-					'avatar'         => wp_create_nonce( AT8_MLUC_Avatar::NONCE_ACTION ),
+					'login'          => wp_create_nonce( AT8MLUC_Login::NONCE_ACTION ),
+					'lostPassword'   => wp_create_nonce( AT8MLUC_Login::LOST_NONCE_ACTION ),
+					'changePassword' => wp_create_nonce( AT8MLUC_Login::PASSWORD_NONCE_ACTION ),
+					'register'       => wp_create_nonce( AT8MLUC_Register::NONCE_ACTION ),
+					'profile'        => wp_create_nonce( AT8MLUC_Profile::NONCE_ACTION ),
+					'avatar'         => wp_create_nonce( AT8MLUC_Avatar::NONCE_ACTION ),
 				),
 				'i18n'    => array(
 					'genericError' => __( 'Something went wrong. Please try again.', 'at8-moonlight-user-center' ),
@@ -119,12 +119,12 @@ class AT8_MLUC_Assets {
 
 		// Inline-only script container (WP 5.7+): the JSON payload travels
 		// through the standard script API instead of a hand-echoed tag.
-		wp_register_script( 'at8-mluc-editor-i18n', '', array(), AT8_MLUC_VERSION, false );
+		wp_register_script( 'at8mluc-editor-i18n', '', array(), AT8MLUC_VERSION, false );
 		wp_add_inline_script(
-			'at8-mluc-editor-i18n',
-			'window.at8_mluc_tinymce_i18n = ' . wp_json_encode( $this->tinymce_payload() ) . ';'
+			'at8mluc-editor-i18n',
+			'window.at8mluc_tinymce_i18n = ' . wp_json_encode( $this->tinymce_payload() ) . ';'
 		);
-		wp_enqueue_script( 'at8-mluc-editor-i18n' );
+		wp_enqueue_script( 'at8mluc-editor-i18n' );
 	}
 
 	/**
@@ -135,7 +135,7 @@ class AT8_MLUC_Assets {
 	private function tinymce_payload() {
 		$types = array();
 
-		if ( class_exists( 'AT8_MLUC_Hidecontent' ) ) {
+		if ( class_exists( 'AT8MLUC_Hidecontent' ) ) {
 			foreach ( array( 'reply', 'logged' ) as $key ) {
 				$types[] = array(
 					'value' => $key,
@@ -162,7 +162,7 @@ class AT8_MLUC_Assets {
 	 * @return string
 	 */
 	private function theme_variables() {
-		$accent = sanitize_hex_color( (string) at8_mluc_get_option( 'accent_color', '' ) );
+		$accent = sanitize_hex_color( (string) at8mluc_get_option( 'accent_color', '' ) );
 
 		if ( ! $accent ) {
 			$accent = '#4f46e5';
@@ -175,14 +175,14 @@ class AT8_MLUC_Assets {
 		 *
 		 * @param string $accent Hex colour.
 		 */
-		$accent = (string) apply_filters( 'at8_mluc_accent_color', $accent );
+		$accent = (string) apply_filters( 'at8mluc_accent_color', $accent );
 		$accent = sanitize_hex_color( $accent ) ?: '#4f46e5';
 
-		$radius = (int) apply_filters( 'at8_mluc_border_radius', 14 );
+		$radius = (int) apply_filters( 'at8mluc_border_radius', 14 );
 		$radius = max( 0, min( 28, $radius ) );
 
 		return sprintf(
-			':root{--at8-mluc-accent:%1$s;--at8-mluc-accent-soft:%2$s;--at8-mluc-radius:%3$dpx;}',
+			':root{--at8mluc-accent:%1$s;--at8mluc-accent-soft:%2$s;--at8mluc-radius:%3$dpx;}',
 			esc_attr( $accent ),
 			esc_attr( self::rgba_from_hex( $accent, 0.1 ) ),
 			$radius
@@ -243,7 +243,7 @@ class AT8_MLUC_Assets {
 			$page_id = get_queried_object_id();
 
 			foreach ( array( 'account_page_id', 'login_page_id', 'register_page_id', 'lostpassword_page_id' ) as $option ) {
-				if ( absint( at8_mluc_get_option( $option, 0 ) ) === (int) $page_id ) {
+				if ( absint( at8mluc_get_option( $option, 0 ) ) === (int) $page_id ) {
 					$needed = true;
 					break;
 				}
@@ -257,6 +257,6 @@ class AT8_MLUC_Assets {
 		 *
 		 * @param bool $needed Whether the plugin renders on this request.
 		 */
-		return (bool) apply_filters( 'at8_mluc_enqueue_assets', $needed );
+		return (bool) apply_filters( 'at8mluc_enqueue_assets', $needed );
 	}
 }

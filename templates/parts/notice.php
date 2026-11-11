@@ -16,20 +16,20 @@
 
 defined( 'ABSPATH' ) || exit;
 
-$at8_mluc_notice = isset( $args['notice'] ) && is_array( $args['notice'] ) ? $args['notice'] : array();
-$at8_mluc_type   = isset( $at8_mluc_notice['type'] ) ? sanitize_html_class( $at8_mluc_notice['type'] ) : 'info';
-$at8_mluc_text   = isset( $at8_mluc_notice['message'] ) ? (string) $at8_mluc_notice['message'] : '';
+$at8mluc_notice = isset( $args['notice'] ) && is_array( $args['notice'] ) ? $args['notice'] : array();
+$at8mluc_type   = isset( $at8mluc_notice['type'] ) ? sanitize_html_class( $at8mluc_notice['type'] ) : 'info';
+$at8mluc_text   = isset( $at8mluc_notice['message'] ) ? (string) $at8mluc_notice['message'] : '';
 
-if ( '' === $at8_mluc_text ) {
+if ( '' === $at8mluc_text ) {
 	return;
 }
 
-if ( ! in_array( $at8_mluc_type, array( 'success', 'error', 'info', 'pending' ), true ) ) {
-	$at8_mluc_type = 'info';
+if ( ! in_array( $at8mluc_type, array( 'success', 'error', 'info', 'pending' ), true ) ) {
+	$at8mluc_type = 'info';
 }
 
-$at8_mluc_role = 'error' === $at8_mluc_type ? 'alert' : 'status';
+$at8mluc_role = 'error' === $at8mluc_type ? 'alert' : 'status';
 ?>
-<p class="at8-mluc-message at8-mluc-message--<?php echo esc_attr( $at8_mluc_type ); ?>" role="<?php echo esc_attr( $at8_mluc_role ); ?>">
-	<?php echo esc_html( $at8_mluc_text ); ?>
+<p class="at8mluc-message at8mluc-message--<?php echo esc_attr( $at8mluc_type ); ?>" role="<?php echo esc_attr( $at8mluc_role ); ?>">
+	<?php echo esc_html( $at8mluc_text ); ?>
 </p>

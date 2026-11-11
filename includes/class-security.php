@@ -15,13 +15,13 @@ defined( 'ABSPATH' ) || exit;
 /**
  * Request hardening helpers.
  */
-class AT8_MLUC_Security {
+class AT8MLUC_Security {
 
 	/**
 	 * Request field carrying the nonce.
 	 *
 	 * The front-end script posts the nonce in this field; the two must stay
-	 * in sync with `assets/js/at8-mluc.js`.
+	 * in sync with `assets/js/at8mluc.js`.
 	 *
 	 * @var string
 	 */
@@ -74,7 +74,7 @@ class AT8_MLUC_Security {
 	 */
 	public static function require_login() {
 		if ( ! is_user_logged_in() || ! current_user_can( 'read' ) ) {
-			at8_mluc_send_json( false, __( 'Please log in first.', 'at8-moonlight-user-center' ) );
+			at8mluc_send_json( false, __( 'Please log in first.', 'at8-moonlight-user-center' ) );
 		}
 	}
 
@@ -86,7 +86,7 @@ class AT8_MLUC_Security {
 	 */
 	public static function require_capability( $capability ) {
 		if ( ! current_user_can( $capability ) ) {
-			at8_mluc_send_json( false, __( 'You are not allowed to perform this action.', 'at8-moonlight-user-center' ) );
+			at8mluc_send_json( false, __( 'You are not allowed to perform this action.', 'at8-moonlight-user-center' ) );
 		}
 	}
 
@@ -131,13 +131,13 @@ class AT8_MLUC_Security {
 		 * @param int    $limit  Maximum requests inside the window.
 		 * @param string $action Action name.
 		 */
-		$limit = (int) apply_filters( 'at8_mluc_rate_limit', $limit, $action );
+		$limit = (int) apply_filters( 'at8mluc_rate_limit', $limit, $action );
 
 		if ( $limit < 1 ) {
 			return true;
 		}
 
-		$key   = 'at8_mluc_rl_' . md5( $action . '|' . self::client_ip() . '|' . strtolower( (string) $extra ) );
+		$key   = 'at8mluc_rl_' . md5( $action . '|' . self::client_ip() . '|' . strtolower( (string) $extra ) );
 		$count = (int) get_transient( $key );
 
 		if ( $count >= $limit ) {
@@ -155,7 +155,7 @@ class AT8_MLUC_Security {
 	 * @return void
 	 */
 	public static function reject_throttled() {
-		at8_mluc_send_json( false, __( 'Too many attempts. Please wait a moment and try again.', 'at8-moonlight-user-center' ) );
+		at8mluc_send_json( false, __( 'Too many attempts. Please wait a moment and try again.', 'at8-moonlight-user-center' ) );
 	}
 
 	/**
@@ -171,6 +171,6 @@ class AT8_MLUC_Security {
 		 *
 		 * @param string $capability Capability name.
 		 */
-		return (string) apply_filters( 'at8_mluc_manage_capability', 'manage_options' );
+		return (string) apply_filters( 'at8mluc_manage_capability', 'manage_options' );
 	}
 }

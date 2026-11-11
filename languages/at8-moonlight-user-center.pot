@@ -296,7 +296,7 @@ msgid "Logged-out visitors only"
 msgstr ""
 
 #: includes/class-menu.php:113
-msgid "Note: hiding a parent item hides its whole submenu. Magic links: #at8-mluc-login / #at8-mluc-register / #at8-mluc-account / #at8-mluc-lostpassword / #at8-mluc-logout — put one of these in the URL of a custom link and the front end replaces it with the real address."
+msgid "Note: hiding a parent item hides its whole submenu. Magic links: #at8mluc-login / #at8mluc-register / #at8mluc-account / #at8mluc-lostpassword / #at8mluc-logout — put one of these in the URL of a custom link and the front end replaces it with the real address."
 msgstr ""
 
 #: includes/class-oauth.php:46

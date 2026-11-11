@@ -5,7 +5,7 @@
  * The free plugin registers two ways to move a member to another level:
  * spending points and buying with the offline gateway. Everything else —
  * card gateways, tier ladders, bulk seats — belongs to the add-on, which
- * registers itself through the `at8_mluc_upgrade_paths` filter without
+ * registers itself through the `at8mluc_upgrade_paths` filter without
  * touching this class.
  *
  * Each path is a self-contained card: a label, whether it is usable for a given
@@ -20,26 +20,26 @@ defined( 'ABSPATH' ) || exit;
 /**
  * Upgrade path registry and the points redemption path.
  */
-class AT8_MLUC_Upgrade_Paths {
+class AT8MLUC_Upgrade_Paths {
 
 	/**
 	 * AJAX action for redeeming a level with points.
 	 *
 	 * @var string
 	 */
-	const REDEEM_ACTION = 'at8_mluc_redeem_level';
+	const REDEEM_ACTION = 'at8mluc_redeem_level';
 
 	/**
 	 * Singleton instance.
 	 *
-	 * @var AT8_MLUC_Upgrade_Paths|null
+	 * @var AT8MLUC_Upgrade_Paths|null
 	 */
 	private static $instance = null;
 
 	/**
 	 * Retrieve the singleton.
 	 *
-	 * @return AT8_MLUC_Upgrade_Paths
+	 * @return AT8MLUC_Upgrade_Paths
 	 */
 	public static function get_instance() {
 		if ( null === self::$instance ) {
@@ -54,7 +54,7 @@ class AT8_MLUC_Upgrade_Paths {
 	 */
 	private function __construct() {
 		add_action( 'wp_ajax_' . self::REDEEM_ACTION, array( $this, 'ajax_redeem' ) );
-		add_action( 'at8_mluc_membership_purchase', array( $this, 'render_paths' ), 20 );
+		add_action( 'at8mluc_membership_purchase', array( $this, 'render_paths' ), 20 );
 	}
 
 	/**
@@ -70,9 +70,9 @@ class AT8_MLUC_Upgrade_Paths {
 				'render' => array( __CLASS__, 'render_points_card' ),
 			),
 			'purchase'  => array(
-				'label'  => at8_mluc_ui_label( 'path_purchase', __( 'Purchase', 'at8-moonlight-user-center' ) ),
-				'usable' => array( 'AT8_MLUC_Payments', 'purchase_usable' ),
-				'render' => array( 'AT8_MLUC_Payments', 'render_purchase_path' ),
+				'label'  => at8mluc_ui_label( 'path_purchase', __( 'Purchase', 'at8-moonlight-user-center' ) ),
+				'usable' => array( 'AT8MLUC_Payments', 'purchase_usable' ),
+				'render' => array( 'AT8MLUC_Payments', 'render_purchase_path' ),
 			),
 		);
 
@@ -87,7 +87,7 @@ class AT8_MLUC_Upgrade_Paths {
 		 *
 		 * @param array $paths Path id => definition.
 		 */
-		return (array) apply_filters( 'at8_mluc_upgrade_paths', $paths );
+		return (array) apply_filters( 'at8mluc_upgrade_paths', $paths );
 	}
 
 	/**
@@ -112,8 +112,8 @@ class AT8_MLUC_Upgrade_Paths {
 
 		$user_id = get_current_user_id();
 		$paths   = self::paths();
-		$current = AT8_MLUC_Membership::get_user_level( $user_id );
-		$levels  = AT8_MLUC_Membership::get_levels();
+		$current = AT8MLUC_Membership::get_user_level( $user_id );
+		$levels  = AT8MLUC_Membership::get_levels();
 		$cards   = array();
 
 		foreach ( $paths as $id => $path ) {
@@ -122,7 +122,7 @@ class AT8_MLUC_Upgrade_Paths {
 					continue;
 				}
 
-				if ( AT8_MLUC_Membership::get_level_sort_order( $key ) <= AT8_MLUC_Membership::get_level_sort_order( $current ) ) {
+				if ( AT8MLUC_Membership::get_level_sort_order( $key ) <= AT8MLUC_Membership::get_level_sort_order( $current ) ) {
 					continue;
 				}
 
@@ -142,13 +142,13 @@ class AT8_MLUC_Upgrade_Paths {
 		 * @param array $cards  Level cards per path.
 		 * @param int   $user_id Current user ID.
 		 */
-		do_action( 'at8_mluc_before_upgrade_paths', $cards, $user_id );
+		do_action( 'at8mluc_before_upgrade_paths', $cards, $user_id );
 
 		if ( empty( $cards ) ) {
 			return;
 		}
 
-		echo '<section class="at8-mluc-card at8-mluc-upgrade-paths">';
+		echo '<section class="at8mluc-card at8mluc-upgrade-paths">';
 
 		foreach ( $paths as $id => $path ) {
 			if ( empty( $cards[ $id ] ) || ! is_callable( $path['render'] ) ) {
@@ -156,7 +156,7 @@ class AT8_MLUC_Upgrade_Paths {
 			}
 
 			printf(
-				'<h3 class="at8-mluc-card-title">%s</h3>',
+				'<h3 class="at8mluc-card-title">%s</h3>',
 				esc_html( isset( $path['label'] ) ? $path['label'] : $id )
 			);
 
@@ -174,15 +174,15 @@ class AT8_MLUC_Upgrade_Paths {
 	 * @return void
 	 */
 	public static function render_points_card( $levels, $user_id ) {
-		$balance = AT8_MLUC_Points::balance( $user_id );
-		$label   = AT8_MLUC_Points::label();
+		$balance = AT8MLUC_Points::balance( $user_id );
+		$label   = AT8MLUC_Points::label();
 
 		// An unreadable balance is shown as such, never as a confident zero.
 		$amount = is_wp_error( $balance )
 			? __( 'temporarily unavailable', 'at8-moonlight-user-center' )
-			: AT8_MLUC_Points::format( $balance );
+			: AT8MLUC_Points::format( $balance );
 		?>
-		<p class="at8-mluc-redeem-balance">
+		<p class="at8mluc-redeem-balance">
 			<?php
 			printf(
 				/* translators: 1: formatted balance, 2: point unit name. */
@@ -192,7 +192,7 @@ class AT8_MLUC_Upgrade_Paths {
 			?>
 		</p>
 
-		<ul class="at8-mluc-redeem-list">
+		<ul class="at8mluc-redeem-list">
 			<?php foreach ( $levels as $key => $level ) : ?>
 				<?php
 				$cost      = (int) $level['points'];
@@ -206,13 +206,13 @@ class AT8_MLUC_Upgrade_Paths {
 					)
 					: __( 'lifetime', 'at8-moonlight-user-center' );
 				?>
-				<li class="at8-mluc-redeem-item">
-					<span class="at8-mluc-redeem-level">
-						<?php echo wp_kses_post( AT8_MLUC_Membership::get_level_badge( $key ) ); ?>
-						<span class="at8-mluc-redeem-note"><?php echo esc_html( $validity_text ); ?></span>
+				<li class="at8mluc-redeem-item">
+					<span class="at8mluc-redeem-level">
+						<?php echo wp_kses_post( AT8MLUC_Membership::get_level_badge( $key ) ); ?>
+						<span class="at8mluc-redeem-note"><?php echo esc_html( $validity_text ); ?></span>
 					</span>
 
-					<span class="at8-mluc-redeem-cost">
+					<span class="at8mluc-redeem-cost">
 						<?php
 						printf(
 							/* translators: 1: cost, 2: point unit name. */
@@ -224,13 +224,13 @@ class AT8_MLUC_Upgrade_Paths {
 					</span>
 
 					<?php if ( $afford ) : ?>
-						<button type="button" class="at8-mluc-button at8-mluc-redeem-button"
-							data-at8-mluc-redeem="<?php echo esc_attr( $key ); ?>"
+						<button type="button" class="at8mluc-button at8mluc-redeem-button"
+							data-at8mluc-redeem="<?php echo esc_attr( $key ); ?>"
 							data-nonce="<?php echo esc_attr( wp_create_nonce( self::REDEEM_ACTION ) ); ?>">
 							<?php esc_html_e( 'Redeem', 'at8-moonlight-user-center' ); ?>
 						</button>
 					<?php else : ?>
-						<span class="at8-mluc-redeem-short">
+						<span class="at8mluc-redeem-short">
 							<?php
 							printf(
 								/* translators: %s: number of points still needed. */
@@ -244,7 +244,7 @@ class AT8_MLUC_Upgrade_Paths {
 			<?php endforeach; ?>
 		</ul>
 
-		<p class="at8-mluc-redeem-notice" role="status" aria-live="polite" hidden></p>
+		<p class="at8mluc-redeem-notice" role="status" aria-live="polite" hidden></p>
 		<?php
 	}
 
@@ -258,15 +258,15 @@ class AT8_MLUC_Upgrade_Paths {
 			wp_send_json_error( array( 'message' => __( 'The link has expired. Please refresh the page.', 'at8-moonlight-user-center' ) ) );
 		}
 
-		AT8_MLUC_Security::require_login();
+		AT8MLUC_Security::require_login();
 
-		if ( ! AT8_MLUC_Security::allow( 'redeem' ) ) {
-			AT8_MLUC_Security::reject_throttled();
+		if ( ! AT8MLUC_Security::allow( 'redeem' ) ) {
+			AT8MLUC_Security::reject_throttled();
 		}
 
 		$user_id = get_current_user_id();
 		$level   = isset( $_POST['level'] ) ? sanitize_key( (string) $_POST['level'] ) : '';
-		$levels  = AT8_MLUC_Membership::get_levels();
+		$levels  = AT8MLUC_Membership::get_levels();
 
 		if ( ! isset( $levels[ $level ] ) ) {
 			wp_send_json_error( array( 'message' => __( 'That level does not exist.', 'at8-moonlight-user-center' ) ) );
@@ -279,23 +279,23 @@ class AT8_MLUC_Upgrade_Paths {
 		}
 
 		// Never let a redemption be a downgrade.
-		$current = AT8_MLUC_Membership::get_user_level( $user_id );
+		$current = AT8MLUC_Membership::get_user_level( $user_id );
 
-		if ( AT8_MLUC_Membership::get_level_sort_order( $level ) <= AT8_MLUC_Membership::get_level_sort_order( $current ) ) {
+		if ( AT8MLUC_Membership::get_level_sort_order( $level ) <= AT8MLUC_Membership::get_level_sort_order( $current ) ) {
 			wp_send_json_error( array( 'message' => __( 'You already hold that level or a higher one.', 'at8-moonlight-user-center' ) ) );
 		}
 
-		if ( ! AT8_MLUC_Points::can_afford( $user_id, $cost ) ) {
+		if ( ! AT8MLUC_Points::can_afford( $user_id, $cost ) ) {
 			wp_send_json_error( array( 'message' => __( 'You do not have enough points for that level.', 'at8-moonlight-user-center' ) ) );
 		}
 
-		$spent = AT8_MLUC_Points::adjust(
+		$spent = AT8MLUC_Points::adjust(
 			$user_id,
 			-$cost,
 			sprintf(
 				/* translators: %s: level name. */
 				__( 'Redeemed the %s level', 'at8-moonlight-user-center' ),
-				AT8_MLUC_Membership::get_level_label( $level )
+				AT8MLUC_Membership::get_level_label( $level )
 			),
 			'redeem'
 		);
@@ -307,7 +307,7 @@ class AT8_MLUC_Upgrade_Paths {
 		$validity = isset( $levels[ $level ]['validity'] ) ? (int) $levels[ $level ]['validity'] : 0;
 		$expires  = $validity > 0 ? time() + ( $validity * DAY_IN_SECONDS ) : 0;
 
-		AT8_MLUC_Membership::set_user_level( $user_id, $level, $expires );
+		AT8MLUC_Membership::set_user_level( $user_id, $level, $expires );
 
 		/**
 		 * Fires after a level was redeemed with points.
@@ -318,13 +318,13 @@ class AT8_MLUC_Upgrade_Paths {
 		 * @param string $level   Level key.
 		 * @param int    $cost    Points spent.
 		 */
-		do_action( 'at8_mluc_level_redeemed', $user_id, $level, $cost );
+		do_action( 'at8mluc_level_redeemed', $user_id, $level, $cost );
 
 		wp_send_json_success(
 			array(
 				'message'  => __( 'Your membership has been upgraded.', 'at8-moonlight-user-center' ),
-				'balance'  => AT8_MLUC_Points::format( $spent ),
-				'redirect' => at8_mluc_get_account_url(),
+				'balance'  => AT8MLUC_Points::format( $spent ),
+				'redirect' => at8mluc_get_account_url(),
 			)
 		);
 	}

@@ -29,24 +29,24 @@
 
 | Hook | 定义文件 | Pro 用途 | 审计结论 |
 |---|---|---|---|
-| `at8_mluc_account_tabs` | class-account.php | 挂购买记录 tab | 保留 |
-| `at8_mluc_is_pro` | functions.php | 翻转布尔桥 | 保留（仅 UI/文案，不锁功能） |
-| `at8_mluc_admin_menu` | 主文件 | 子菜单挂载 | 保留 |
-| `at8_mluc_register_settings` / `at8_mluc_settings_extra_fields` | class-settings.php | Online Payment/Orders/Hidden Content 分区 | 保留 |
-| `at8_mluc_payment_gateways` | class-payments.php | 注册 paypal/stripe | 保留 |
-| `at8_mluc_payment_order_response` | class-payments.php | 替换 manual 响应 | 保留 |
-| `at8_mluc_complete_paywall_order` | class-payments.php | 1.5.0 起 Pro 已不使用（核心自claim） | 保留（公共交货点） |
-| `at8_mluc_upgrade_paths` | class-upgrade-paths.php | 注册 tiered | 保留 |
-| `at8_mluc_paywall_*`（10 个） | class-paywall.php | 字段映射/卡片/资源 | 保留 |
-| `at8_mluc_order_price` | class-payments.php | 差价订单 | 保留 |
-| `at8_mluc_template_args` / `at8_mluc_ui_label` | functions.php | 模板参数/文案覆盖 | 保留 |
-| **`at8_mluc_membership_level_limit`** | class-membership.php | 抬 3→8 | **删除（配额移除）** |
-| **`at8_mluc_limit_avatar_count`** | class-upgrade.php | 抬 12→0 | **删除（配额移除）** |
-| **`at8_mluc_limit_gateway_count`** | class-upgrade.php | 抬 1→3 | **删除（配额移除）** |
-| **`at8_mluc_paywall_level_limit`** | class-paywall.php | 无人使用（死代码） | **删除** |
-| `at8_mluc_upgrade_features` | class-upgrade.php | 校正对比表 | 保留（内容重写） |
-| `at8_mluc_shortcode_reference` | class-settings.php | Pro 短码速查 | 保留 |
-| `at8_mluc_membership_levels` | class-membership.php | 未使用 | 保留 |
+| `at8mluc_account_tabs` | class-account.php | 挂购买记录 tab | 保留 |
+| `at8mluc_is_pro` | functions.php | 翻转布尔桥 | 保留（仅 UI/文案，不锁功能） |
+| `at8mluc_admin_menu` | 主文件 | 子菜单挂载 | 保留 |
+| `at8mluc_register_settings` / `at8mluc_settings_extra_fields` | class-settings.php | Online Payment/Orders/Hidden Content 分区 | 保留 |
+| `at8mluc_payment_gateways` | class-payments.php | 注册 paypal/stripe | 保留 |
+| `at8mluc_payment_order_response` | class-payments.php | 替换 manual 响应 | 保留 |
+| `at8mluc_complete_paywall_order` | class-payments.php | 1.5.0 起 Pro 已不使用（核心自claim） | 保留（公共交货点） |
+| `at8mluc_upgrade_paths` | class-upgrade-paths.php | 注册 tiered | 保留 |
+| `at8mluc_paywall_*`（10 个） | class-paywall.php | 字段映射/卡片/资源 | 保留 |
+| `at8mluc_order_price` | class-payments.php | 差价订单 | 保留 |
+| `at8mluc_template_args` / `at8mluc_ui_label` | functions.php | 模板参数/文案覆盖 | 保留 |
+| **`at8mluc_membership_level_limit`** | class-membership.php | 抬 3→8 | **删除（配额移除）** |
+| **`at8mluc_limit_avatar_count`** | class-upgrade.php | 抬 12→0 | **删除（配额移除）** |
+| **`at8mluc_limit_gateway_count`** | class-upgrade.php | 抬 1→3 | **删除（配额移除）** |
+| **`at8mluc_paywall_level_limit`** | class-paywall.php | 无人使用（死代码） | **删除** |
+| `at8mluc_upgrade_features` | class-upgrade.php | 校正对比表 | 保留（内容重写） |
+| `at8mluc_shortcode_reference` | class-settings.php | Pro 短码速查 | 保留 |
+| `at8mluc_membership_levels` | class-membership.php | 未使用 | 保留 |
 
 ## 3. 远程通信清单
 
@@ -76,17 +76,17 @@
 | P0-2 | Free 头像人为上限 12，超出强制转 draft | class-avatar.php:150,174-200；class-upgrade.php:105 |
 | P0-3 | Free 网关货架被人为裁到 1 | class-payments.php:132-150；class-upgrade.php:114 |
 | P0-4 | Pro 以"解除 Free 配额"为核心卖点（违反 guideline 6/8） | Pro at8-moonlight-user-center-pro.php:178-206；readme.txt:11,19,64,75 |
-| P0-5 | `at8_mluc_paywall_level_limit` 死过滤器（无人执行/无人使用） | class-paywall.php:111-113 |
+| P0-5 | `at8mluc_paywall_level_limit` 死过滤器（无人执行/无人使用） | class-paywall.php:111-113 |
 | P1-1 | Free readme 功能清单陈旧（缺 paywall/points/fields/TOS） | readme.txt:20-33 |
 | P1-2 | Free readme 未披露 OAuth 外部请求 | readme.txt "How it handles your data" |
 | P1-3 | Pro 对比表以配额差异为主卖点 | class-upgrade.php:120-205 features() |
 | P1-4 | Free 设置屏"最多 N 个等级"提示依赖配额 | class-settings.php:385-395,574 |
 | P2-1 | Pro 繁体字符串混杂 | class-stripe.php:244,252 等 |
-| P2-2 | `at8_mluc_upgrade_features` 过滤器随配额移除失去原语义 | class-upgrade.php:204 |
+| P2-2 | `at8mluc_upgrade_features` 过滤器随配额移除失去原语义 | class-upgrade.php:204 |
 
 ## 6. 通过项（无需整改）
 
-- Free 无许可证逻辑、无远程可执行代码下载；`at8_mluc_is_pro` 仅影响 UI 与文案，不锁 Free 功能（付费墙 is_pro 早退已在 2.4.1 移除）。
+- Free 无许可证逻辑、无远程可执行代码下载；`at8mluc_is_pro` 仅影响 UI 与文案，不锁 Free 功能（付费墙 is_pro 早退已在 2.4.1 移除）。
 - Pro 授权失效仅停 Pro 自身模块（class-gateways.php:71,96,184），Free 核心完整可用；Pro 停用不删 Free 数据。
 - Stripe webhook：HMAC-SHA256 验签 + 5 分钟时间容差 + livemode 一致性 + 服务端回查会话；PayPal capture：custom_id/金额/归属校验；均不信任前端成功回跳。
 - 订单发放原子化（claim_order 单条 UPDATE），重复 webhook/回调不会双重发放。
@@ -100,5 +100,5 @@
 
 - Free 2.5.0（commit `c9ac41a`）：三处人工配额（等级 3 / 头像 12 / 网关 1）与死过滤器全部移除；付费墙盒支持多选免费阅读等级；对比表只描述 Pro 新增能力；readme 补齐真实功能与隐私披露。
 - Pro 1.6.0（commit `eef731a`）：删除三个抬升过滤器与全部"解除上限"营销话术；依赖 Free 2.5.0；修复多选 meta 映射与繁简统一。
-- 验收：功能矩阵中**不存在**"Free 本地具备功能但需 Pro 许可证/购买后才可使用"的条目；`at8_mluc_is_pro` 仅影响 UI/文案。
+- 验收：功能矩阵中**不存在**"Free 本地具备功能但需 Pro 许可证/购买后才可使用"的条目；`at8mluc_is_pro` 仅影响 UI/文案。
 - 回归：Free 76/0（Pro 停用）、Pro 61/0（Pro 激活+授权）、Plugin Check 对最终 ZIP **0 ERROR**。

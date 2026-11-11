@@ -14,21 +14,21 @@ defined( 'ABSPATH' ) || exit;
 /**
  * Configurable user fields.
  */
-class AT8_MLUC_Fields {
+class AT8MLUC_Fields {
 
 	/**
 	 * Option key holding the field definitions.
 	 *
 	 * @var string
 	 */
-	const OPTION = 'at8_mluc_custom_fields';
+	const OPTION = 'at8mluc_custom_fields';
 
 	/**
 	 * User meta prefix.
 	 *
 	 * @var string
 	 */
-	const META_PREFIX = 'at8_mluc_field_';
+	const META_PREFIX = 'at8mluc_field_';
 
 	/**
 	 * Supported control types.
@@ -50,14 +50,14 @@ class AT8_MLUC_Fields {
 	/**
 	 * Singleton instance.
 	 *
-	 * @var AT8_MLUC_Fields|null
+	 * @var AT8MLUC_Fields|null
 	 */
 	private static $instance = null;
 
 	/**
 	 * Retrieve the singleton.
 	 *
-	 * @return AT8_MLUC_Fields
+	 * @return AT8MLUC_Fields
 	 */
 	public static function get_instance() {
 		if ( null === self::$instance ) {
@@ -71,11 +71,11 @@ class AT8_MLUC_Fields {
 	 * Register hooks.
 	 */
 	private function __construct() {
-		add_action( 'at8_mluc_after_register', array( $this, 'save_after_register' ), 10, 1 );
-		add_action( 'at8_mluc_after_profile_update', array( $this, 'save_after_profile' ), 10, 2 );
-		add_action( 'at8_mluc_account_profile_fields', array( $this, 'render_profile_fields' ), 10, 1 );
-		add_action( 'at8_mluc_register_form_fields', array( $this, 'render_register_fields' ), 10, 0 );
-		add_action( 'wp_ajax_at8_mluc_save_fields', array( $this, 'ajax_save' ) );
+		add_action( 'at8mluc_after_register', array( $this, 'save_after_register' ), 10, 1 );
+		add_action( 'at8mluc_after_profile_update', array( $this, 'save_after_profile' ), 10, 2 );
+		add_action( 'at8mluc_account_profile_fields', array( $this, 'render_profile_fields' ), 10, 1 );
+		add_action( 'at8mluc_register_form_fields', array( $this, 'render_register_fields' ), 10, 0 );
+		add_action( 'wp_ajax_at8mluc_save_fields', array( $this, 'ajax_save' ) );
 		add_action( 'show_user_profile', array( $this, 'render_admin_fields' ) );
 		add_action( 'edit_user_profile', array( $this, 'render_admin_fields' ) );
 		add_action( 'personal_options_update', array( $this, 'save_admin_fields' ) );
@@ -236,15 +236,15 @@ class AT8_MLUC_Fields {
 				return true;
 			}
 
-			return new WP_Error( 'at8_mluc_field_required', $field['label'] );
+			return new WP_Error( 'at8mluc_field_required', $field['label'] );
 		}
 
 		if ( ! empty( $field['required'] ) && '' === trim( (string) $value ) ) {
-			return new WP_Error( 'at8_mluc_field_required', $field['label'] );
+			return new WP_Error( 'at8mluc_field_required', $field['label'] );
 		}
 
 		if ( 'email' === $field['type'] && '' !== trim( (string) $value ) && ! is_email( (string) $value ) ) {
-			return new WP_Error( 'at8_mluc_field_invalid', $field['label'] );
+			return new WP_Error( 'at8mluc_field_invalid', $field['label'] );
 		}
 
 		return true;
@@ -305,7 +305,7 @@ class AT8_MLUC_Fields {
 			$check = self::validate( $field, $raw );
 
 			if ( is_wp_error( $check ) ) {
-				if ( 'at8_mluc_field_required' === $check->get_error_code() ) {
+				if ( 'at8mluc_field_required' === $check->get_error_code() ) {
 					return sprintf(
 						/* translators: %s: field label. */
 						__( 'The field "%s" is required.', 'at8-moonlight-user-center' ),
@@ -363,16 +363,16 @@ class AT8_MLUC_Fields {
 	 */
 	public static function render_control( $field, $value, $name_attr ) {
 		$name  = self::META_PREFIX . $field['id'];
-		$id    = 'at8-mluc-field-' . $field['id'] . '-' . $name_attr;
+		$id    = 'at8mluc-field-' . $field['id'] . '-' . $name_attr;
 		$req   = ! empty( $field['required'] ) ? ' required' : '';
 		$ph    = '' !== $field['placeholder'] ? ' placeholder="' . esc_attr( $field['placeholder'] ) . '"' : '';
-		$descr = '' !== $field['description'] ? '<span class="at8-mluc-field-hint">' . esc_html( $field['description'] ) . '</span>' : '';
+		$descr = '' !== $field['description'] ? '<span class="at8mluc-field-hint">' . esc_html( $field['description'] ) . '</span>' : '';
 		?>
-		<p class="at8-mluc-field">
+		<p class="at8mluc-field">
 			<label for="<?php echo esc_attr( $id ); ?>">
 				<?php echo esc_html( $field['label'] ); ?>
 				<?php if ( ! empty( $field['required'] ) ) : ?>
-					<span class="at8-mluc-req" aria-hidden="true">*</span>
+					<span class="at8mluc-req" aria-hidden="true">*</span>
 				<?php endif; ?>
 			</label>
 			<?php
@@ -397,7 +397,7 @@ class AT8_MLUC_Fields {
 				case 'radio':
 					foreach ( $field['options'] as $index => $option ) :
 						?>
-						<span class="at8-mluc-choice">
+						<span class="at8mluc-choice">
 							<input type="radio" id="<?php echo esc_attr( $id . '-' . $index ); ?>"
 								name="<?php echo esc_attr( $name ); ?>" value="<?php echo esc_attr( $option ); ?>"
 								<?php checked( $value, $option ); ?> />
@@ -408,7 +408,7 @@ class AT8_MLUC_Fields {
 					break;
 				case 'checkbox':
 					?>
-					<span class="at8-mluc-choice">
+					<span class="at8mluc-choice">
 						<input type="checkbox" id="<?php echo esc_attr( $id ); ?>" name="<?php echo esc_attr( $name ); ?>"
 							value="1" <?php checked( '1', $value ); ?><?php echo esc_attr( $req ); ?> />
 						<label for="<?php echo esc_attr( $id ); ?>"><?php echo esc_html( '' !== $field['description'] ? $field['description'] : $field['label'] ); ?></label>
@@ -441,7 +441,7 @@ class AT8_MLUC_Fields {
 			return;
 		}
 
-		echo '<fieldset class="at8-mluc-fields">';
+		echo '<fieldset class="at8mluc-fields">';
 
 		foreach ( $fields as $field ) {
 			self::render_control( $field, '', 'reg' );
@@ -463,7 +463,7 @@ class AT8_MLUC_Fields {
 			return;
 		}
 
-		echo '<fieldset class="at8-mluc-fields">';
+		echo '<fieldset class="at8mluc-fields">';
 
 		foreach ( $fields as $field ) {
 			self::render_control( $field, self::get_value( $user->ID, $field['id'] ), 'profile' );
@@ -478,11 +478,11 @@ class AT8_MLUC_Fields {
 	 * @return void
 	 */
 	public function ajax_save() {
-		if ( ! check_ajax_referer( 'at8_mluc_nonce', 'nonce', false ) ) {
+		if ( ! check_ajax_referer( 'at8mluc_nonce', 'nonce', false ) ) {
 			wp_send_json_error( array( 'message' => __( 'The link has expired. Please refresh the page.', 'at8-moonlight-user-center' ) ) );
 		}
 
-		if ( ! current_user_can( AT8_MLUC_Security::manage_capability() ) ) {
+		if ( ! current_user_can( AT8MLUC_Security::manage_capability() ) ) {
 			wp_send_json_error( array( 'message' => __( 'You are not allowed to do this.', 'at8-moonlight-user-center' ) ) );
 		}
 
@@ -539,7 +539,7 @@ class AT8_MLUC_Fields {
 	 * @return void
 	 */
 	public static function render_editor() {
-		if ( ! current_user_can( AT8_MLUC_Security::manage_capability() ) ) {
+		if ( ! current_user_can( AT8MLUC_Security::manage_capability() ) ) {
 			return;
 		}
 
@@ -556,9 +556,9 @@ class AT8_MLUC_Fields {
 			'checkbox' => __( 'Single checkbox', 'at8-moonlight-user-center' ),
 		);
 		?>
-		<div class="at8-mluc-fields-editor" id="at8-mluc-fields-editor"
-			data-at8-mluc-fields-editor="1"
-			data-nonce="<?php echo esc_attr( wp_create_nonce( 'at8_mluc_nonce' ) ); ?>">
+		<div class="at8mluc-fields-editor" id="at8mluc-fields-editor"
+			data-at8mluc-fields-editor="1"
+			data-nonce="<?php echo esc_attr( wp_create_nonce( 'at8mluc_nonce' ) ); ?>">
 
 			<h3>
 				<span class="dashicons dashicons-feedback" aria-hidden="true"></span>
@@ -568,23 +568,23 @@ class AT8_MLUC_Fields {
 				<?php esc_html_e( 'Extra fields you add here appear on the front-end registration and profile forms, and are editable by administrators on the user profile screen.', 'at8-moonlight-user-center' ); ?>
 			</p>
 
-			<div class="at8-mluc-fields-rows">
+			<div class="at8mluc-fields-rows">
 				<?php foreach ( $fields as $index => $field ) : ?>
 					<?php self::render_editor_row( $field, $index, $types ); ?>
 				<?php endforeach; ?>
 			</div>
 
-			<p class="at8-mluc-fields-actions">
-				<button type="button" class="button" data-at8-mluc-fields-add="1">
+			<p class="at8mluc-fields-actions">
+				<button type="button" class="button" data-at8mluc-fields-add="1">
 					<?php esc_html_e( 'Add field', 'at8-moonlight-user-center' ); ?>
 				</button>
-				<button type="button" class="button button-primary" data-at8-mluc-fields-save="1">
+				<button type="button" class="button button-primary" data-at8mluc-fields-save="1">
 					<?php esc_html_e( 'Save fields', 'at8-moonlight-user-center' ); ?>
 				</button>
-				<span class="at8-mluc-fields-status" role="status" aria-live="polite"></span>
+				<span class="at8mluc-fields-status" role="status" aria-live="polite"></span>
 			</p>
 
-			<template data-at8-mluc-fields-template="1">
+			<template data-at8mluc-fields-template="1">
 				<?php
 				self::render_editor_row(
 					array(
@@ -617,20 +617,20 @@ class AT8_MLUC_Fields {
 	 */
 	private static function render_editor_row( $field, $index, $types ) {
 		?>
-		<div class="at8-mluc-field-row" data-at8-mluc-field-row="<?php echo esc_attr( (string) $index ); ?>">
-			<span class="at8-mluc-field-row-handle dashicons dashicons-menu" aria-hidden="true"></span>
+		<div class="at8mluc-field-row" data-at8mluc-field-row="<?php echo esc_attr( (string) $index ); ?>">
+			<span class="at8mluc-field-row-handle dashicons dashicons-menu" aria-hidden="true"></span>
 
-			<label class="at8-mluc-field-row-cell at8-mluc-field-row-cell--label">
+			<label class="at8mluc-field-row-cell at8mluc-field-row-cell--label">
 				<span><?php esc_html_e( 'Label', 'at8-moonlight-user-center' ); ?></span>
 				<input type="text" data-field="label" value="<?php echo esc_attr( $field['label'] ); ?>" />
 			</label>
 
-			<label class="at8-mluc-field-row-cell at8-mluc-field-row-cell--id">
+			<label class="at8mluc-field-row-cell at8mluc-field-row-cell--id">
 				<span><?php esc_html_e( 'Key', 'at8-moonlight-user-center' ); ?></span>
 				<input type="text" data-field="id" value="<?php echo esc_attr( $field['id'] ); ?>" placeholder="company" />
 			</label>
 
-			<label class="at8-mluc-field-row-cell at8-mluc-field-row-cell--type">
+			<label class="at8mluc-field-row-cell at8mluc-field-row-cell--type">
 				<span><?php esc_html_e( 'Type', 'at8-moonlight-user-center' ); ?></span>
 				<select data-field="type">
 					<?php foreach ( $types as $key => $label ) : ?>
@@ -641,18 +641,18 @@ class AT8_MLUC_Fields {
 				</select>
 			</label>
 
-			<label class="at8-mluc-field-row-cell at8-mluc-field-row-cell--options">
+			<label class="at8mluc-field-row-cell at8mluc-field-row-cell--options">
 				<span><?php esc_html_e( 'Choices (one per line)', 'at8-moonlight-user-center' ); ?></span>
 				<textarea data-field="options" rows="2"><?php echo esc_textarea( implode( "\n", $field['options'] ) ); ?></textarea>
 			</label>
 
-			<span class="at8-mluc-field-row-flags">
+			<span class="at8mluc-field-row-flags">
 				<label><input type="checkbox" data-field="required" value="1" <?php checked( ! empty( $field['required'] ) ); ?> /> <?php esc_html_e( 'Required', 'at8-moonlight-user-center' ); ?></label>
 				<label><input type="checkbox" data-field="on_register" value="1" <?php checked( ! empty( $field['on_register'] ) ); ?> /> <?php esc_html_e( 'Registration', 'at8-moonlight-user-center' ); ?></label>
 				<label><input type="checkbox" data-field="on_profile" value="1" <?php checked( ! empty( $field['on_profile'] ) ); ?> /> <?php esc_html_e( 'Profile', 'at8-moonlight-user-center' ); ?></label>
 			</span>
 
-			<button type="button" class="button-link at8-mluc-field-row-remove" data-at8-mluc-fields-remove="1">
+			<button type="button" class="button-link at8mluc-field-row-remove" data-at8mluc-fields-remove="1">
 				<span class="dashicons dashicons-trash" aria-hidden="true"></span>
 				<span class="screen-reader-text"><?php esc_html_e( 'Remove this field', 'at8-moonlight-user-center' ); ?></span>
 			</button>
@@ -703,7 +703,7 @@ class AT8_MLUC_Fields {
 		<table class="form-table" role="presentation">
 			<?php foreach ( $fields as $field ) : ?>
 				<tr>
-					<th><label for="<?php echo esc_attr( 'at8-mluc-admin-field-' . $field['id'] ); ?>"><?php echo esc_html( $field['label'] ); ?></label></th>
+					<th><label for="<?php echo esc_attr( 'at8mluc-admin-field-' . $field['id'] ); ?>"><?php echo esc_html( $field['label'] ); ?></label></th>
 					<td>
 						<?php
 						$name = self::META_PREFIX . $field['id'];
@@ -711,12 +711,12 @@ class AT8_MLUC_Fields {
 						if ( 'textarea' === $field['type'] ) {
 							printf(
 								'<textarea id="%1$s" name="%2$s" rows="3" class="regular-text">%3$s</textarea>',
-								esc_attr( 'at8-mluc-admin-field-' . $field['id'] ),
+								esc_attr( 'at8mluc-admin-field-' . $field['id'] ),
 								esc_attr( $name ),
 								esc_textarea( self::get_value( $user->ID, $field['id'] ) )
 							);
 						} elseif ( 'select' === $field['type'] || 'radio' === $field['type'] ) {
-							printf( '<select id="%1$s" name="%2$s">', esc_attr( 'at8-mluc-admin-field-' . $field['id'] ), esc_attr( $name ) );
+							printf( '<select id="%1$s" name="%2$s">', esc_attr( 'at8mluc-admin-field-' . $field['id'] ), esc_attr( $name ) );
 							echo '<option value="">' . esc_html__( '— None —', 'at8-moonlight-user-center' ) . '</option>';
 							foreach ( $field['options'] as $option ) {
 								printf(
@@ -730,7 +730,7 @@ class AT8_MLUC_Fields {
 						} elseif ( 'checkbox' === $field['type'] ) {
 							printf(
 								'<label><input type="checkbox" id="%1$s" name="%2$s" value="1"%3$s /> %4$s</label>',
-								esc_attr( 'at8-mluc-admin-field-' . $field['id'] ),
+								esc_attr( 'at8mluc-admin-field-' . $field['id'] ),
 								esc_attr( $name ),
 								checked( '1', self::get_value( $user->ID, $field['id'] ), false ),
 								esc_html( __( 'Yes', 'at8-moonlight-user-center' ) )
@@ -738,7 +738,7 @@ class AT8_MLUC_Fields {
 						} else {
 							printf(
 								'<input type="text" id="%1$s" name="%2$s" value="%3$s" class="regular-text" />',
-								esc_attr( 'at8-mluc-admin-field-' . $field['id'] ),
+								esc_attr( 'at8mluc-admin-field-' . $field['id'] ),
 								esc_attr( $name ),
 								esc_attr( self::get_value( $user->ID, $field['id'] ) )
 							);

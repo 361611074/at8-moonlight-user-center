@@ -9,11 +9,11 @@
  *    disappear for members and "Account / Log out" links appear.
  * 2. Magic links: add a custom link whose URL is one of the placeholders below
  *    and the front end swaps in the real address:
- *    - #at8-mluc-login         login screen (returns to the current page)
- *    - #at8-mluc-register      registration screen
- *    - #at8-mluc-account       account dashboard
- *    - #at8-mluc-lostpassword  password recovery screen
- *    - #at8-mluc-logout        log out (returns to the current page)
+ *    - #at8mluc-login         login screen (returns to the current page)
+ *    - #at8mluc-register      registration screen
+ *    - #at8mluc-account       account dashboard
+ *    - #at8mluc-lostpassword  password recovery screen
+ *    - #at8mluc-logout        log out (returns to the current page)
  *
  * Works with every menu rendered through `wp_nav_menu_objects` (theme menus,
  * header builders, page-builder nav widgets, …).
@@ -26,40 +26,40 @@ defined( 'ABSPATH' ) || exit;
 /**
  * Menu item visibility and magic link replacement.
  */
-class AT8_MLUC_Menu {
+class AT8MLUC_Menu {
 
 	/**
 	 * Post meta key storing a menu item's visibility rule.
 	 *
 	 * @var string
 	 */
-	const META_KEY = '_at8_mluc_visibility';
+	const META_KEY = '_at8mluc_visibility';
 
 	/**
 	 * Nonce action protecting the visibility field on the menu editor screen.
 	 *
 	 * @var string
 	 */
-	const NONCE_ACTION = 'at8_mluc_menu_meta_save';
+	const NONCE_ACTION = 'at8mluc_menu_meta_save';
 
 	/**
 	 * Nonce field name used on the menu editor screen.
 	 *
 	 * @var string
 	 */
-	const NONCE_NAME = 'at8_mluc_menu_meta_nonce';
+	const NONCE_NAME = 'at8mluc_menu_meta_nonce';
 
 	/**
 	 * Singleton instance.
 	 *
-	 * @var AT8_MLUC_Menu|null
+	 * @var AT8MLUC_Menu|null
 	 */
 	private static $instance = null;
 
 	/**
 	 * Retrieve the singleton.
 	 *
-	 * @return AT8_MLUC_Menu
+	 * @return AT8MLUC_Menu
 	 */
 	public static function get_instance() {
 		if ( null === self::$instance ) {
@@ -94,23 +94,23 @@ class AT8_MLUC_Menu {
 
 		wp_nonce_field( self::NONCE_ACTION, self::NONCE_NAME, false );
 		?>
-		<p class="field-at8-mluc-visibility description description-wide">
+		<p class="field-at8mluc-visibility description description-wide">
 			<strong><?php esc_html_e( 'User Center · Visibility', 'at8-moonlight-user-center' ); ?></strong><br>
 			<label style="margin-right:12px;">
-				<input type="radio" name="at8-mluc-menu-visibility[<?php echo (int) $item_id; ?>]" value="" <?php checked( '', $visibility ); ?>>
+				<input type="radio" name="at8mluc-menu-visibility[<?php echo (int) $item_id; ?>]" value="" <?php checked( '', $visibility ); ?>>
 				<?php esc_html_e( 'Always show', 'at8-moonlight-user-center' ); ?>
 			</label>
 			<label style="margin-right:12px;">
-				<input type="radio" name="at8-mluc-menu-visibility[<?php echo (int) $item_id; ?>]" value="logged_in" <?php checked( 'logged_in', $visibility ); ?>>
+				<input type="radio" name="at8mluc-menu-visibility[<?php echo (int) $item_id; ?>]" value="logged_in" <?php checked( 'logged_in', $visibility ); ?>>
 				<?php esc_html_e( 'Logged-in users only', 'at8-moonlight-user-center' ); ?>
 			</label>
 			<label>
-				<input type="radio" name="at8-mluc-menu-visibility[<?php echo (int) $item_id; ?>]" value="logged_out" <?php checked( 'logged_out', $visibility ); ?>>
+				<input type="radio" name="at8mluc-menu-visibility[<?php echo (int) $item_id; ?>]" value="logged_out" <?php checked( 'logged_out', $visibility ); ?>>
 				<?php esc_html_e( 'Logged-out visitors only', 'at8-moonlight-user-center' ); ?>
 			</label>
 			<br>
 			<span class="description">
-				<?php esc_html_e( 'Note: hiding a parent item hides its whole submenu. Magic links: #at8-mluc-login / #at8-mluc-register / #at8-mluc-account / #at8-mluc-lostpassword / #at8-mluc-logout — put one of these in the URL of a custom link and the front end replaces it with the real address.', 'at8-moonlight-user-center' ); ?>
+				<?php esc_html_e( 'Note: hiding a parent item hides its whole submenu. Magic links: #at8mluc-login / #at8mluc-register / #at8mluc-account / #at8mluc-lostpassword / #at8mluc-logout — put one of these in the URL of a custom link and the front end replaces it with the real address.', 'at8-moonlight-user-center' ); ?>
 			</span>
 		</p>
 		<?php
@@ -133,7 +133,7 @@ class AT8_MLUC_Menu {
 		}
 
 		// phpcs:ignore WordPress.Security.NonceVerification.Recommended -- Nonce verified above.
-		$map = isset( $_POST['at8-mluc-menu-visibility'] ) && is_array( $_POST['at8-mluc-menu-visibility'] ) ? array_map( 'sanitize_key', wp_unslash( $_POST['at8-mluc-menu-visibility'] ) ) : array();
+		$map = isset( $_POST['at8mluc-menu-visibility'] ) && is_array( $_POST['at8mluc-menu-visibility'] ) ? array_map( 'sanitize_key', wp_unslash( $_POST['at8mluc-menu-visibility'] ) ) : array();
 		$val = isset( $map[ $menu_item_db_id ] ) ? (string) $map[ $menu_item_db_id ] : '';
 
 		if ( in_array( $val, array( 'logged_in', 'logged_out' ), true ) ) {
@@ -210,7 +210,7 @@ class AT8_MLUC_Menu {
 	}
 
 	/**
-	 * Replace a `#at8-mluc-*` placeholder with the real URL.
+	 * Replace a `#at8mluc-*` placeholder with the real URL.
 	 *
 	 * @param string $url Menu item URL.
 	 * @return string
@@ -221,15 +221,15 @@ class AT8_MLUC_Menu {
 		}
 
 		switch ( strtolower( trim( $url ) ) ) {
-			case '#at8-mluc-login':
-				return at8_mluc_get_login_url( $this->current_url() );
-			case '#at8-mluc-register':
-				return at8_mluc_get_register_url();
-			case '#at8-mluc-account':
-				return at8_mluc_get_account_url();
-			case '#at8-mluc-lostpassword':
-				return at8_mluc_get_lostpassword_url();
-			case '#at8-mluc-logout':
+			case '#at8mluc-login':
+				return at8mluc_get_login_url( $this->current_url() );
+			case '#at8mluc-register':
+				return at8mluc_get_register_url();
+			case '#at8mluc-account':
+				return at8mluc_get_account_url();
+			case '#at8mluc-lostpassword':
+				return at8mluc_get_lostpassword_url();
+			case '#at8mluc-logout':
 				return wp_logout_url( $this->current_url() );
 			default:
 				return $url;

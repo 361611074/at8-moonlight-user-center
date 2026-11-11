@@ -22,7 +22,7 @@ defined( 'ABSPATH' ) || exit;
  *
  * @return bool True when a licensed Pro add-on is active.
  */
-function at8_mluc_is_pro() {
+function at8mluc_is_pro() {
 	/**
 	 * Filters whether the Pro add-on is active.
 	 *
@@ -30,7 +30,7 @@ function at8_mluc_is_pro() {
 	 *
 	 * @param bool $is_pro Whether Pro is active. Default false.
 	 */
-	return (bool) apply_filters( 'at8_mluc_is_pro', false );
+	return (bool) apply_filters( 'at8mluc_is_pro', false );
 }
 
 /**
@@ -40,8 +40,8 @@ function at8_mluc_is_pro() {
  * @param mixed  $default Value returned when the key is absent.
  * @return mixed Setting value or the supplied default.
  */
-function at8_mluc_get_option( $key, $default = '' ) {
-	$options = get_option( 'at8_mluc_options', array() );
+function at8mluc_get_option( $key, $default = '' ) {
+	$options = get_option( 'at8mluc_options', array() );
 
 	if ( ! is_array( $options ) || ! isset( $options[ $key ] ) ) {
 		return $default;
@@ -60,7 +60,7 @@ function at8_mluc_get_option( $key, $default = '' ) {
  * @param string $default Already-translated default text.
  * @return string
  */
-function at8_mluc_ui_label( $key, $default = '' ) {
+function at8mluc_ui_label( $key, $default = '' ) {
 	/**
 	 * Filters a front-end interface label.
 	 *
@@ -69,7 +69,7 @@ function at8_mluc_ui_label( $key, $default = '' ) {
 	 * @param string $default Already-translated default text.
 	 * @param string $key     Label key.
 	 */
-	return (string) apply_filters( 'at8_mluc_ui_label', $default, $key );
+	return (string) apply_filters( 'at8mluc_ui_label', $default, $key );
 }
 
 /**
@@ -79,8 +79,8 @@ function at8_mluc_ui_label( $key, $default = '' ) {
  * @param string $fallback   URL used when no page is configured.
  * @return string
  */
-function at8_mluc_page_url( $option_key, $fallback = '' ) {
-	$page_id = absint( at8_mluc_get_option( $option_key, 0 ) );
+function at8mluc_page_url( $option_key, $fallback = '' ) {
+	$page_id = absint( at8mluc_get_option( $option_key, 0 ) );
 
 	if ( $page_id && 'page' === get_post_type( $page_id ) && 'publish' === get_post_status( $page_id ) ) {
 		$permalink = get_permalink( $page_id );
@@ -97,8 +97,8 @@ function at8_mluc_page_url( $option_key, $fallback = '' ) {
  *
  * @return string
  */
-function at8_mluc_get_account_url() {
-	$url = at8_mluc_page_url( 'account_page_id', '' );
+function at8mluc_get_account_url() {
+	$url = at8mluc_page_url( 'account_page_id', '' );
 
 	if ( $url ) {
 		return $url;
@@ -113,7 +113,7 @@ function at8_mluc_get_account_url() {
 	 *
 	 * @param string $fallback Default fallback URL.
 	 */
-	return apply_filters( 'at8_mluc_default_account_url', $fallback );
+	return apply_filters( 'at8mluc_default_account_url', $fallback );
 }
 
 /**
@@ -122,9 +122,9 @@ function at8_mluc_get_account_url() {
  * @param string $redirect Optional same-site URL to return to after login.
  * @return string
  */
-function at8_mluc_get_login_url( $redirect = '' ) {
-	$redirect = $redirect ? $redirect : at8_mluc_get_account_url();
-	$url      = at8_mluc_page_url( 'login_page_id', '' );
+function at8mluc_get_login_url( $redirect = '' ) {
+	$redirect = $redirect ? $redirect : at8mluc_get_account_url();
+	$url      = at8mluc_page_url( 'login_page_id', '' );
 
 	if ( $url ) {
 		return add_query_arg( 'redirect_to', rawurlencode( $redirect ), $url );
@@ -138,8 +138,8 @@ function at8_mluc_get_login_url( $redirect = '' ) {
  *
  * @return string
  */
-function at8_mluc_get_register_url() {
-	$url = at8_mluc_page_url( 'register_page_id', '' );
+function at8mluc_get_register_url() {
+	$url = at8mluc_page_url( 'register_page_id', '' );
 
 	if ( $url ) {
 		return $url;
@@ -153,17 +153,17 @@ function at8_mluc_get_register_url() {
  *
  * @return string
  */
-function at8_mluc_get_lostpassword_url() {
-	$url = at8_mluc_page_url( 'lostpassword_page_id', '' );
+function at8mluc_get_lostpassword_url() {
+	$url = at8mluc_page_url( 'lostpassword_page_id', '' );
 
 	if ( $url ) {
 		return $url;
 	}
 
-	$login_url = at8_mluc_page_url( 'login_page_id', '' );
+	$login_url = at8mluc_page_url( 'login_page_id', '' );
 
 	if ( $login_url ) {
-		return add_query_arg( 'at8_mluc_view', 'lostpassword', $login_url );
+		return add_query_arg( 'at8mluc_view', 'lostpassword', $login_url );
 	}
 
 	return wp_lostpassword_url();
@@ -182,11 +182,11 @@ function at8_mluc_get_lostpassword_url() {
  * @param array  $args Variables exposed to the template.
  * @return void
  */
-function at8_mluc_get_template( $slug, $args = array() ) {
+function at8mluc_get_template( $slug, $args = array() ) {
 	$slug = sanitize_file_name( $slug );
 
 	$theme_file  = trailingslashit( get_stylesheet_directory() ) . 'at8-moonlight-user-center/' . $slug . '.php';
-	$plugin_file = AT8_MLUC_PLUGIN_DIR . 'templates/' . $slug . '.php';
+	$plugin_file = AT8MLUC_PLUGIN_DIR . 'templates/' . $slug . '.php';
 
 	$file = file_exists( $theme_file ) ? $theme_file : $plugin_file;
 
@@ -202,7 +202,7 @@ function at8_mluc_get_template( $slug, $args = array() ) {
 	 * @param array  $args Template arguments.
 	 * @param string $slug Template slug.
 	 */
-	$args = apply_filters( 'at8_mluc_template_args', $args, $slug );
+	$args = apply_filters( 'at8mluc_template_args', $args, $slug );
 	$args = is_array( $args ) ? $args : array();
 
 	include $file;
@@ -216,14 +216,24 @@ function at8_mluc_get_template( $slug, $args = array() ) {
  * @param array  $data    Optional extra payload.
  * @return void
  */
-function at8_mluc_send_json( $success, $message, $data = array() ) {
-	wp_send_json(
-		array(
-			'success' => (bool) $success,
-			'message' => (string) $message,
-			'data'    => is_array( $data ) ? $data : array(),
-		)
+function at8mluc_json_payload( $success, $message, $data = array() ) {
+	return array(
+		'success' => (bool) $success,
+		'message' => (string) $message,
+		'data'    => is_array( $data ) ? $data : array(),
 	);
+}
+
+/**
+ * Send a JSON response and stop.
+ *
+ * @param bool   $success Whether the request succeeded.
+ * @param string $message Human-readable message.
+ * @param array  $data    Extra payload.
+ * @return void
+ */
+function at8mluc_send_json( $success, $message, $data = array() ) {
+	wp_send_json( at8mluc_json_payload( $success, $message, $data ) );
 }
 
 /**
@@ -232,7 +242,7 @@ function at8_mluc_send_json( $success, $message, $data = array() ) {
  * @param int $user_id User ID.
  * @return int
  */
-function at8_mluc_count_user_comments( $user_id ) {
+function at8mluc_count_user_comments( $user_id ) {
 	$count = get_comments(
 		array(
 			'user_id' => absint( $user_id ),
@@ -252,7 +262,7 @@ function at8_mluc_count_user_comments( $user_id ) {
  * @param WP_Error $error Error object.
  * @return string
  */
-function at8_mluc_translate_wp_error( $error ) {
+function at8mluc_translate_wp_error( $error ) {
 	if ( ! is_wp_error( $error ) ) {
 		return '';
 	}
@@ -280,23 +290,23 @@ function at8_mluc_translate_wp_error( $error ) {
  *
  * @return array<string, string> Meta key => field label.
  */
-function at8_mluc_meta_labels() {
+function at8mluc_meta_labels() {
 	return array(
-		'at8_mluc_phone'                => __( 'Phone number', 'at8-moonlight-user-center' ),
-		'at8_mluc_avatar_url'           => __( 'Selected avatar URL', 'at8-moonlight-user-center' ),
-		'at8_mluc_avatar_attachment_id' => __( 'Selected avatar media ID', 'at8-moonlight-user-center' ),
-		'at8_mluc_avatar_type'          => __( 'Avatar source', 'at8-moonlight-user-center' ),
-		'at8_mluc_last_login'           => __( 'Last login date', 'at8-moonlight-user-center' ),
-		'at8_mluc_membership_level'     => __( 'Membership level', 'at8-moonlight-user-center' ),
-		'at8_mluc_membership_expires'   => __( 'Membership expiry date', 'at8-moonlight-user-center' ),
-		'at8_mluc_points'               => __( 'Point balance', 'at8-moonlight-user-center' ),
-		'at8_mluc_points_log'           => __( 'Point ledger', 'at8-moonlight-user-center' ),
-		'at8_mluc_points_entry'         => __( 'Point ledger entry', 'at8-moonlight-user-center' ),
-		'at8_mluc_pay_unlocks'          => __( 'Paywall unlocks', 'at8-moonlight-user-center' ),
+		'at8mluc_phone'                => __( 'Phone number', 'at8-moonlight-user-center' ),
+		'at8mluc_avatar_url'           => __( 'Selected avatar URL', 'at8-moonlight-user-center' ),
+		'at8mluc_avatar_attachment_id' => __( 'Selected avatar media ID', 'at8-moonlight-user-center' ),
+		'at8mluc_avatar_type'          => __( 'Avatar source', 'at8-moonlight-user-center' ),
+		'at8mluc_last_login'           => __( 'Last login date', 'at8-moonlight-user-center' ),
+		'at8mluc_membership_level'     => __( 'Membership level', 'at8-moonlight-user-center' ),
+		'at8mluc_membership_expires'   => __( 'Membership expiry date', 'at8-moonlight-user-center' ),
+		'at8mluc_points'               => __( 'Point balance', 'at8-moonlight-user-center' ),
+		'at8mluc_points_log'           => __( 'Point ledger', 'at8-moonlight-user-center' ),
+		'at8mluc_points_entry'         => __( 'Point ledger entry', 'at8-moonlight-user-center' ),
+		'at8mluc_pay_unlocks'          => __( 'Paywall unlocks', 'at8-moonlight-user-center' ),
 		// Legacy Pro 1.x keys: the membership layer reads them as a migration
 		// fallback, so the plugin owns their lifecycle (export/erase/uninstall).
-		'at8_mlucp_membership_level'    => __( 'Membership level (legacy Pro 1.x)', 'at8-moonlight-user-center' ),
-		'at8_mlucp_membership_expires'  => __( 'Membership expiry date (legacy Pro 1.x)', 'at8-moonlight-user-center' ),
+		'at8mlucp_membership_level'    => __( 'Membership level (legacy Pro 1.x)', 'at8-moonlight-user-center' ),
+		'at8mlucp_membership_expires'  => __( 'Membership expiry date (legacy Pro 1.x)', 'at8-moonlight-user-center' ),
 	);
 }
 
@@ -305,6 +315,6 @@ function at8_mluc_meta_labels() {
  *
  * @return string[] Meta keys.
  */
-function at8_mluc_user_meta_keys() {
-	return array_keys( at8_mluc_meta_labels() );
+function at8mluc_user_meta_keys() {
+	return array_keys( at8mluc_meta_labels() );
 }

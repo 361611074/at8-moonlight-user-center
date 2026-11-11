@@ -3,7 +3,7 @@ Contributors: x361611074
 Tags: user profile, login, registration, avatar, user center
 Requires at least: 5.8
 Tested up to: 7.1
-Stable tag: 2.6.6
+Stable tag: 2.7.0
 Requires PHP: 7.4
 License: GPL-2.0-or-later
 License URI: https://www.gnu.org/licenses/gpl-2.0.html
@@ -45,12 +45,12 @@ AT8 Moonlight User Center gives a WordPress site a complete front-end account ar
 
 **Shortcodes**
 
-* `[at8_mluc_login]` — login form
-* `[at8_mluc_register]` — registration form
-* `[at8_mluc_lostpassword]` — password recovery form
-* `[at8_mluc_account]` — account dashboard
-* `[at8_mluc_hide type="logged|reply"]` — hidden content, revealed after login or after an approved comment
-* `[at8_mluc_oauth_buttons]` — social login buttons on any page
+* `[at8mluc_login]` — login form
+* `[at8mluc_register]` — registration form
+* `[at8mluc_lostpassword]` — password recovery form
+* `[at8mluc_account]` — account dashboard
+* `[at8mluc_hide type="logged|reply"]` — hidden content, revealed after login or after an approved comment
+* `[at8mluc_oauth_buttons]` — social login buttons on any page
 
 Place each shortcode on its own page, then choose those pages under User Center → Settings. Any page you leave unset falls back to the equivalent WordPress screen.
 
@@ -71,7 +71,7 @@ The plugin ships minimal, namespaced CSS that inherits your theme's colours and 
 
 1. Upload the plugin folder to `/wp-content/plugins/`, or install it through Plugins → Add New.
 2. Activate the plugin.
-3. Create a page for the account dashboard containing the `[at8_mluc_account]` shortcode, and a page each for `[at8_mluc_login]`, `[at8_mluc_register]` and `[at8_mluc_lostpassword]`.
+3. Create a page for the account dashboard containing the `[at8mluc_account]` shortcode, and a page each for `[at8mluc_login]`, `[at8mluc_register]` and `[at8mluc_lostpassword]`.
 4. Go to User Center → Settings and select those pages.
 5. For registration, make sure "Anyone can register" is enabled in Settings → General.
 6. To offer avatars, add entries under Avatar Library, give each one a featured image, and publish.
@@ -93,7 +93,7 @@ Publish entries under Avatar Library and set a featured image on each one. Users
 
 = Can I change the wording? =
 
-Every string is translatable and uses the `at8-moonlight-user-center` text domain, so you can translate or filter it. The `at8_mluc_ui_label` filter replaces individual labels.
+Every string is translatable and uses the `at8-moonlight-user-center` text domain, so you can translate or filter it. The `at8mluc_ui_label` filter replaces individual labels.
 
 = What happens to my data if I delete the plugin? =
 
@@ -105,46 +105,68 @@ Yes. Styles are namespaced and inherit the theme wherever possible, and any temp
 
 == External services ==
 
-This plugin connects to third-party services **only** when the site administrator enables the matching social-login provider under User Center → Settings → Social Login, and **only** when a visitor actively clicks that provider's login button. No external request is made for visitors who do not use these buttons, and the plugin performs no analytics, telemetry or tracking.
+This plugin offers **optional** social login. A connection to a provider is made only when both of these are true:
 
-**Google OAuth** (login with a Google account)
+1. the site administrator has enabled that provider under User Center → Settings → Social Login and saved its own app credentials (client ID / secret) issued by that provider, and
+2. a visitor actively clicks that provider's button on a login or registration form.
 
-* Endpoints contacted: `accounts.google.com/o/oauth2/v2/auth` (authorization), `oauth2.googleapis.com/token` (code exchange), `www.googleapis.com/oauth2/v3/userinfo` (profile).
-* Data sent: the OAuth authorization code and the plugin's own client credentials configured by the administrator; in return the plugin receives the provider account ID, display name and verified email address.
-* Data is exchanged once per login attempt and is not stored beyond the account binding (provider ID) described in the privacy section. Verified emails may be used to match an existing account, as described in the plugin FAQ.
+Nothing is sent anywhere when a provider is disabled, when no button is clicked, or on any other page. The plugin contains no analytics, no telemetry, no tracking pixels, no third-party scripts or fonts, and no update or licence server. Nothing is sent to the plugin author.
 
-* Terms of service: https://policies.google.com/terms
-* Privacy policy: https://policies.google.com/privacy
+Each provider is listed below with the domains that are contacted, what the request is for, the data exchanged, and the provider's own terms and privacy policy. Tokens and API responses are never written to logs or to the database; only the provider account identifier is stored, as the account binding described in the privacy section.
 
-**GitHub OAuth** (login with a GitHub account)
+**Google — login with a Google account**
 
-* Endpoints contacted: `github.com/login/oauth/authorize` (authorization), `github.com/login/oauth/access_token` (code exchange), `api.github.com/user` and `api.github.com/user/emails` (profile and verified addresses).
-* Data sent: the OAuth authorization code and the administrator's client credentials; in return the plugin receives the GitHub account ID, display name, avatar URL and email addresses.
-* Terms of service: https://docs.github.com/en/site-policy/github-terms-of-service
-* Privacy policy: https://docs.github.com/en/site-policy/privacy-policies
+* Domains contacted: `accounts.google.com`, `oauth2.googleapis.com`, `www.googleapis.com`.
+* What it is used for: signing in with an existing Google account instead of a local password.
+* Data sent and when: an authorization code, exchanged for an access token, only after the visitor clicks "Sign in with Google". The plugin receives the account ID, display name and verified email address. Nothing is sent at any other time.
+* Google Terms of Service: https://policies.google.com/terms
+* Google Privacy Policy: https://policies.google.com/privacy
 
-**WeChat Open Platform OAuth** (login with a WeChat account)
+**GitHub — login with a GitHub account**
 
-* Endpoints contacted: `open.weixin.qq.com/connect/qrconnect` (authorization), `api.weixin.qq.com/sns/oauth2/access_token` (code exchange), `api.weixin.qq.com/sns/userinfo` (profile).
-* Data sent: the OAuth authorization code and the administrator's app credentials; in return the plugin receives the WeChat OpenID/UnionID, display name and avatar URL.
-* Terms of service: https://weixin.qq.com/cgi-bin/readtemplate?uin=&stype=&promote=&fr=&lang=zh_CN&check=false&t=weixin_agreement (the agreement covers WeChat Open Platform, see section 2.1)
-* Privacy policy: https://weixin.qq.com/cgi-bin/readtemplate?uin=&stype=&promote=&fr=&lang=zh_CN&check=false&t=weixin_agreement&s=privacy
+* Domains contacted: `github.com`, `api.github.com`.
+* What it is used for: signing in with an existing GitHub account instead of a local password.
+* Data sent and when: an authorization code, exchanged for an access token, only after the visitor clicks "Sign in with GitHub". The plugin receives the account ID, display name, avatar URL and verified email addresses. Nothing is sent at any other time.
+* GitHub Terms of Service: https://docs.github.com/en/site-policy/github-terms/github-terms-of-service
+* GitHub Privacy Statement: https://docs.github.com/en/site-policy/privacy-policies/github-privacy-statement
 
-**QQ Connect OAuth** (login with a QQ account)
+**WeChat Open Platform — login with a WeChat account**
 
-* Endpoints contacted: `graph.qq.com/oauth2.0/authorize`, `graph.qq.com/oauth2.0/token`, `graph.qq.com/oauth2.0/me`, `graph.qq.com/user/get_user_info`.
-* Data sent: the OAuth authorization code and the administrator's app credentials; in return the plugin receives the QQ OpenID, display name and avatar URL.
-* Terms of service: https://www.qq.com/contract/
-* Privacy policy: https://privacy.qq.com/
+* Domains contacted: `open.weixin.qq.com`, `api.weixin.qq.com`.
+* What it is used for: signing in with a WeChat account through the WeChat Open Platform website-application flow (available where WeChat Open Platform access is granted).
+* Data sent and when: an authorization code, exchanged for an access token, only after the visitor scans the QR code shown by "Sign in with WeChat". The plugin receives the OpenID / UnionID, display name and avatar URL. Nothing is sent at any other time.
+* Tencent WeChat Software License and Service Agreement (covers the Open Platform): https://weixin.qq.com/cgi-bin/readtemplate?uin=&stype=&promote=&fr=&lang=zh_CN&check=false&t=weixin_agreement
+* WeChat Privacy Protection Guidelines: https://weixin.qq.com/cgi-bin/readtemplate?uin=&stype=&promote=&fr=&lang=zh_CN&check=false&t=weixin_agreement&s=privacy
 
-**Sign in with Apple** (login with an Apple ID)
+**QQ Connect — login with a QQ account**
 
-* Endpoints contacted: `appleid.apple.com/auth/authorize` (authorization, form_post supported), `appleid.apple.com/auth/token` (code exchange), `appleid.apple.com/auth/keys` (public keys for JWT verification).
-* Data sent: the OAuth authorization code and the administrator's client credentials; in return the plugin receives the Apple account identifier, name fragments (when the user shares them) and email address (possibly a private relay address, which is never matched against existing accounts).
-* Terms of service: https://www.apple.com/legal/internet-services/terms/site.html
-* Privacy policy: https://www.apple.com/legal/privacy/
+* Domains contacted: `graph.qq.com`.
+* What it is used for: signing in with a QQ account through QQ Connect.
+* Data sent and when: an authorization code, exchanged for an access token, only after the visitor clicks "Sign in with QQ". The plugin receives the OpenID, display name and avatar URL. Nothing is sent at any other time.
+* Tencent Service Agreement: https://www.qq.com/contract.shtml
+* Tencent Privacy Policy: https://privacy.qq.com/policy/tencent-privacypolicy
 
-No access tokens, authorization codes or provider API responses are written to logs or persistent storage; only the provider account identifier is stored as the account binding (see the privacy section below). Policy links were verified on 2026-10-23 (Google, GitHub, Apple, WeChat — including the WeChat agreement's Open Platform coverage; QQ uses Tencent's general service agreement and privacy policy at the same official domains).
+**Apple — Sign in with Apple**
+
+* Domains contacted: `appleid.apple.com`.
+* What it is used for: signing in with an Apple ID.
+* Data sent and when: an authorization code, exchanged for an access token, only after the visitor clicks "Sign in with Apple". The plugin receives the Apple account identifier, the name fragments the user chooses to share, and the email address (which may be a private relay address; those are never matched against existing accounts). Nothing is sent at any other time.
+* Apple Media Services Terms and Conditions: https://www.apple.com/legal/internet-services/terms/site.html
+* Apple Privacy Policy: https://www.apple.com/legal/privacy/
+
+All links above were checked on 2026-11-11 and point at the providers' own published policies.
+
+== User accounts and authentication ==
+
+This plugin is a front-end user center, so creating accounts and signing users in **is** its purpose rather than a side effect. It does not implement its own authentication scheme: every step goes through the WordPress APIs that other plugins already hook into.
+
+* Registration uses `wp_create_user()` and then `wp_signon()`, so membership plugins, e-mail verification plugins and anti-spam plugins see the same events as a core registration.
+* Login uses `wp_signon()` with the submitted credentials. Failed attempts are counted and throttled by the plugin, and any security plugin that hooks `authenticate` or `wp_login_failed` keeps working.
+* Password recovery uses `retrieve_password()`; changing a password uses `reset_password()`, which fires `after_password_reset` and clears the user's sessions.
+* Sessions are created with `wp_set_auth_cookie()` and `wp_set_current_user()`, exactly as `wp-login.php` does, so "remember me", session tokens and `wp_destroy_other_sessions()` all behave normally.
+* Social login creates an account only when the provider returns a verified e-mail address and the site allows registration; otherwise the visitor is asked to link an existing account.
+
+No user is ever created with a role chosen by the visitor: new accounts receive the site's default role, and the plugin never grants capabilities.
 
 == Screenshots ==
 
@@ -154,6 +176,15 @@ No access tokens, authorization codes or provider API responses are written to l
 4. The front-end login form.
 
 == Changelog ==
+
+= 2.7.0 =
+* Naming: every function, class, constant, option, hook, meta key, post type, shortcode, script handle and CSS class now uses the prefix `at8mluc` (previously `at8_mluc`) and `at8mlucp` for the add-on. The prefix is now long enough for the directory naming rules, and the old names never appear outside the one-time migration.
+* Upgrade: a one-time migration copies the previous options, renames the meta keys and the avatar/order post types, and moves the two points tables. Nothing is deleted — old option rows and old tables are left in place — so an interrupted run can simply be repeated.
+* Social login: callback parameters are read in one place, and a refused attempt leaves its notice in a short-lived cookie instead of the query string, so the login page no longer reads request input.
+* Security: every AJAX handler now stops on a failed nonce check, including the two handlers that previously ignored the result (buy level, paywall purchase).
+* Security: changing a password goes through `reset_password()`, so the core hooks and session cleanup run as they do in wp-admin.
+* Points: transaction control statements are literal SQL inside a single switch, so no variable statement reaches the database.
+* readme.txt: the external-services section now lists the domains contacted, what each request is for, the data exchanged and each provider's own terms and privacy links; a new "User accounts and authentication" section explains which core APIs are used and why.
 
 = 2.6.6 =
 * Social login: the callback parameters (provider, code, state, Apple's posted name) are now read in one place instead of a dozen scattered superglobal reads. The state parameter stays the CSRF token - a nonce cannot be used on a redirect that comes back from another domain - and every value is sanitised once, in the same helper.
@@ -236,16 +267,16 @@ No access tokens, authorization codes or provider API responses are written to l
 * Packaging: local .po/.mo files are no longer bundled; language packs come from translate.wordpress.org.
 
 = 2.5.0 =
-* Removed every artificial ceiling from the free plugin. Membership levels are no longer capped at three, the avatar library is no longer capped at twelve, and every registered payment gateway is offered instead of trimming the shelf to one. The filters that let an add-on raise those caps (`at8_mluc_membership_level_limit`, `at8_mluc_limit_avatar_count`, `at8_mluc_limit_gateway_count`) and the unused `at8_mluc_paywall_level_limit` filter are gone; the free plugin is complete on its own and nothing is unlocked by a licence.
+* Removed every artificial ceiling from the free plugin. Membership levels are no longer capped at three, the avatar library is no longer capped at twelve, and every registered payment gateway is offered instead of trimming the shelf to one. The filters that let an add-on raise those caps (`at8mluc_membership_level_limit`, `at8mluc_limit_avatar_count`, `at8mluc_limit_gateway_count`) and the unused `at8mluc_paywall_level_limit` filter are gone; the free plugin is complete on its own and nothing is unlocked by a licence.
 * The paywall meta box now accepts several free-read levels per post (multi-select), and level meta written by older single-select versions keeps working.
 * The Pro comparison table now describes only what the add-on adds — online gateways, tiered upgrades, paywall resources and extra content gates — instead of quota differences.
 * Documentation updated: the feature list covers the paywall, points, custom fields and terms-of-service, and the data section names the social-login providers the server talks to.
 * The Offline Payments settings section now states that refunds for the Pro online gateways are handled in the gateway dashboard and do not revoke a member's access automatically.
 
 = 2.4.1 =
-* New: the paywall core is now an extension surface. The gate always runs and an add-on extends the same post fields through the `at8_mluc_paywall_enabled`, `at8_mluc_paywall_levels`, `at8_mluc_paywall_price`, `at8_mluc_paywall_days`, `at8_mluc_paywall_unlock_expire`, `at8_mluc_paywall_locked_html`, `at8_mluc_paywall_unlocked_html`, `at8_mluc_paywall_meta_extra` and `at8_mluc_paywall_can_purchase` filters instead of shipping its own content filter, so two gates can never double-lock the same post. An add-on with a richer paywall box takes the meta box over through `at8_mluc_paywall_meta_box`.
-* New: every upgrade method now renders from one registry. The Membership tab draws the points redemption card, the offline purchase card and any add-on path side by side through the `at8_mluc_upgrade_paths` filter.
-* New: `at8_mluc_order_price` lets an add-on charge a differential for upgrade orders, and the purchase script binds every card on the page (purchase, upgrade ladders), not just the first.
+* New: the paywall core is now an extension surface. The gate always runs and an add-on extends the same post fields through the `at8mluc_paywall_enabled`, `at8mluc_paywall_levels`, `at8mluc_paywall_price`, `at8mluc_paywall_days`, `at8mluc_paywall_unlock_expire`, `at8mluc_paywall_locked_html`, `at8mluc_paywall_unlocked_html`, `at8mluc_paywall_meta_extra` and `at8mluc_paywall_can_purchase` filters instead of shipping its own content filter, so two gates can never double-lock the same post. An add-on with a richer paywall box takes the meta box over through `at8mluc_paywall_meta_box`.
+* New: every upgrade method now renders from one registry. The Membership tab draws the points redemption card, the offline purchase card and any add-on path side by side through the `at8mluc_upgrade_paths` filter.
+* New: `at8mluc_order_price` lets an add-on charge a differential for upgrade orders, and the purchase script binds every card on the page (purchase, upgrade ladders), not just the first.
 * Improved: order history moved into its own block below the upgrade paths.
 * Improved: paid content is never served in feeds.
 * Fixed: `claim_order()` is public so the delivery handler owns the pending → paid transition; a second confirmation can never grant twice.
@@ -262,7 +293,7 @@ No access tokens, authorization codes or provider API responses are written to l
 
 = 2.3.0 =
 * New: a redesigned settings screen — a branded header with the current plan, a collapsible Pro comparison table (dismissible, shown only on this screen), a shortcode cheat sheet and a sticky save bar.
-* New: an accent colour setting. One colour tints buttons, active states and membership cards, and is exposed as `--at8-mluc-accent` for custom CSS.
+* New: an accent colour setting. One colour tints buttons, active states and membership cards, and is exposed as `--at8mluc-accent` for custom CSS.
 * New: a payment gateway shelf on the Offline Payments section, which states plainly what bank transfer does today and what PayPal / Stripe add.
 * New: the order list now shows status, member, item, gateway and amount columns, with confirm / cancel actions on pending orders.
 * Improved: front-end styles rebuilt on neutral translucent surfaces, so login, the account dashboard, membership cards and content gates look considered on light and dark themes alike. Membership badges now use each level's own colour.
@@ -271,7 +302,7 @@ No access tokens, authorization codes or provider API responses are written to l
 * Changed: membership level colours, order status labels and the level badge markup each had two definitions; they now have one.
 
 = 2.2.1 =
-* Fixed: the User Center menu is now built before other plugins add entries to it (`admin_menu` priority 5 plus a new `at8_mluc_admin_menu` action). Previously a child page registered on the default priority got a different page hook at registration time than WordPress computed when the page was opened, and every Pro submenu page (License, the old Pro settings screen) was rejected with "Sorry, you are not allowed to access this page" (HTTP 403).
+* Fixed: the User Center menu is now built before other plugins add entries to it (`admin_menu` priority 5 plus a new `at8mluc_admin_menu` action). Previously a child page registered on the default priority got a different page hook at registration time than WordPress computed when the page was opened, and every Pro submenu page (License, the old Pro settings screen) was rejected with "Sorry, you are not allowed to access this page" (HTTP 403).
 
 = 2.2.0 =
 * New: top-level "User Center" menu in wp-admin (settings, orders, avatar library and the Pro license page all live under it) with a card-based settings screen and sticky section navigation.
@@ -282,13 +313,13 @@ No access tokens, authorization codes or provider API responses are written to l
 
 = 2.1.0 =
 * New: social login (WeChat, QQ, GitHub, Google, Apple) with per-provider credentials in Settings → User Center; buttons render under the login and registration forms.
-* New: `[at8_mluc_hide type="logged|reply"]` hidden-content shortcode with an editor button; Pro add-ons extend it with membership and purchase gates through the `at8_mluc_hide_types` filter.
+* New: `[at8mluc_hide type="logged|reply"]` hidden-content shortcode with an editor button; Pro add-ons extend it with membership and purchase gates through the `at8mluc_hide_types` filter.
 * New: login/register/profile Elementor widgets.
-* The `[at8_mlucp_hide]` shortcode name from the Pro 1.0.x era is accepted as an alias, so old content never breaks.
+* The `[at8mlucp_hide]` shortcode name from the Pro 1.0.x era is accepted as an alias, so old content never breaks.
 
 = 2.0.0 =
-* New: menu items can be shown to logged-in users only or logged-out visitors only, and custom links accept the magic placeholders #at8-mluc-login, #at8-mluc-register, #at8-mluc-account, #at8-mluc-lostpassword and #at8-mluc-logout.
-* New: documented extension points for the commercial add-on AT8 Moonlight User Center Pro (`at8_mluc_is_pro`, `at8_mluc_account_tabs`, `at8_mluc_login_form_bottom`, `at8_mluc_register_form_bottom`). The free plugin itself remains complete and functional on its own and ships no locked code.
+* New: menu items can be shown to logged-in users only or logged-out visitors only, and custom links accept the magic placeholders #at8mluc-login, #at8mluc-register, #at8mluc-account, #at8mluc-lostpassword and #at8mluc-logout.
+* New: documented extension points for the commercial add-on AT8 Moonlight User Center Pro (`at8mluc_is_pro`, `at8mluc_account_tabs`, `at8mluc_login_form_bottom`, `at8mluc_register_form_bottom`). The free plugin itself remains complete and functional on its own and ships no locked code.
 * Fix: the front-end stylesheet and script were still enqueued from their pre-rename paths, so the dashboard had no styling since 1.0.1.
 
 = 1.0.2 =
@@ -297,9 +328,9 @@ No access tokens, authorization codes or provider API responses are written to l
 
 = 1.0.1 =
 * Rebranded to AT8 Moonlight User Center (plugin slug, text domain and all internal identifiers).
-* Fixed a fatal error on activation when another plugin had already defined the shared MLUC_* constants: every constant, class, function, option, meta key, shortcode and AJAX action now uses the collision-free AT8_MLUC_ / at8_mluc_ namespace, and the autoloader resolves classes from its own directory.
+* Fixed a fatal error on activation when another plugin had already defined the shared MLUC_* constants: every constant, class, function, option, meta key, shortcode and AJAX action now uses the collision-free AT8MLUC_ / at8mluc_ namespace, and the autoloader resolves classes from its own directory.
 * Fixed the password recovery shortcode rendering nothing: the template file is now lostpassword.php to match the view slug.
-* Renamed the front-end shortcodes to [at8_mluc_login], [at8_mluc_register], [at8_mluc_lostpassword] and [at8_mluc_account].
+* Renamed the front-end shortcodes to [at8mluc_login], [at8mluc_register], [at8mluc_lostpassword] and [at8mluc_account].
 
 = 1.0.0 =
 * First release.
