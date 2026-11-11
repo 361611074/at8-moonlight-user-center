@@ -119,9 +119,13 @@ class AT8MLUC_Login {
 			at8mluc_send_json( false, at8mluc_translate_wp_error( $user ) );
 		}
 
-		wp_set_current_user( $user->ID );
-		wp_set_auth_cookie( $user->ID, $remember );
-
+		/*
+		 * Nothing else is done here on purpose. `wp_signon()` already ran the
+		 * `authenticate` filter chain, set the auth cookie with the remember
+		 * flag, and fired `wp_login`; setting the cookie or the current user a
+		 * second time would only repeat work the core call has done and hand
+		 * plugins a duplicate event.
+		 */
 		$requested_redirect = '';
 		if ( isset( $_POST['redirect_to'] ) && is_string( $_POST['redirect_to'] ) ) {
 			$requested_redirect = esc_url_raw( wp_unslash( $_POST['redirect_to'] ) );
@@ -268,12 +272,18 @@ class AT8MLUC_Login {
 		reset_password( $user, $new );
 
 		/*
-		 * `wp_set_password()` invalidates every session cookie, including this
-		 * one. Signing the user back in keeps the current tab usable, then all
-		 * other sessions are dropped.
+		 * `reset_password()` rehashes `user_pass`, and every auth cookie is
+		 * validated against a fragment of that hash — so the cookie this
+		 * browser already holds stops validating the moment the hash changes.
+		 * Renewing it here keeps the tab the visitor is standing in usable;
+		 * `wp_destroy_other_sessions()` then drops everything else, which is
+		 * the behaviour the settings screen promises ("signs you out of every
+		 * other device"). This is a session renewal after a password change,
+		 * not a login: no `wp_login` event is fired, because no new
+		 * authentication took place.
 		 */
 		wp_set_current_user( $user->ID );
-		wp_set_auth_cookie( $user->ID, true );
+		wp_set_auth_cookie( $user->ID, true, is_ssl() );
 
 		if ( function_exists( 'wp_destroy_other_sessions' ) ) {
 			wp_destroy_other_sessions();

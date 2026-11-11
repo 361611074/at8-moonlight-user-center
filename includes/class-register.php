@@ -233,9 +233,32 @@ class AT8MLUC_Register {
 		$payload = array();
 
 		if ( at8mluc_get_option( 'auto_login', 1 ) ) {
-			wp_set_current_user( $user_id );
-			wp_set_auth_cookie( $user_id, true );
-			$payload['redirect'] = at8mluc_get_account_url();
+			/*
+			 * Sign in through `wp_signon()` with the credentials the visitor
+			 * just submitted, rather than setting the cookie by hand: the
+			 * `authenticate` chain, the `wp_login` action and any security or
+			 * session plugin listening on them all see a normal login.
+			 */
+			$signon = wp_signon(
+				array(
+					'user_login'    => $args['user_login'],
+					'user_password' => $args['password'],
+					'remember'      => true,
+				),
+				is_ssl()
+			);
+
+			if ( is_wp_error( $signon ) ) {
+				/*
+				 * The account exists and is complete — only the automatic
+				 * sign-in was refused (a two-factor or verification plugin,
+				 * for instance). Sending the visitor to the login form is the
+				 * honest outcome; the registration itself is not undone.
+				 */
+				$payload['redirect'] = at8mluc_get_login_url();
+			} else {
+				$payload['redirect'] = at8mluc_get_account_url();
+			}
 		} else {
 			$payload['redirect'] = at8mluc_get_login_url();
 		}

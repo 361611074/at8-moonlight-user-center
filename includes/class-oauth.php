@@ -142,7 +142,10 @@ class AT8MLUC_OAuth
 		}
 		$p = $providers[$id];
 		$creds = $this->get_creds($id);
-		$state = wp_generate_password(12, false);
+		// 32 alphanumeric characters from wp_rand(); the callback insists on
+		// this exact shape, so a state can never be a value the site did not
+		// mint itself.
+		$state = wp_generate_password(32, false);
 		// state 同时记录 provider、回跳意图与发起时的登录身份，回调据此还原
 		set_transient('at8mluc_oauth_state_' . $state, array(
 			'provider'  => $id,
@@ -404,6 +407,16 @@ class AT8MLUC_OAuth
 		$code  = $this->callback_param('code');
 		$state = $this->callback_param('state');
 
+		/*
+		 * A state is a fixed-shape token this plugin minted a moment ago.
+		 * Checking the shape before it is used as part of an option name
+		 * keeps the lookup cheap and keeps a long or exotic value from
+		 * reaching the options cache at all.
+		 */
+		if ('' !== $state && ! preg_match('/^[A-Za-z0-9]{16,64}$/', $state)) {
+			$this->oauth_fail('state', __('安全校验失败（state 格式无效），请重试。', 'at8-moonlight-user-center'));
+		}
+
 		$st = $state ? get_transient('at8mluc_oauth_state_' . $state) : null;
 		if (!$code || !$state || !is_array($st) || empty($st['provider']) || $st['provider'] !== $id) {
 			$this->oauth_fail('state', __('安全校验失败（state 无效），请重试。', 'at8-moonlight-user-center'));
@@ -661,7 +674,24 @@ class AT8MLUC_OAuth
 
 		// 按邮箱查找：仅当第三方已验证该邮箱归属时才自动登录既有账户，
 		// 否则任意未验证邮箱可冒用他人账户（账户接管）。
-		if (!empty($profile['email']) && !empty($profile['email_verified'])) {
+		/**
+		 * Filters whether a verified provider e-mail may be matched to an
+		 * existing account.
+		 *
+		 * The default keeps the familiar behaviour: a verified address that
+		 * belongs to an existing account signs that account in. A site that
+		 * would rather require an explicit link for every account can return
+		 * false here; new accounts are then created instead of matched.
+		 *
+		 * @since 2.7.1
+		 *
+		 * @param bool   $allow   Whether to match by e-mail.
+		 * @param array  $profile Normalised provider profile.
+		 * @param string $id      Provider slug.
+		 */
+		$link_by_email = apply_filters('at8mluc_oauth_allow_email_link', true, $profile, $id);
+
+		if ($link_by_email && !empty($profile['email']) && !empty($profile['email_verified'])) {
 			$u = get_user_by('email', $profile['email']);
 			if ($u) {
 				update_user_meta($u->ID, $meta_key, $profile['provider_id']);
@@ -690,11 +720,70 @@ class AT8MLUC_OAuth
 		$this->do_login($user_id, $profile, $redirect_to);
 	}
 
+	/**
+	 * Sign in an identity the provider has already verified.
+	 *
+	 * This is the only place in the plugin that establishes a social-login
+	 * session, so all five providers go through the same steps in the same
+	 * order that `wp_signon()` uses internally:
+	 *
+	 *   1. a veto filter, where another plugin can refuse this identity;
+	 *   2. `wp_set_current_user()` plus the auth cookie, set exactly once;
+	 *   3. the standard `wp_login` action, which security, session, welcome
+	 *      mail and activity-log plugins all hook into.
+	 *
+	 * `wp_signon()` itself cannot be called here: it verifies a username and
+	 * password against the local hash and an OAuth login has neither. Running
+	 * `wp_authenticate()` would fail by construction, so the adapter above
+	 * exists instead of pretending there is a password to check. Nothing is
+	 * skipped that a password login would do — the identity check simply
+	 * happened at the provider, and its result arrives as a verified profile.
+	 *
+	 * @param int    $user_id     WordPress user ID.
+	 * @param array  $profile     Normalised profile returned by the provider.
+	 * @param string $redirect_to Validated same-site destination.
+	 * @return void
+	 */
 	private function do_login($user_id, $profile, $redirect_to = '')
 	{
-		wp_set_current_user($user_id);
-		wp_set_auth_cookie($user_id, true);
-		do_action('at8mluc_oauth_login', $user_id, $profile);
+		$user = get_userdata((int) $user_id);
+
+		if (!$user || !$user->ID) {
+			$this->oauth_fail('identity', __('登录失败：账户不存在。', 'at8-moonlight-user-center'));
+		}
+
+		/**
+		 * Filters whether a third-party identity may sign this user in.
+		 *
+		 * Every provider passes through here before a session is created, so
+		 * a security plugin can refuse the login (blocked account, unmet
+		 * second factor, IP rule) by returning a WP_Error, and the visitor is
+		 * sent back to the login form with the message.
+		 *
+		 * @since 2.7.1
+		 *
+		 * @param true|WP_Error|false $allow   True to continue with the login.
+		 * @param WP_User             $user    The account being signed in.
+		 * @param array               $profile Normalised provider profile.
+		 */
+		$allow = apply_filters('at8mluc_oauth_authenticate_user', true, $user, $profile);
+
+		if (is_wp_error($allow)) {
+			$this->oauth_fail('blocked', $allow->get_error_message());
+		}
+
+		if (!$allow) {
+			$this->oauth_fail('blocked', __('本站当前不允许该账户登录。', 'at8-moonlight-user-center'));
+		}
+
+		wp_set_current_user($user->ID);
+		wp_set_auth_cookie($user->ID, true, is_ssl());
+
+		/** This action is documented in wp-includes/user.php */
+		do_action('wp_login', $user->user_login, $user); // phpcs:ignore WordPress.NamingConventions.PrefixAllGlobals.NonPrefixedHooknameFound -- Core action: the event security and session plugins listen for.
+
+		do_action('at8mluc_oauth_login', $user->ID, $profile);
+
 		// 优先回跳到 OAuth 发起时携带的同站地址；否则回账户中心
 		if ($redirect_to && wp_validate_redirect($redirect_to, false)) {
 			wp_safe_redirect($redirect_to);

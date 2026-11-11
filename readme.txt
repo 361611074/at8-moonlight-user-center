@@ -3,7 +3,7 @@ Contributors: x361611074
 Tags: user profile, login, registration, avatar, user center
 Requires at least: 5.8
 Tested up to: 7.1
-Stable tag: 2.7.0
+Stable tag: 2.7.1
 Requires PHP: 7.4
 License: GPL-2.0-or-later
 License URI: https://www.gnu.org/licenses/gpl-2.0.html
@@ -162,9 +162,11 @@ This plugin is a front-end user center, so creating accounts and signing users i
 
 * Registration uses `wp_create_user()` and then `wp_signon()`, so membership plugins, e-mail verification plugins and anti-spam plugins see the same events as a core registration.
 * Login uses `wp_signon()` with the submitted credentials. Failed attempts are counted and throttled by the plugin, and any security plugin that hooks `authenticate` or `wp_login_failed` keeps working.
-* Password recovery uses `retrieve_password()`; changing a password uses `reset_password()`, which fires `after_password_reset` and clears the user's sessions.
+* Password recovery uses `retrieve_password()`; changing a password uses `reset_password()`, which fires `after_password_reset` and invalidates the sessions the account already had.
 * Sessions are created with `wp_set_auth_cookie()` and `wp_set_current_user()`, exactly as `wp-login.php` does, so "remember me", session tokens and `wp_destroy_other_sessions()` all behave normally.
-* Social login creates an account only when the provider returns a verified e-mail address and the site allows registration; otherwise the visitor is asked to link an existing account.
+* Social login cannot use `wp_signon()`: there is no local password to verify, because the identity was checked by the provider. Every provider therefore signs in through one routine that fires the standard `wp_login` action and passes the account through the `at8mluc_oauth_authenticate_user` filter first, so a security or two-factor plugin can still refuse the login.
+* Social login creates an account only when the site allows registration. A provider that returns an e-mail address the provider itself reports as verified, and that matches an existing account, signs that account in (a site can disable this with the `at8mluc_oauth_allow_email_link` filter). Providers that return no address (WeChat, QQ) get a generated local placeholder address, which never matches an existing account.
+* The plugin never reveals whether a social callback was rejected because of the state check or for any other reason: every refusal lands on the login form with a generic notice.
 
 No user is ever created with a role chosen by the visitor: new accounts receive the site's default role, and the plugin never grants capabilities.
 
@@ -176,6 +178,15 @@ No user is ever created with a role chosen by the visitor: new accounts receive 
 4. The front-end login form.
 
 == Changelog ==
+
+= 2.7.1 =
+* Social login: all five providers sign in through one routine that fires the standard `wp_login` action and offers a veto filter (`at8mluc_oauth_authenticate_user`), so security, two-factor and activity-log plugins see — and can refuse — a social login the same way they see a password login. Previously the session was created directly and no plugin was told.
+* Social login: the OAuth state now has 32 random characters and its shape is checked before use, so a callback can only present a value this site minted.
+* Social login: matching a verified provider e-mail to an existing account can be switched off with the `at8mluc_oauth_allow_email_link` filter for sites that would rather link every account by hand.
+* Registration: the automatic sign-in after creating an account now goes through `wp_signon()` with the submitted credentials instead of setting the cookie directly, so the `authenticate` chain and `wp_login` run as they do for a normal login. If another plugin refuses the automatic sign-in, the account is still created and the visitor is sent to the login form.
+* Login: removed a duplicate `wp_set_current_user()` / `wp_set_auth_cookie()` pair that ran after `wp_signon()` had already done both.
+* Upgrade: the 2.7.0 rename migration now reports success, skipped, conflict or failed per step and writes its completion marker only when no step failed. A failed run is retried after 15 minutes instead of scanning the tables on every page view, and concurrent requests are serialised by a lease in the options table that is taken and released with compare-and-swap.
+* Upgrade: a table that cannot be inspected is no longer read as "nothing to migrate", and a copied points table is verified by row count before the migration is called complete.
 
 = 2.7.0 =
 * Naming: every function, class, constant, option, hook, meta key, post type, shortcode, script handle and CSS class now uses the prefix `at8mluc` (previously `at8_mluc`) and `at8mlucp` for the add-on. The prefix is now long enough for the directory naming rules, and the old names never appear outside the one-time migration.
@@ -341,6 +352,9 @@ No user is ever created with a role chosen by the visitor: new accounts receive 
 * Uninstall option to remove the plugin's data.
 
 == Upgrade Notice ==
+
+= 2.7.1 =
+Security release: social logins now fire the standard `wp_login` action and other plugins can veto one, and the registration form signs in through `wp_signon()`. The 2.7.0 rename migration no longer reports success when a step failed. No settings change needed.
 
 = 1.0.0 =
 First release.
