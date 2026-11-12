@@ -3,6 +3,48 @@
 The WordPress.org `readme.txt` changelog is the authoritative, complete list.
 This file summarises the 2.7.2 delivery for the GitHub repository.
 
+## 2.7.3 — binding order and migration structure (2026-11-12)
+
+### P1 — OAuth: authenticate first, bind afterwards
+- `login_or_register()` no longer writes `update_user_meta()` bindings
+  directly. Every path now hands the pending binding to `do_login()`, which
+  writes it only after `authenticate_oauth_user()` has passed. A refused
+  sign-in writes no binding, sets no cookie and fires no success action.
+- Two binding conflicts are refused instead of silently overwritten: the
+  third-party identity already belongs to another local account
+  (`bind_taken`), or the local account already links a different identity of
+  the same provider (`bind_conflict`). The login template shows a clear
+  message for both.
+- Register-retry: when a first-time sign-up is created but a login policy
+  refuses it, the account stays unlinked and sessionless. A returning
+  visitor is matched back to that account (by the provider-derived local
+  e-mail, or by a provider-verified address) instead of failing forever.
+  An unverified provider e-mail can never claim an existing account.
+
+### P1 — Migration: verify the structure before writing
+- `table_schema()` reads `SHOW FULL COLUMNS` and `SHOW INDEX` together;
+  a failure to read either is an error, never an empty answer.
+- `structure_problems()` compares primary key shape, every source column's
+  type (display width folded), NULL attribute and auto-increment flag, plus
+  the required unique indexes. The ledger's idempotency uniqueness
+  `UNIQUE(user_id, idem_key)` must exist on both tables or the run reports
+  `CONFLICT` before writing anything.
+- The source table must be self-consistent too: a source that lost its own
+  idempotency uniqueness is refused, because no migration can silently fix
+  duplicate awards. Nothing is overwritten on refusal; the old tables stay,
+  a retry is scheduled and the admin notice names the failing check.
+
+### P1 — Documentation
+- `CHANGELOG.md` no longer claims the policy pages are missing: both are
+  live since 2026-11-12 and the entry now matches `readme.txt`.
+
+### Tests
+- 32 new auth-chain assertions (binding order, conflicts, register retry,
+  unverified e-mail, state replay): 75 total.
+- 25 new migration structure assertions on throwaway tables: primary key
+  shape, types, NULL, auto-increment, unique indexes, 100-row bulk,
+  equal-count/different-content, repeat-run idempotency.
+
 ## 2.7.2 — security / reliability (2026-11-11)
 
 ### Documentation (completed 2026-11-12)
@@ -59,12 +101,15 @@ This file summarises the 2.7.2 delivery for the GitHub repository.
   name and reason without logging the value.
 
 ### Documentation
-- `readme.txt`: added a "Project and author" section with the real repository
-  and author website. **No privacy-policy or terms-of-service URL was added:
-  those pages do not exist on at8.fun (both return 404) and inventing a URL is
-  forbidden by the task brief.** This is tracked as BLOCKED in the delivery
-  report. Plugin URI is deliberately left unset because there is no dedicated
-  product page for this plugin yet.
+- `readme.txt`: added a "Project and author" section with the real repository,
+  author website and the author's published privacy policy and terms of
+  service (`https://www.at8.fun/privacy-policy/` and
+  `https://www.at8.fun/terms-of-service/`, both live since 2026-11-12).
+  Plugin URI is deliberately left unset because there is no dedicated
+  product page for this plugin yet. (History note: an earlier draft of this
+  entry said the two pages were missing and BLOCKED; the pages were published
+  on the author's site the next day, so the URLs above are the current,
+  verified state.)
 
 ### Tests added
 - `_tools/points_verify_test.php` (33 assertions): 10 migration scenarios.

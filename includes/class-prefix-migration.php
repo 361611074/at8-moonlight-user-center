@@ -565,8 +565,14 @@ class AT8MLUC_Prefix_Migration {
 
 		$status = self::SKIPPED;
 
-		foreach ( array( 'ledger', 'account' ) as $name ) {
-			$result = self::move_points_table( $wpdb->prefix . 'at8mluc_points_' . $name );
+		foreach ( array(
+			// The ledger's idempotency key is what stops a duplicate award:
+			// the target table must guarantee the same uniqueness or the run
+			// stops before a single row is written.
+			'ledger'  => array( array( 'user_id', 'idem_key' ) ),
+			'account' => array(),
+		) as $name => $required_unique ) {
+			$result = self::move_points_table( $wpdb->prefix . 'at8mluc_points_' . $name, $required_unique );
 
 			if ( self::FAILED === $result || self::CONFLICT === $result ) {
 				return $result;
@@ -581,23 +587,28 @@ class AT8MLUC_Prefix_Migration {
 	}
 
 	/**
-	 * Move one points table, verifying every source row against the target.
+	 * Move one points table, verifying structure and every source row first.
 	 *
-	 * A row count is never used as proof of success. The real columns and the
-	 * primary key are read from the database first, then the source is walked
+	 * Structure is verified before a single row is written: the real columns,
+	 * types, NULL attributes, auto-increment flags, primary key shape and the
+	 * unique indexes the ledger relies on are all read from the database and
+	 * compared between the source and the target. A row count is never used
+	 * as proof of success. After the structure agrees, the source is walked
 	 * in bounded batches and every row is compared column by column with the
 	 * row carrying the same primary key in the target.
 	 *
 	 * Three outcomes are possible for a row: identical (nothing to do),
 	 * missing (inserted on the second pass, never overwritten) or different
-	 * (a conflict — the run stops, nothing is overwritten, the old table is
+	 * (a conflict -- the run stops, nothing is overwritten, the old table is
 	 * kept). A final read-only pass must find zero missing and zero conflicting
 	 * rows before this step may report success.
 	 *
-	 * @param string $new New table name.
+	 * @param string $new             New table name.
+	 * @param array  $required_unique Column combinations that must be unique
+	 *                                on both tables, e.g. the idempotency key.
 	 * @return string Step status.
 	 */
-	private static function move_points_table( $new ) {
+	private static function move_points_table( $new, $required_unique = array() ) {
 		global $wpdb;
 
 		$old = self::legacy( $new );
@@ -612,23 +623,18 @@ class AT8MLUC_Prefix_Migration {
 			return self::SKIPPED;
 		}
 
-		$schema = self::table_columns( $old );
+		$schema = self::table_schema( $old );
 
-		if ( is_wp_error( $schema ) || '' === $schema['primary'] ) {
-			return self::FAILED;
-		}
-
-		$new_exists = self::table_exists( $new );
-
-		if ( is_wp_error( $new_exists ) ) {
+		if ( is_wp_error( $schema ) || array() === $schema['primary_columns'] ) {
 			return self::FAILED;
 		}
 
 		$report = array(
 			'table'     => $new,
 			'source'    => $old,
-			'primary'   => $schema['primary'],
+			'primary'   => implode( ', ', $schema['primary_columns'] ),
 			'columns'   => $schema['columns'],
+			'schema'    => self::schema_summary( $schema ),
 			'checked'   => 0,
 			'identical' => 0,
 			'missing'   => 0,
@@ -638,6 +644,26 @@ class AT8MLUC_Prefix_Migration {
 			'method'    => '',
 			'verified'  => false,
 		);
+
+		// The source must be self-consistent: a table without its primary key
+		// shape or its idempotency uniqueness may already hold duplicate or
+		// unattributable rows, and no migration can fix that silently.
+		$source_problems = self::structure_problems( $schema, $schema, $required_unique );
+
+		if ( array() !== $source_problems ) {
+			$report['conflicts'] = count( $source_problems );
+			$report['samples']   = $source_problems;
+			$report['note']      = 'The source table itself failed the structure check; nothing was written.';
+			self::publish_report( $report );
+
+			return self::CONFLICT;
+		}
+
+		$new_exists = self::table_exists( $new );
+
+		if ( is_wp_error( $new_exists ) ) {
+			return self::FAILED;
+		}
 
 		if ( ! $new_exists ) {
 			/*
@@ -676,17 +702,23 @@ class AT8MLUC_Prefix_Migration {
 			$report['method'] = 'verify-existing';
 		}
 
-		$new_schema = self::table_columns( $new );
+		$new_schema = self::table_schema( $new );
 
 		if ( is_wp_error( $new_schema ) ) {
 			return self::FAILED;
 		}
 
-		$missing_columns = array_diff( $schema['columns'], $new_schema['columns'] );
+		$report['schema']['target'] = self::schema_summary( $new_schema );
 
-		if ( array() !== $missing_columns ) {
-			$report['conflicts'] = count( $missing_columns );
-			$report['samples'][] = 'target is missing columns: ' . implode( ', ', $missing_columns );
+		// Pass 0: structure. The target must be able to hold every source
+		// column, the primary keys must have the same shape, and the unique
+		// indexes the ledger relies on must exist on both sides.
+		$structure_problems = self::structure_problems( $schema, $new_schema, $required_unique );
+
+		if ( array() !== $structure_problems ) {
+			$report['conflicts'] = count( $structure_problems );
+			$report['samples']   = $structure_problems;
+			$report['note']      = 'The target table structure is not compatible; nothing was written.';
 			self::publish_report( $report );
 
 			return self::CONFLICT;
@@ -713,7 +745,7 @@ class AT8MLUC_Prefix_Migration {
 		}
 
 		// Pass 3: verify the result again before any completion marker.
-		$final            = $report;
+		$final              = $report;
 		$final['checked']   = 0;
 		$final['identical'] = 0;
 		$final['missing']   = 0;
@@ -745,33 +777,40 @@ class AT8MLUC_Prefix_Migration {
 	}
 
 	/**
-	 * Read the real columns and primary key of one table.
+	 * Read the real structure of one table: columns, types, NULL attributes,
+	 * auto-increment flags, primary key and every index.
 	 *
 	 * Column names are validated against an identifier allow-list before they
 	 * are ever interpolated into a query. Nothing here assumes that a column
 	 * exists: the schema of this release is not a safe description of a table
-	 * that may have been created by an older build.
+	 * that may have been created by an older build. A failure to read either
+	 * the columns or the indexes is an error, never an empty answer.
 	 *
 	 * @param string $table Full table name.
-	 * @return array{columns:string[],primary:string}|WP_Error
+	 * @return array|WP_Error
 	 */
-	private static function table_columns( $table ) {
+	private static function table_schema( $table ) {
 		global $wpdb;
 
 		$suppress = $wpdb->suppress_errors( true );
 
 		// phpcs:ignore WordPress.DB.DirectDatabaseQuery.DirectQuery, WordPress.DB.DirectDatabaseQuery.NoCaching, WordPress.DB.PreparedSQL.NotPrepared, WordPress.DB.PreparedSQL.InterpolatedNotPrepared, PluginCheck.Security.DirectDB.UnescapedDBParameter -- Table name comes from $wpdb->prefix.
-		$rows  = $wpdb->get_results( "SHOW COLUMNS FROM `{$table}`", ARRAY_A );
+		$rows  = $wpdb->get_results( "SHOW FULL COLUMNS FROM `{$table}`", ARRAY_A );
 		$error = self::clean_error();
+
+		// phpcs:ignore WordPress.DB.DirectDatabaseQuery.DirectQuery, WordPress.DB.DirectDatabaseQuery.NoCaching, WordPress.DB.PreparedSQL.NotPrepared, WordPress.DB.PreparedSQL.InterpolatedNotPrepared, PluginCheck.Security.DirectDB.UnescapedDBParameter -- Table name comes from $wpdb->prefix.
+		$index_rows  = $wpdb->get_results( "SHOW INDEX FROM `{$table}`", ARRAY_A );
+		$index_error = self::clean_error();
 
 		$wpdb->suppress_errors( $suppress );
 
-		if ( '' !== $error || ! is_array( $rows ) ) {
-			return new WP_Error( 'at8mluc_schema_read', '' !== $error ? $error : __( 'The table structure could not be read.', 'at8-moonlight-user-center' ) );
+		if ( '' !== $error || ! is_array( $rows ) || '' !== $index_error || ! is_array( $index_rows ) ) {
+			return new WP_Error( 'at8mluc_schema_read', '' !== $error ? $error : ( '' !== $index_error ? $index_error : __( 'The table structure could not be read.', 'at8-moonlight-user-center' ) ) );
 		}
 
-		$columns = array();
-		$primary = '';
+		$columns         = array();
+		$fields          = array();
+		$primary_columns = array();
 
 		foreach ( $rows as $row ) {
 			$name = isset( $row['Field'] ) ? (string) $row['Field'] : '';
@@ -781,9 +820,14 @@ class AT8MLUC_Prefix_Migration {
 			}
 
 			$columns[] = $name;
+			$fields[ $name ] = array(
+				'type'  => isset( $row['Type'] ) ? (string) $row['Type'] : '',
+				'null'  => isset( $row['Null'] ) ? (string) $row['Null'] : '',
+				'extra' => isset( $row['Extra'] ) ? (string) $row['Extra'] : '',
+			);
 
-			if ( isset( $row['Key'] ) && 'PRI' === (string) $row['Key'] && '' === $primary ) {
-				$primary = $name;
+			if ( isset( $row['Key'] ) && 'PRI' === (string) $row['Key'] ) {
+				$primary_columns[] = $name;
 			}
 		}
 
@@ -791,9 +835,195 @@ class AT8MLUC_Prefix_Migration {
 			return new WP_Error( 'at8mluc_schema_empty', __( 'The table has no columns.', 'at8-moonlight-user-center' ) );
 		}
 
+		// Group the SHOW INDEX rows into one entry per index, keeping the
+		// column order and the uniqueness flag.
+		$indexes = array();
+
+		foreach ( $index_rows as $row ) {
+			$key = isset( $row['Key_name'] ) ? (string) $row['Key_name'] : '';
+			$col = isset( $row['Column_name'] ) ? (string) $row['Column_name'] : '';
+
+			if ( '' === $key || '' === $col ) {
+				return new WP_Error( 'at8mluc_schema_index', __( 'The table indexes could not be read.', 'at8-moonlight-user-center' ) );
+			}
+
+			if ( ! isset( $indexes[ $key ] ) ) {
+				$indexes[ $key ] = array(
+					'unique'  => isset( $row['Non_unique'] ) ? 0 === (int) $row['Non_unique'] : false,
+					'columns' => array(),
+				);
+			}
+
+			$indexes[ $key ]['columns'][] = $col;
+		}
+
+		$unique = array();
+
+		foreach ( $indexes as $index ) {
+			if ( $index['unique'] ) {
+				$unique[] = $index['columns'];
+			}
+		}
+
 		return array(
-			'columns' => $columns,
-			'primary' => $primary,
+			'columns'         => $columns,
+			'fields'          => $fields,
+			'primary'         => $primary_columns ? $primary_columns[0] : '',
+			'primary_columns' => $primary_columns,
+			'indexes'         => $indexes,
+			'unique'          => $unique,
+		);
+	}
+
+	/**
+	 * Compare two table structures for migration compatibility.
+	 *
+	 * @param array $old             Source schema from table_schema().
+	 * @param array $new             Target schema from table_schema().
+	 * @param array $required_unique Column combinations that must be unique.
+	 * @return array<string> Human-readable problems, empty when compatible.
+	 */
+	private static function structure_problems( $old, $new, $required_unique ) {
+		$problems = array();
+
+		if ( $old['primary_columns'] !== $new['primary_columns'] ) {
+			$problems[] = sprintf(
+				/* translators: 1: source primary key, 2: target primary key. */
+				__( 'Primary key mismatch: source (%1$s) vs target (%2$s).', 'at8-moonlight-user-center' ),
+				implode( ', ', $old['primary_columns'] ),
+				implode( ', ', $new['primary_columns'] )
+			);
+		}
+
+		foreach ( $old['fields'] as $name => $meta ) {
+			if ( ! isset( $new['fields'][ $name ] ) ) {
+				$problems[] = sprintf(
+					/* translators: %s: column name. */
+					__( 'The target table is missing the column %s.', 'at8-moonlight-user-center' ),
+					$name
+				);
+				continue;
+			}
+
+			$target = $new['fields'][ $name ];
+
+			if ( self::normalize_type( $meta['type'] ) !== self::normalize_type( $target['type'] ) ) {
+				$problems[] = sprintf(
+					/* translators: 1: column name, 2: source type, 3: target type. */
+					__( 'Column %1$s has an incompatible type: source %2$s vs target %3$s.', 'at8-moonlight-user-center' ),
+					$name,
+					$meta['type'],
+					$target['type']
+				);
+			}
+
+			if ( strtolower( $meta['null'] ) !== strtolower( $target['null'] ) ) {
+				$problems[] = sprintf(
+					/* translators: 1: column name, 2: source NULL attribute, 3: target NULL attribute. */
+					__( 'Column %1$s has a conflicting NULL attribute: source %2$s vs target %3$s.', 'at8-moonlight-user-center' ),
+					$name,
+					$meta['null'],
+					$target['null']
+				);
+			}
+
+			$source_auto = false !== strpos( strtolower( (string) $meta['extra'] ), 'auto_increment' );
+			$target_auto = false !== strpos( strtolower( (string) $target['extra'] ), 'auto_increment' );
+
+			if ( $source_auto !== $target_auto ) {
+				$problems[] = sprintf(
+					/* translators: %s: column name. */
+					__( 'Column %s disagrees about being auto-increment.', 'at8-moonlight-user-center' ),
+					$name
+				);
+			}
+		}
+
+		foreach ( self::missing_required_unique( $new, $required_unique ) as $missing ) {
+			$problems[] = sprintf(
+				/* translators: %s: comma-separated column list. */
+				__( 'A required unique index on (%s) is missing.', 'at8-moonlight-user-center' ),
+				implode( ', ', $missing )
+			);
+			}
+
+		return $problems;
+	}
+
+	/**
+	 * Which of the required unique column combinations the schema lacks.
+	 *
+	 * Only an exact column-combination match counts: an index over extra
+	 * columns is a different constraint, and a weaker one does not guarantee
+	 * the idempotency the ledger depends on.
+	 *
+	 * @param array $schema     Schema from table_schema().
+	 * @param array $required   Column combinations, e.g. [['user_id','idem_key']].
+	 * @return array<array<string>> Missing combinations.
+	 */
+	private static function missing_required_unique( $schema, $required ) {
+		$missing = array();
+
+		foreach ( (array) $required as $combination ) {
+			$wanted = array_map( 'strtolower', (array) $combination );
+			sort( $wanted );
+
+			$found = false;
+
+			foreach ( $schema['unique'] as $index_columns ) {
+				$have = array_map( 'strtolower', (array) $index_columns );
+				sort( $have );
+
+				if ( $have === $wanted ) {
+					$found = true;
+					break;
+				}
+			}
+
+			if ( ! $found ) {
+				$missing[] = $wanted;
+			}
+		}
+
+		return $missing;
+	}
+
+	/**
+	 * Normalise a column type for comparison: lowercase, no spaces and no
+	 * display width, so bigint(20) unsigned and BIGINT UNSIGNED compare equal.
+	 *
+	 * @param string $type Raw type string from SHOW FULL COLUMNS.
+	 * @return string
+	 */
+	private static function normalize_type( $type ) {
+		$type = strtolower( preg_replace( '/\s+/', '', (string) $type ) );
+		$type = preg_replace( '/\(\d+(,\d+)?\)/', '', $type );
+
+		return (string) $type;
+	}
+
+	/**
+	 * A compact, non-sensitive structure summary for the migration report.
+	 *
+	 * @param array $schema Schema from table_schema().
+	 * @return array{source: array, target?: array}
+	 */
+	private static function schema_summary( $schema ) {
+		$fields = array();
+
+		foreach ( $schema['fields'] as $name => $meta ) {
+			$fields[ $name ] = $meta['type'] . ( 'NO' === strtolower( $meta['null'] ) ? ' not-null' : '' ) . ( false !== strpos( strtolower( $meta['extra'] ), 'auto_increment' ) ? ' auto-increment' : '' );
+		}
+
+		return array(
+			'primary' => implode( ', ', $schema['primary_columns'] ),
+			'columns' => $fields,
+			'unique'  => array_map(
+				static function ( $columns ) {
+					return implode( ', ', $columns );
+				},
+				$schema['unique']
+			),
 		);
 	}
 

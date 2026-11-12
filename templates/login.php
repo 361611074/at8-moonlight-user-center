@@ -90,6 +90,8 @@ $at8mluc_user_login  = isset( $args['user_login'] ) ? $args['user_login'] : '';
 		'unsupported'    => __( 'That sign-in method is not supported.', 'at8-moonlight-user-center' ),
 		'register_closed' => __( 'Registration is closed and no matching account was found.', 'at8-moonlight-user-center' ),
 		'register_fail'  => __( 'Account creation failed, please try again.', 'at8-moonlight-user-center' ),
+		'bind_taken'     => __( 'That social account is already linked to another account here.', 'at8-moonlight-user-center' ),
+		'bind_conflict'  => __( 'Your account is already linked to another account at that provider.', 'at8-moonlight-user-center' ),
 	);
 	if ( '' !== $at8mluc_oauth_error && isset( $at8mluc_oauth_messages[ $at8mluc_oauth_error ] ) ) :
 		?>

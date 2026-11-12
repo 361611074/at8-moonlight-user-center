@@ -624,7 +624,7 @@ class AT8MLUC_OAuth
 		 *
 		 * @since 2.7.0
 		 *
-		 * @param string $code    Short reason (state, cancelled, token, profile, unsupported, register_closed, register_fail).
+		 * @param string $code    Short reason (state, cancelled, token, profile, unsupported, register_closed, register_fail, bind_taken, bind_conflict).
 		 * @param string $message Human-readable explanation.
 		 */
 		do_action('at8mluc_oauth_fail', (string) $code, (string) $message);
@@ -821,11 +821,10 @@ class AT8MLUC_OAuth
 	{
 		$meta_key = 'at8mluc_oauth_' . $id . '_id';
 
-		// 已登录：直接绑定到当前账户
+		// 已登录：把第三方账号绑定到当前账户。绑定不在这里落库——
+		// 先通过登录策略检查，do_login() 认证通过后才写入，见其 $bind_meta_key。
 		if (is_user_logged_in()) {
-			$user_id = get_current_user_id();
-			update_user_meta($user_id, $meta_key, $profile['provider_id']);
-			$this->do_login($user_id, $profile, $redirect_to, $remember);
+			$this->do_login(get_current_user_id(), $profile, $redirect_to, $remember, $meta_key);
 		}
 
 		// 按 provider_id 查找已有绑定
@@ -856,8 +855,9 @@ class AT8MLUC_OAuth
 		if ($link_by_email && !empty($profile['email']) && !empty($profile['email_verified'])) {
 			$u = get_user_by('email', $profile['email']);
 			if ($u) {
-				update_user_meta($u->ID, $meta_key, $profile['provider_id']);
-				$this->do_login($u->ID, $profile, $redirect_to, $remember);
+				// 绑定同样延后到认证通过之后；账户已绑了同提供商的另一个
+				// 第三方账号时会被拒绝，不会覆盖。
+				$this->do_login($u->ID, $profile, $redirect_to, $remember, $meta_key);
 			}
 		}
 
@@ -873,13 +873,24 @@ class AT8MLUC_OAuth
 			: ('ml' . $id . '_' . substr(md5($profile['provider_id']), 0, 8) . '@oauth.local');
 		$user_id = wp_create_user($login, wp_generate_password(24, false), $email);
 		if (is_wp_error($user_id)) {
-			$this->oauth_fail('register_fail', $user_id->get_error_message());
+			/*
+			 * 撞邮箱通常意味着上一次注册创建了账户、但登录策略拒绝了登录，
+			 * 第三方绑定没有写入——账户被保留等待重试（见 do_login 的绑定
+			 * 时机）。找到那个账户继续本次认证，而不是再造一个孤儿账户，
+			 * 也不是直接失败让访客永远无法完成登录。
+			 */
+			$retry = get_user_by('email', $email);
+			// 来自第三方的邮箱必须已经过验证才能作为找回依据；派生邮箱
+			// 由 provider_id 决定，找回等价于按 provider_id 匹配，是安全的。
+			if (!$retry || (!empty($profile['email']) && empty($profile['email_verified']))) {
+				$this->oauth_fail('register_fail', $user_id->get_error_message());
+			}
+			$user_id = (int) $retry->ID;
 		}
-		update_user_meta($user_id, $meta_key, $profile['provider_id']);
 		if (!empty($profile['name'])) {
 			wp_update_user(array('ID' => $user_id, 'display_name' => $profile['name']));
 		}
-		$this->do_login($user_id, $profile, $redirect_to, $remember);
+		$this->do_login($user_id, $profile, $redirect_to, $remember, $meta_key);
 	}
 
 	/**
@@ -1048,19 +1059,39 @@ class AT8MLUC_OAuth
 	 * is_user_logged_in() 立即生效。已经以此身份登录时（账户绑定）整段跳过，
 	 * 不重复建 cookie、不重复触发登录动作。
 	 *
-	 * @param int    $user_id     本地用户 ID。
-	 * @param array  $profile     归一化后的 provider 资料。
-	 * @param string $redirect_to 已校验的同站回跳地址。
-	 * @param bool   $remember    是否延长会话，默认 false。
+	 * @param int    $user_id       本地用户 ID。
+	 * @param array  $profile       归一化后的 provider 资料。
+	 * @param string $redirect_to   已校验的同站回跳地址。
+	 * @param bool   $remember      是否延长会话，默认 false。
+	 * @param string $bind_meta_key 需要在认证通过后写入的绑定 meta 键；
+	 *                              空串表示该用户已有绑定或无需绑定。
 	 * @return void
 	 */
-	private function do_login($user_id, $profile, $redirect_to = '', $remember = false)
+	private function do_login($user_id, $profile, $redirect_to = '', $remember = false, $bind_meta_key = '')
 	{
 		$user = $this->authenticate_oauth_user($user_id, $profile);
 
 		if (is_wp_error($user)) {
 			// 通用文案：不泄漏第三方错误、安全插件规则或账户状态细节。
 			$this->oauth_fail('blocked', __('本站当前不允许该账户通过第三方账号登录。', 'at8-moonlight-user-center'));
+		}
+
+		/*
+		 * 登录策略全部放行之后、建立会话之前，才写入第三方绑定关系：
+		 * 认证被拒绝时既不落绑定、也不建 Cookie、也不触发登录成功动作。
+		 * 两种冲突都不覆盖旧数据：第三方账号已绑到别的用户、或本账户
+		 * 已绑定了同一提供商的另一个第三方账号。绑定冲突时同样不建会话。
+		 */
+		if ('' !== $bind_meta_key) {
+			$taken_by = self::find_bound_user($bind_meta_key, $profile['provider_id']);
+			if ($taken_by && (int) $taken_by !== (int) $user->ID) {
+				$this->oauth_fail('bind_taken', __('该第三方账号已绑定其他账户。', 'at8-moonlight-user-center'));
+			}
+			$existing = (string) get_user_meta($user->ID, $bind_meta_key, true);
+			if ('' !== $existing && $existing !== (string) $profile['provider_id']) {
+				$this->oauth_fail('bind_conflict', __('该账户已绑定此登录方式的其他账号。', 'at8-moonlight-user-center'));
+			}
+			update_user_meta($user->ID, $bind_meta_key, $profile['provider_id']);
 		}
 
 		$already_signed_in = is_user_logged_in() && (int) get_current_user_id() === (int) $user->ID;

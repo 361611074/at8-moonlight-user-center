@@ -3,7 +3,7 @@ Contributors: x361611074
 Tags: user profile, login, registration, avatar, user center
 Requires at least: 5.8
 Tested up to: 7.1
-Stable tag: 2.7.2
+Stable tag: 2.7.3
 Requires PHP: 7.4
 License: GPL-2.0-or-later
 License URI: https://www.gnu.org/licenses/gpl-2.0.html
@@ -191,6 +191,9 @@ No user is ever created with a role chosen by the visitor: new accounts receive 
 
 == Changelog ==
 
+= 2.7.3 =
+Security release. Social-login bindings are now written only after every login policy has passed, binding conflicts are refused instead of overwritten, and an unverified provider e-mail can no longer claim an existing account through the register-retry path. The points-table migration now verifies the real table structure - primary key shape, column types, NULL attributes, auto-increment flags and the idempotency unique indexes - before a single row is written, and refuses with a clear admin notice when anything disagrees. No settings change is needed.
+
 = 2.7.2 =
 Security and reliability release. Social logins now pass through one authentication adapter: it resolves the local account, checks its status, fires the core `wp_authenticate` event and lets security plugins refuse through the native `authenticate` and `wp_authenticate_user` filters. A refusal fires `wp_login_failed` and leaves no session cookie; "remember me" is off by default. The 2.7.0 points-table migration now reads the real table structure and compares every row column by column in bounded batches instead of trusting row counts; a conflict stops the run, is reported to administrators and never overwrites data. OAuth callback parameters reject arrays, objects and over-long values. Documentation: the author's published privacy-policy and terms-of-service URLs are now listed, and a FAQ entry explains that only the separately distributed Pro add-on performs licence checks against at8.fun. No settings change is needed.
 
@@ -367,6 +370,10 @@ Security and reliability release. Social logins now pass through one authenticat
 * Uninstall option to remove the plugin's data.
 
 == Upgrade Notice ==
+
+= 2.7.3 =
+Social-login account links are now written only after every login policy has passed, and the points-table migration checks the real table structure before writing anything. No settings change is needed.
+
 
 = 2.7.2 =
 Recommended for every site upgrading from 2.6.6 or earlier. The points-table migration is now verified row by row; if it finds a conflict it keeps all existing data, schedules a retry and shows an administrator notice instead of claiming success.
