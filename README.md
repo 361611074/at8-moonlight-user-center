@@ -103,8 +103,9 @@ installed — License (Pro).
 
 ## Installation
 
-1. Download `at8-moonlight-user-center-2.7.2.zip` from the releases, or clone this
-   repository into `wp-content/plugins/at8-moonlight-user-center/`.
+1. Download `at8-moonlight-user-center-2.7.2.zip` from the
+   [2.7.2 release](https://github.com/361611074/at8-moonlight-user-center/releases/tag/2.7.2),
+   or clone this repository into `wp-content/plugins/at8-moonlight-user-center/`.
 2. Activate the plugin under **Plugins**.
 3. Create pages containing the shortcodes listed above.
 4. Go to **User Center → Settings** and select those pages.
