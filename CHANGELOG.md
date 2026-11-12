@@ -5,6 +5,18 @@ This file summarises the 2.7.2 delivery for the GitHub repository.
 
 ## 2.7.2 — security / reliability (2026-11-11)
 
+### Documentation (completed 2026-11-12)
+- Published the author's real privacy policy at
+  https://www.at8.fun/privacy-policy/ and terms of service at
+  https://www.at8.fun/terms-of-service/ on the author's own WordPress site.
+- `readme.txt`: added both URLs alongside the source repository and author
+  website. A new FAQ entry explains that the free plugin has no phone-home,
+  while the separately distributed Pro add-on contacts `www.at8.fun` for
+  licence activation, validation and update checks, and lists exactly which
+  fields that request carries.
+- The release ZIP was regenerated after these documentation-only changes; its
+  SHA-256 differs from the earlier 2.7.2 archive. No PHP code changed.
+
 ### P0 — OAuth joins the WordPress authentication chain
 - `includes/class-oauth.php`: new `authenticate_oauth_user()` adapter separates
   provider verification, local account resolution, local login policy and

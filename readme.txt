@@ -58,7 +58,9 @@ Place each shortcode on its own page, then choose those pages under User Center 
 
 * Source code, issue reports and release packages: https://github.com/361611074/at8-moonlight-user-center
 * Author's website: https://www.at8.fun/
-* The plugin is GPL-2.0-or-later and does not contact the author's website. No account, profile, points, order or login data is transmitted to at8.fun; every outbound request in this plugin goes to a social-login provider chosen by the site administrator, as listed under External services.
+* Author's privacy policy: https://www.at8.fun/privacy-policy/
+* Author's terms of service: https://www.at8.fun/terms-of-service/
+* This plugin is GPL-2.0-or-later and does not contact the author's website. No account, profile, points, order or login data is transmitted to at8.fun; every outbound request in this plugin goes to a social-login provider chosen by the site administrator, as listed under External services. The separately distributed Pro add-on is a different plugin: it does contact at8.fun for licence activation, validation and update checks. That communication and exactly what it transmits are described in the author's privacy policy.
 
 **How it handles your data**
 
@@ -108,6 +110,10 @@ Nothing is removed unless you enable "Delete data on uninstall" in User Center �
 = Does it work with any theme? =
 
 Yes. Styles are namespaced and inherit the theme wherever possible, and any template can be overridden from your theme.
+
+= Does the plugin phone home? =
+
+No. This plugin contains no telemetry, analytics, licence server or update server and sends nothing to the author. The separately distributed Pro add-on is a different plugin: it contacts https://www.at8.fun for licence activation, periodic validation and update checks, sending the product identifier, site URL, plugin version, WordPress version and licence key. It never sends visitor data, account details, post content, points ledger rows or order records. See the author's privacy policy at https://www.at8.fun/privacy-policy/ and terms of service at https://www.at8.fun/terms-of-service/.
 
 == External services ==
 
@@ -186,7 +192,7 @@ No user is ever created with a role chosen by the visitor: new accounts receive 
 == Changelog ==
 
 = 2.7.2 =
-Security and reliability release. Social logins now pass through one authentication adapter: it resolves the local account, checks its status, fires the core `wp_authenticate` event and lets security plugins refuse through the native `authenticate` and `wp_authenticate_user` filters. A refusal fires `wp_login_failed` and leaves no session cookie; "remember me" is off by default. The 2.7.0 points-table migration now reads the real table structure and compares every row column by column in bounded batches instead of trusting row counts; a conflict stops the run, is reported to administrators and never overwrites data. OAuth callback parameters reject arrays, objects and over-long values. No settings change is needed.
+Security and reliability release. Social logins now pass through one authentication adapter: it resolves the local account, checks its status, fires the core `wp_authenticate` event and lets security plugins refuse through the native `authenticate` and `wp_authenticate_user` filters. A refusal fires `wp_login_failed` and leaves no session cookie; "remember me" is off by default. The 2.7.0 points-table migration now reads the real table structure and compares every row column by column in bounded batches instead of trusting row counts; a conflict stops the run, is reported to administrators and never overwrites data. OAuth callback parameters reject arrays, objects and over-long values. Documentation: the author's published privacy-policy and terms-of-service URLs are now listed, and a FAQ entry explains that only the separately distributed Pro add-on performs licence checks against at8.fun. No settings change is needed.
 
 = 2.7.1 =
 * Social login: all five providers sign in through one routine that fires the standard `wp_login` action and offers a veto filter (`at8mluc_oauth_authenticate_user`), so security, two-factor and activity-log plugins see — and can refuse — a social login the same way they see a password login. Previously the session was created directly and no plugin was told.

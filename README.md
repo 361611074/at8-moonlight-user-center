@@ -6,6 +6,8 @@ touching the WordPress admin.
 
 **Version 2.7.2** · GPL-2.0-or-later · PHP 7.4+ · WordPress 5.8+
 
+Privacy policy: https://www.at8.fun/privacy-policy/ · Terms of service: https://www.at8.fun/terms-of-service/
+
 ---
 
 ## What it does
