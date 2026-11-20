@@ -118,35 +118,73 @@ class AT8MLUC_Fields {
 			return null;
 		}
 
-		$id = isset( $entry['id'] ) ? sanitize_key( (string) $entry['id'] ) : '';
+		$id = isset( $entry['id'] ) && is_scalar( $entry['id'] ) ? sanitize_key( (string) $entry['id'] ) : '';
 
 		if ( '' === $id ) {
 			return null;
 		}
 
-		$type = isset( $entry['type'] ) && isset( self::TYPES[ $entry['type'] ] ) ? $entry['type'] : 'text';
+		$type = isset( $entry['type'] ) && is_scalar( $entry['type'] ) && isset( self::TYPES[ (string) $entry['type'] ] )
+			? (string) $entry['type']
+			: 'text';
 
+		/*
+		 * Choice labels are rendered as option values and visible text, so they
+		 * go through the same sanitiser a post title would: strip tags, strip
+		 * control characters, normalise whitespace. Trimming alone would let a
+		 * stored definition carry markup or a line break into every form that
+		 * uses the field.
+		 */
 		$options = array();
+
 		if ( ! empty( $entry['options'] ) && is_string( $entry['options'] ) ) {
-			foreach ( preg_split( '/\r\n|\r|\n/', $entry['options'] ) as $line ) {
-				$line = trim( $line );
+			$lines = preg_split( '/\r\n|\r|\n/', $entry['options'] );
+
+			foreach ( (array) $lines as $line ) {
+				$line = sanitize_text_field( (string) $line );
+
 				if ( '' !== $line ) {
 					$options[] = $line;
+				}
+
+				if ( count( $options ) >= 100 ) {
+					break;
 				}
 			}
 		}
 
 		return array(
 			'id'          => $id,
-			'label'       => isset( $entry['label'] ) ? sanitize_text_field( (string) $entry['label'] ) : $id,
+			'label'       => self::scalar_text( $entry, 'label', $id ),
 			'type'        => $type,
 			'required'    => empty( $entry['required'] ) ? 0 : 1,
 			'on_register' => empty( $entry['on_register'] ) ? 0 : 1,
 			'on_profile'  => empty( $entry['on_profile'] ) ? 0 : 1,
 			'options'     => $options,
-			'placeholder' => isset( $entry['placeholder'] ) ? sanitize_text_field( (string) $entry['placeholder'] ) : '',
-			'description' => isset( $entry['description'] ) ? sanitize_text_field( (string) $entry['description'] ) : '',
+			'placeholder' => self::scalar_text( $entry, 'placeholder', '' ),
+			'description' => self::scalar_text( $entry, 'description', '' ),
 		);
+	}
+
+	/**
+	 * Read one scalar key from a submitted definition and sanitise it.
+	 *
+	 * A nested array or object in a text slot is discarded rather than cast:
+	 * `(string) array()` would raise a notice and store the word "Array".
+	 *
+	 * @param array  $entry    Submitted definition.
+	 * @param string $key      Key to read.
+	 * @param string $fallback Value to use when the key is missing or unusable.
+	 * @return string
+	 */
+	private static function scalar_text( $entry, $key, $fallback ) {
+		if ( ! isset( $entry[ $key ] ) || ! is_scalar( $entry[ $key ] ) ) {
+			return $fallback;
+		}
+
+		$value = sanitize_text_field( (string) $entry[ $key ] );
+
+		return '' === $value ? $fallback : $value;
 	}
 
 	/**
@@ -486,7 +524,10 @@ class AT8MLUC_Fields {
 			wp_send_json_error( array( 'message' => __( 'You are not allowed to do this.', 'at8-moonlight-user-center' ) ) );
 		}
 
-		$raw = isset( $_POST['fields'] ) ? (array) wp_unslash( $_POST['fields'] ) : array(); // phpcs:ignore WordPress.Security.ValidatedSanitizedInput.InputNotSanitized -- each entry is normalised below.
+		// Each entry is passed through self::normalize(), which sanitises every
+		// stored key (id, label, type, options, placeholder, description) and
+		// discards nested values in text slots.
+		$raw = isset( $_POST['fields'] ) ? (array) wp_unslash( $_POST['fields'] ) : array(); // phpcs:ignore WordPress.Security.ValidatedSanitizedInput.InputNotSanitized -- Per-key sanitisation happens in self::normalize() below.
 
 		$clean = array();
 		$ids   = array();

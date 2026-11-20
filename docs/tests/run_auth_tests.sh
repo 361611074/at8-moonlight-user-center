@@ -10,19 +10,26 @@
 #
 set -u
 
-BASE="$(cd "$(dirname "$0")/.." && pwd)"
+# This file lives in <plugin>/docs/tests/, while the harness lives in the
+# project root next to the plugin directory.
+HERE="$(cd "$(dirname "$0")" && pwd)"
+BASE="$(cd "$HERE/../../.." && pwd)"
 PHP="/c/wptest-php/php.exe"
 WPCLI="$BASE/_tools/wp-cli.phar"
 SITE="$BASE/wptest/wordpress"
 OUT="$BASE/_tmp_out"
 CHILD="$BASE/_tools/oauth_chain_child.php"
+ASSERT="$BASE/_tools/oauth_chain_assert.php"
 
 mkdir -p "$OUT"
 rm -f "$OUT"/auth_*.json
 
 for scenario in oauth_login oauth_veto form_login weak_login register \
 	oauth_native_veto oauth_user_policy_veto oauth_inactive oauth_identity_swap \
-	oauth_native_sees_user oauth_already_signed_in oauth_remember; do
+	oauth_native_sees_user oauth_already_signed_in oauth_remember \
+	bind_ok bind_taken bind_conflict bind_after_veto \
+	bind_retry_register_step1 bind_retry_register_step2 \
+	email_unverified_no_hijack state_consume state_replay; do
 	PM_SCENARIO="$scenario" \
 	PM_OUT="$OUT/auth_$scenario.json" \
 	"$PHP" "$WPCLI" --path="$SITE" eval-file "$CHILD" > "$OUT/auth_$scenario.out" 2>&1
@@ -32,7 +39,7 @@ for scenario in oauth_login oauth_veto form_login weak_login register \
 	fi
 done
 
-"$PHP" "$BASE/_tools/oauth_chain_assert.php" "$OUT"
+"$PHP" "$ASSERT" "$OUT"
 
 # Remove the throwaway users the scenarios created.
 "$PHP" "$WPCLI" --path="$SITE" eval '

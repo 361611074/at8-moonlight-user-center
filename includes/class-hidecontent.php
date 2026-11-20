@@ -107,7 +107,15 @@ class AT8MLUC_Hidecontent {
 			return $content;
 		}
 
-		return do_shortcode( $content );
+		/*
+		 * $content is the post content, not markup this plugin produced.
+		 * WordPress sanitises it on save (`wp_filter_post_kses`) and renders it
+		 * as-is through `the_content`; running it through `wp_kses()` here
+		 * would strip embeds such as `<iframe>` that the author is entitled to
+		 * use. Everything this plugin adds is escaped where it is built —
+		 * see render() and render_cta().
+		 */
+		return do_shortcode( $content ); // phpcs:ignore WordPress.Security.EscapeOutput.OutputNotEscaped -- Post content already sanitised by WordPress; escaping it would strip legitimate embeds.
 	}
 
 	/**
@@ -137,7 +145,12 @@ class AT8MLUC_Hidecontent {
 		$inner = do_shortcode( $content );
 
 		if ( self::user_can_view( $type ) ) {
-			return $inner;
+			/*
+			 * The revealed block is the author's own post content, already
+			 * sanitised by WordPress. Only the locked card is markup this
+			 * plugin builds, and render_cta() escapes every value it puts in.
+			 */
+			return $inner; // phpcs:ignore WordPress.Security.EscapeOutput.OutputNotEscaped -- Post content sanitised by WordPress; see maybe_filter().
 		}
 
 		return self::render_cta( $type );
@@ -284,7 +297,9 @@ class AT8MLUC_Hidecontent {
 				$custom = (string) apply_filters( 'at8mluc_hide_cta_html', '', $type );
 
 				if ( '' !== $custom ) {
-					return $custom;
+					// Filter output is markup, not text: keep post-level HTML,
+					// drop anything a post is not allowed to contain.
+					return wp_kses_post( $custom );
 				}
 
 				$action = '';
@@ -300,7 +315,9 @@ class AT8MLUC_Hidecontent {
 
 		$type_esc = esc_attr( $type );
 
-		return sprintf(
+		// Every placeholder is escaped above: $type_esc (esc_attr), the icon and
+		// title (esc_html), $tip (esc_html__) and $action (esc_url + esc_html).
+		return sprintf( // phpcs:ignore WordPress.Security.EscapeOutput.OutputNotEscaped -- Assembled from escaped parts only.
 			'<div class="at8mluc-hidecontent at8mluc-hc-%1$s" data-type="%1$s">'
 				. '<div class="at8mluc-hc-inner">'
 				. '<span class="at8mluc-hc-icon" aria-hidden="true">%2$s</span>'

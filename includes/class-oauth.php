@@ -813,6 +813,32 @@ class AT8MLUC_OAuth
 	}
 
 	/**
+	 * 注册撞邮箱时，是否可以复用那个既有账户继续本次认证。
+	 *
+	 * 这条路径与「按已验证邮箱匹配既有账户」是同一件事，因此必须用同一把
+	 * 闸门：提供商没给邮箱时，本地邮箱由 provider_id 派生，按邮箱匹配等价
+	 * 于按 provider_id 匹配；提供商给了邮箱时，必须已验证且站点未关闭
+	 * 邮箱关联。任何其他情况一律 false —— 创建失败绝不能被当成登录通行证。
+	 *
+	 * @param array        $profile       归一化后的 provider 资料。
+	 * @param bool         $link_by_email 站点是否允许按邮箱关联账户。
+	 * @param WP_User|false $existing     按邮箱找到的既有账户。
+	 * @return bool
+	 */
+	private static function may_reuse_on_email_collision($profile, $link_by_email, $existing)
+	{
+		if (!$existing instanceof WP_User) {
+			return false;
+		}
+
+		if (empty($profile['email'])) {
+			return true;
+		}
+
+		return (bool) $link_by_email && !empty($profile['email_verified']);
+	}
+
+	/**
 	 * 登录或注册并绑定。
 	 *
 	 * @param string $redirect_to 登录后回跳地址（已通过 state 白名单校验）
@@ -871,26 +897,45 @@ class AT8MLUC_OAuth
 		$email = !empty($profile['email'])
 			? $profile['email']
 			: ('ml' . $id . '_' . substr(md5($profile['provider_id']), 0, 8) . '@oauth.local');
-		$user_id = wp_create_user($login, wp_generate_password(24, false), $email);
+		$rename_display = false;
+		$user_id        = wp_create_user($login, wp_generate_password(24, false), $email);
+
 		if (is_wp_error($user_id)) {
 			/*
 			 * 撞邮箱通常意味着上一次注册创建了账户、但登录策略拒绝了登录，
 			 * 第三方绑定没有写入——账户被保留等待重试（见 do_login 的绑定
-			 * 时机）。找到那个账户继续本次认证，而不是再造一个孤儿账户，
-			 * 也不是直接失败让访客永远无法完成登录。
+			 * 时机）。这里可以继续用那个账户，但绝不能变成绕过邮箱匹配策略的
+			 * 后门，因此复用条件与上面那条路径完全一致：
+			 *
+			 *   1. 提供商没有返回邮箱（微信 / QQ）：$email 由 provider_id
+			 *      派生，按邮箱匹配等价于按 provider_id 匹配，不涉及邮箱关联；
+			 *   2. 提供商返回了邮箱：必须由提供商验证过，并且站点没有关闭
+			 *      邮箱关联（at8mluc_oauth_allow_email_link）。
+			 *
+			 * 任一条件不满足就拒绝。绝不因为「创建失败」而顺手登录一个既有账户。
 			 */
-			$retry = get_user_by('email', $email);
-			// 来自第三方的邮箱必须已经过验证才能作为找回依据；派生邮箱
-			// 由 provider_id 决定，找回等价于按 provider_id 匹配，是安全的。
-			if (!$retry || (!empty($profile['email']) && empty($profile['email_verified']))) {
-				$this->oauth_fail('register_fail', $user_id->get_error_message());
+			$retry    = get_user_by('email', $email);
+			$reusable = self::may_reuse_on_email_collision($profile, $link_by_email, $retry);
+
+			if (!$reusable) {
+				$this->oauth_fail('register_fail', __('该邮箱已被其他账户使用。请先用密码登录，再在账户设置里绑定这个第三方账号。', 'at8-moonlight-user-center'));
 			}
+
 			$user_id = (int) $retry->ID;
+
+			// 只对这个插件自己生成的账户（登录名带 provider 前缀）补显示名，
+			// 不去猜一个既有账户的来历。
+			$rename_display = (0 === strpos((string) $retry->user_login, 'ml' . $id . '_'));
+		} else {
+			$rename_display = true;
 		}
-		if (!empty($profile['name'])) {
-			wp_update_user(array('ID' => $user_id, 'display_name' => $profile['name']));
-		}
-		$this->do_login($user_id, $profile, $redirect_to, $remember, $meta_key);
+
+		/*
+		 * 显示名不在这里写。此刻登录策略与绑定冲突都还没检查，改写一个既有
+		 * 账户的显示名等于在认证之前动了别人的资料。交给 do_login()，在全部
+		 * 策略放行、绑定写入成功之后才做（见其 $rename_display 参数）。
+		 */
+		$this->do_login($user_id, $profile, $redirect_to, $remember, $meta_key, $rename_display);
 	}
 
 	/**
@@ -1065,9 +1110,13 @@ class AT8MLUC_OAuth
 	 * @param bool   $remember      是否延长会话，默认 false。
 	 * @param string $bind_meta_key 需要在认证通过后写入的绑定 meta 键；
 	 *                              空串表示该用户已有绑定或无需绑定。
+	 * @param bool   $rename_display 是否允许用第三方资料补显示名。只有在本次
+	 *                              请求新建了账户、或账户确实是本插件生成的
+	 *                              （登录名带 provider 前缀）时才为 true，
+	 *                              且仍然只覆盖未被访客改过的显示名。
 	 * @return void
 	 */
-	private function do_login($user_id, $profile, $redirect_to = '', $remember = false, $bind_meta_key = '')
+	private function do_login($user_id, $profile, $redirect_to = '', $remember = false, $bind_meta_key = '', $rename_display = false)
 	{
 		$user = $this->authenticate_oauth_user($user_id, $profile);
 
@@ -1092,6 +1141,25 @@ class AT8MLUC_OAuth
 				$this->oauth_fail('bind_conflict', __('该账户已绑定此登录方式的其他账号。', 'at8-moonlight-user-center'));
 			}
 			update_user_meta($user->ID, $bind_meta_key, $profile['provider_id']);
+		}
+
+		/*
+		 * 显示名：认证与绑定都通过之后才写。只覆盖仍是系统生成登录名的
+		 * 显示名（访客自己没改过），因此注册重试路径不会在策略检查之前
+		 * 改动既有账户，也不会盖掉用户自己选的名字。
+		 */
+		if ($rename_display && !empty($profile['name']) && (string) $user->display_name === (string) $user->user_login) {
+			$display_name = sanitize_text_field((string) $profile['name']);
+
+			if ('' !== $display_name) {
+				wp_update_user(array('ID' => (int) $user->ID, 'display_name' => $display_name));
+
+				$refreshed = get_userdata((int) $user->ID);
+
+				if ($refreshed instanceof WP_User) {
+					$user = $refreshed;
+				}
+			}
 		}
 
 		$already_signed_in = is_user_logged_in() && (int) get_current_user_id() === (int) $user->ID;

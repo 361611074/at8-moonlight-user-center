@@ -3,7 +3,7 @@ Contributors: x361611074
 Tags: user profile, login, registration, avatar, user center
 Requires at least: 5.8
 Tested up to: 7.1
-Stable tag: 2.7.3
+Stable tag: 2.7.4
 Requires PHP: 7.4
 License: GPL-2.0-or-later
 License URI: https://www.gnu.org/licenses/gpl-2.0.html
@@ -117,7 +117,22 @@ No. This plugin contains no telemetry, analytics, licence server or update serve
 
 == External services ==
 
-This plugin offers **optional** social login. A connection to a provider is made only when both of these are true:
+This plugin talks to two kinds of external service: **Gravatar**, which supplies a profile picture when an account has not chosen one from the site's own avatar library, and the **social-login providers** the administrator chooses to enable. Both are described below.
+
+### Gravatar — profile pictures
+
+WordPress uses Gravatar as its default source of avatars, and this plugin asks WordPress for the avatar URL (`get_avatar_url()`) and prints it on the account pages. That is the only reason Gravatar is contacted.
+
+* Service: Gravatar, an avatar service operated by Automattic. It is used to show a profile picture for a user who has not picked one from the site's own avatar library.
+* Domains contacted: `secure.gravatar.com` and its numbered mirrors such as `0.gravatar.com`, `1.gravatar.com`.
+* Data sent and when: a hash of the user's e-mail address (never the address itself), the requested image size and the default-image setting. The request is made when a page showing that user's avatar is loaded — the account overview, the avatar picker and the profile form.
+* When it is not contacted: no request is made for a user who has selected an avatar from the site's own library, and none at all when the administrator turns avatars off under Settings → Discussion (the account pages then show the initials fallback).
+* Terms of service: https://automattic.com/terms/
+* Privacy policy: https://automattic.com/privacy/
+
+### Social login — optional, per provider
+
+Social login is **optional**. A connection to a provider is made only when both of these are true:
 
 1. the site administrator has enabled that provider under User Center → Settings → Social Login and saved its own app credentials (client ID / secret) issued by that provider, and
 2. a visitor actively clicks that provider's button on a login or registration form.
@@ -176,8 +191,9 @@ This plugin is a front-end user center, so creating accounts and signing users i
 * Login uses `wp_signon()` with the submitted credentials. Failed attempts are counted and throttled by the plugin, and any security plugin that hooks `authenticate` or `wp_login_failed` keeps working.
 * Password recovery uses `retrieve_password()`; changing a password uses `reset_password()`, which fires `after_password_reset` and invalidates the sessions the account already had.
 * Sessions are created with `wp_set_auth_cookie()` and `wp_set_current_user()`, exactly as `wp-login.php` does, so "remember me", session tokens and `wp_destroy_other_sessions()` all behave normally.
-* Social login cannot use `wp_signon()`: there is no local password to verify, because the identity was checked by the provider. Every provider therefore signs in through one routine that fires the standard `wp_login` action and passes the account through the `at8mluc_oauth_authenticate_user` filter first, so a security or two-factor plugin can still refuse the login.
-* Social login creates an account only when the site allows registration. A provider that returns an e-mail address the provider itself reports as verified, and that matches an existing account, signs that account in (a site can disable this with the `at8mluc_oauth_allow_email_link` filter). Providers that return no address (WeChat, QQ) get a generated local placeholder address, which never matches an existing account.
+* Social login cannot use `wp_signon()`: there is no local password to verify, because the identity was checked by the provider. Every provider therefore signs in through one routine that resolves the local account, runs it through WordPress' own `authenticate` and `wp_authenticate_user` filters (so a security, two-factor, spam or ban plugin can still refuse the login), fires `wp_login_failed` on a refusal, and only then creates the session with `wp_set_auth_cookie()`. The plugin's own `at8mluc_oauth_authenticate_user` filter is applied as well.
+* Social login creates an account only when the site allows registration. A provider that returns an e-mail address the provider itself reports as verified, and that matches an existing account, signs that account in — a site can switch that off with the `at8mluc_oauth_allow_email_link` filter. The same rule governs the retry path: when account creation fails because the address is already taken, the existing account is reused only under those exact conditions, so the filter cannot be bypassed. Providers that return no address (WeChat, QQ) get a local placeholder address derived from the provider account ID, which is equivalent to matching by provider ID.
+* Social login never edits an account before the login policies have passed. The provider's display name is written only after authentication succeeds, only for an account this plugin created (its login name carries the provider prefix), and only while the display name is still the generated one — a name the visitor chose is never overwritten.
 * The plugin never reveals whether a social callback was rejected because of the state check or for any other reason: every refusal lands on the login form with a generic notice.
 
 No user is ever created with a role chosen by the visitor: new accounts receive the site's default role, and the plugin never grants capabilities.
@@ -190,6 +206,18 @@ No user is ever created with a role chosen by the visitor: new accounts receive 
 4. The front-end login form.
 
 == Changelog ==
+
+= 2.7.4 =
+Security and disclosure release.
+
+* External services: the readme now documents Gravatar, the avatar service WordPress uses by default — what it is for, the domains contacted, the data sent (a hash of the e-mail address, never the address itself), when the request is made, when it is not, and Gravatar's terms of service and privacy policy. Previously the account pages could load a Gravatar image without the readme saying so.
+* Social login: the register-retry path no longer bypasses the `at8mluc_oauth_allow_email_link` filter. When account creation fails because the e-mail address is already taken, an existing account is reused only if the provider verified that address and the site has not switched e-mail linking off — the same rule the normal path uses. Otherwise the attempt is refused with a message telling the visitor to log in and link the account from their profile.
+* Social login: the provider's display name is now written after authentication and binding succeed, not before, and only for an account this plugin created whose display name is still the generated login. A refused login no longer leaves a renamed account behind.
+* Escaping: the custom CTA returned by the `at8mluc_hide_cta_html` filter is now passed through `wp_kses_post()`. Everything else the plugin prints was already escaped where the markup is built. The shortcode and `the_content` callbacks return the author's post content and add-on markup unchanged, and the code now says why: passing those through `wp_kses()` would strip the `<iframe>` embeds and the inline card script that an author or add-on is entitled to use.
+* Custom profile fields: choice options are sanitised with `sanitize_text_field()` instead of only being trimmed, capped at 100 options per field, and a nested array in a text slot is discarded instead of being cast to the string "Array".
+* Uninstall: with "Delete data on uninstall" enabled, the cleanup now sweeps every option under the plugin's prefix instead of a fixed list, so markers added by later versions (the 2.7.0 prefix migration, for example) no longer survive the uninstall.
+
+No settings change is needed.
 
 = 2.7.3 =
 Security release. Social-login bindings are now written only after every login policy has passed, binding conflicts are refused instead of overwritten, and an unverified provider e-mail can no longer claim an existing account through the register-retry path. The points-table migration now verifies the real table structure - primary key shape, column types, NULL attributes, auto-increment flags and the idempotency unique indexes - before a single row is written, and refuses with a clear admin notice when anything disagrees. No settings change is needed.

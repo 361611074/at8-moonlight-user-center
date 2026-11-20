@@ -118,6 +118,26 @@ function at8mluc_uninstall_site() {
 
 	delete_option( AT8MLUC_UNINSTALL_OPTION );
 	delete_option( 'at8mluc_version' );
+
+	/*
+	 * Sweep whatever is left under the plugin's own prefix. Listing keys one by
+	 * one is how a marker added in a later version (the 2.7.0 prefix migration,
+	 * for instance) ends up surviving an uninstall; the prefix belongs to this
+	 * plugin alone, so a prefix sweep is exhaustive by construction. Each name
+	 * goes through delete_option() rather than a raw DELETE so a persistent
+	 * object cache is invalidated too.
+	 */
+	// phpcs:ignore WordPress.DB.DirectDatabaseQuery.DirectQuery, WordPress.DB.DirectDatabaseQuery.NoCaching -- Uninstall cleanup has no cache to use; delete_option() below handles the cache.
+	$at8mluc_leftovers = $wpdb->get_col(
+		$wpdb->prepare(
+			"SELECT option_name FROM {$wpdb->options} WHERE option_name LIKE %s",
+			$wpdb->esc_like( 'at8mluc_' ) . '%'
+		)
+	);
+
+	foreach ( (array) $at8mluc_leftovers as $at8mluc_option_name ) {
+		delete_option( $at8mluc_option_name );
+	}
 }
 
 /**

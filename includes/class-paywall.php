@@ -395,7 +395,16 @@ class AT8MLUC_Paywall {
 			 */
 			$extra = (string) apply_filters( 'at8mluc_paywall_unlocked_html', $extra, $post_id );
 
-			return '' === $extra ? $content : $content . $extra;
+			/*
+			 * $content is the post content WordPress already sanitised on
+			 * save. $extra is markup from an add-on, and an add-on is entitled
+			 * to emit things a post may not contain — the Pro add-on appends
+			 * <iframe> video embeds here. Running either through wp_kses()
+			 * would strip them, so the escaping happens where each piece is
+			 * built: the core card escapes every value it prints, and add-on
+			 * markup is code, not user input.
+			 */
+			return '' === $extra ? $content : $content . $extra; // phpcs:ignore WordPress.Security.EscapeOutput.OutputNotEscaped -- Post content sanitised by WordPress; add-on markup may contain embeds by design.
 		}
 
 		ob_start();
@@ -431,7 +440,14 @@ class AT8MLUC_Paywall {
 		 */
 		$teaser = wp_trim_words( wp_strip_all_tags( $content ), 60, '…' );
 
-		return '<p class="at8mluc-paywall-teaser">' . esc_html( $teaser ) . '</p>' . $card;
+		/*
+		 * The teaser is plain text and escaped below. $card is the core
+		 * template (which escapes every value it prints) or an add-on's richer
+		 * card — the Pro add-on's card carries an inline script, so passing it
+		 * through wp_kses() would break it. Escaping therefore happens where
+		 * the markup is produced, not at this seam.
+		 */
+		return '<p class="at8mluc-paywall-teaser">' . esc_html( $teaser ) . '</p>' . $card; // phpcs:ignore WordPress.Security.EscapeOutput.OutputNotEscaped -- Teaser escaped above; card is escaped template or add-on markup.
 	}
 
 	/**
