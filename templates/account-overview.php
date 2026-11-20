@@ -69,7 +69,13 @@ $at8mluc_registered = $at8mluc_user->user_registered
 	 */
 	$at8mluc_level       = AT8MLUC_Membership::get_user_level( $at8mluc_user->ID );
 	$at8mluc_level_label = $at8mluc_level ? AT8MLUC_Membership::get_level_label( $at8mluc_level ) : __( 'None', 'at8-moonlight-user-center' );
-	$at8mluc_expires     = AT8MLUC_Membership::get_user_expires( $at8mluc_user->ID );
+	/*
+	 * get_user_expires() returns a unix timestamp, or 0 when the account has no
+	 * expiry. It is a timestamp, not a MySQL date, so it has to go through
+	 * date_i18n(); mysql2date() parsed it as a date string and returned
+	 * nothing, which left a bare "Valid until" label on every account.
+	 */
+	$at8mluc_expires     = (int) AT8MLUC_Membership::get_user_expires( $at8mluc_user->ID );
 	$at8mluc_points      = AT8MLUC_Points::balance( $at8mluc_user->ID );
 	$at8mluc_points_text = is_wp_error( $at8mluc_points ) ? '—' : number_format_i18n( $at8mluc_points );
 	$at8mluc_orders      = AT8MLUC_Payments::get_user_orders( $at8mluc_user->ID, 100 );
@@ -90,13 +96,13 @@ $at8mluc_registered = $at8mluc_user->user_registered
 		<li>
 			<span class="at8mluc-stat-label"><?php esc_html_e( 'Membership', 'at8-moonlight-user-center' ); ?></span>
 			<span class="at8mluc-stat-value"><?php echo esc_html( $at8mluc_level_label ); ?></span>
-			<?php if ( '' !== $at8mluc_expires ) : ?>
+			<?php if ( $at8mluc_expires > 0 ) : ?>
 				<span class="at8mluc-stat-note">
 					<?php
 					printf(
 						/* translators: %s: expiry date. */
 						esc_html__( 'Valid until %s', 'at8-moonlight-user-center' ),
-						esc_html( mysql2date( (string) get_option( 'date_format' ), $at8mluc_expires, true ) )
+						esc_html( date_i18n( (string) get_option( 'date_format' ), $at8mluc_expires ) )
 					);
 					?>
 				</span>

@@ -192,15 +192,16 @@ No user is ever created with a role chosen by the visitor: new accounts receive 
 
 == Screenshots ==
 
-1. The account dashboard overview.
-2. The profile editor.
-3. The avatar library picker.
-4. The front-end login form.
+1. The account dashboard. Overview, profile, avatar and password live on one page.
+2. The profile editor. Extra fields defined under User Center → Settings appear in this form.
+3. The avatar picker. Visitors choose from the library the administrator curated, or keep the default avatar.
+4. The front-end login form, rendered inside the theme rather than on wp-login.php.
 
 == Changelog ==
 
 = 2.7.6 =
 * Points: redeeming a level is charged once, even when the request arrives twice. The deduction now carries an idempotency key built from the user, the level and the day, so a second click replays the balance instead of taking the cost again — the level grant itself was already idempotent. Before this, a visitor whose balance covered two redemptions could pay twice for one level. A later redemption of the same level, after it expired, falls on a different day and is charged normally.
+* Account dashboard: the membership expiry now shows an actual date. `get_user_expires()` returns a timestamp, but the overview template passed it to `mysql2date()`, which expects a MySQL date string — so the note read "Valid until" with nothing after it. Accounts with no expiry showed the bare label as well, because the guard compared the value to an empty string rather than to zero. It is rendered with `date_i18n()` now, the way the membership tab already did.
 * Custom fields: the profile hook now ignores a call that did not come from the profile form. The action is public, and a missing key reads as an empty value, so a programmatic caller firing it without the form would otherwise blank every custom field on the account.
 * readme.txt: the description was 5,966 characters and WordPress.org renders only the first 2,500. It now fits in 2,390, so the feature list and the shortcode reference are no longer cut off.
 * Social login: the profile payload no longer carries the provider's avatar URL. Nothing ever read it — the plugin has never imported a remote avatar — so it was collected and discarded. The field is gone from the payload the login filters receive.
