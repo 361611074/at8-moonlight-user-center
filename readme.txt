@@ -145,7 +145,7 @@ Each provider is listed below with the domains that are contacted, what the requ
 
 * Domains contacted: `github.com`, `api.github.com`.
 * What it is used for: signing in with an existing GitHub account instead of a local password.
-* Data sent and when: an authorization code, exchanged for an access token, only after the visitor clicks "Sign in with GitHub". The plugin receives the account ID, display name, avatar URL and verified email addresses. Nothing is sent at any other time.
+* Data sent and when: an authorization code, exchanged for an access token, only after the visitor clicks "Sign in with GitHub". The plugin receives the account ID, display name and verified email addresses. The provider's API response also carries an avatar URL; the plugin neither stores nor uses it, and no remote avatar is ever imported. Nothing is sent at any other time.
 * GitHub Terms of Service: https://docs.github.com/en/site-policy/github-terms/github-terms-of-service
 * GitHub Privacy Statement: https://docs.github.com/en/site-policy/privacy-policies/github-privacy-statement
 
@@ -153,7 +153,7 @@ Each provider is listed below with the domains that are contacted, what the requ
 
 * Domains contacted: `open.weixin.qq.com`, `api.weixin.qq.com`.
 * What it is used for: signing in with a WeChat account through the WeChat Open Platform website-application flow (available where WeChat Open Platform access is granted).
-* Data sent and when: an authorization code, exchanged for an access token, only after the visitor scans the QR code shown by "Sign in with WeChat". The plugin receives the OpenID / UnionID, display name and avatar URL. Nothing is sent at any other time.
+* Data sent and when: an authorization code, exchanged for an access token, only after the visitor scans the QR code shown by "Sign in with WeChat". The plugin receives the OpenID / UnionID and display name. The provider's API response also carries an avatar URL; the plugin neither stores nor uses it, and no remote avatar is ever imported. Nothing is sent at any other time.
 * Tencent WeChat Software License and Service Agreement (covers the Open Platform): https://weixin.qq.com/cgi-bin/readtemplate?uin=&stype=&promote=&fr=&lang=zh_CN&check=false&t=weixin_agreement
 * WeChat Privacy Protection Guidelines: https://weixin.qq.com/cgi-bin/readtemplate?uin=&stype=&promote=&fr=&lang=zh_CN&check=false&t=weixin_agreement&s=privacy
 
@@ -161,7 +161,7 @@ Each provider is listed below with the domains that are contacted, what the requ
 
 * Domains contacted: `graph.qq.com`.
 * What it is used for: signing in with a QQ account through QQ Connect.
-* Data sent and when: an authorization code, exchanged for an access token, only after the visitor clicks "Sign in with QQ". The plugin receives the OpenID, display name and avatar URL. Nothing is sent at any other time.
+* Data sent and when: an authorization code, exchanged for an access token, only after the visitor clicks "Sign in with QQ". The plugin receives the OpenID and display name. The provider's API response also carries an avatar URL; the plugin neither stores nor uses it, and no remote avatar is ever imported. Nothing is sent at any other time.
 * Tencent Service Agreement: https://www.qq.com/contract.shtml
 * Tencent Privacy Policy: https://privacy.qq.com/policy/tencent-privacypolicy
 

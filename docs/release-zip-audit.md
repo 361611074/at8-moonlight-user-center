@@ -3,8 +3,8 @@
 - 构建日期：2026-11-20
 - 构建命令：`python _tools/make_zip.py at8-moonlight-user-center 2.7.6`（从经测试的工作区打包）
 - 产物：`at8-moonlight-user-center-2.7.6.zip`
-- **52 文件 / 212,769 B**
-- **SHA-256**：`9596497896923490c9612794ba951555356c457e8d267927a934d47815834c5b`
+- **52 文件 / 212,817 B**
+- **SHA-256**：`5c35735dfda02a0333d622ecfcc8cf6166fdaa1e6279274d76d61cc237538db9`
 
 ## 核对项
 
@@ -53,6 +53,7 @@
   - 积分两张表补上旧前缀同名表，固定表名、不做动态发现
   - 选项扫描补上旧前缀
 - `readme.txt`：Description 压到 2,390 字符（上限 2,500）；新增 2.7.6 changelog 与 Upgrade Notice；4 条截图标题按实际画面重写
+- `readme.txt` 的 `== External services ==`：GitHub / WeChat / QQ 三处原写「插件接收头像 URL」，与 2.7.6 移除 payload 头像字段的改动读起来相互矛盾。改为说明「响应体也含头像 URL，但插件既不存储也不使用，且从不导入远端头像」——对外披露宁可多说，但不能前后不一致
 - `templates/account-overview.php`：会员到期时间用 `date_i18n()` 渲染。`get_user_expires()` 返回的是时间戳，原代码却交给 `mysql2date()`（它要 MySQL 日期字符串），于是任何有到期时间的账户都只显示一个空的 "Valid until"；无到期的账户因为 `0 !== ''` 也会渲染这个悬空标签。会员标签页的模板本来就用 `(int)` + `date_i18n()`，概览页与它对齐
 - `CHANGELOG.md`：补 2.7.4 / 2.7.5 / 2.7.6 三段（此前停在 2.7.3）
 
