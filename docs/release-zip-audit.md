@@ -13,7 +13,7 @@
 | 版本一致（头 / `AT8MLUC_VERSION` / readme Stable tag / changelog） | 全部 2.7.6（zip 内实测） |
 | 根目录 | 单一根 `at8-moonlight-user-center/`，主插件文件位于根 |
 | 排除项 | `.git/`、`.gitignore`、`README.md`（开发者文档）、`docs/`（审计报告与测试脚本）、`.wordpress-org/`（目录页插图，属于 SVN 的 `assets/`）、隐藏文件、`*.po`/`*.mo` |
-| 截图 | `.wordpress-org/screenshot-1..4.png`，均 1200×900，与 readme 的 4 条标题一一对应；不进 ZIP |
+| 目录页资源 | `.wordpress-org/` 共 8 个文件：4 张截图（均 1200×900，与 readme 的 4 条标题一一对应）、`icon-128x128` / `icon-256x256`、`banner-772x250` / `banner-1544x500`。`_tools/check_wporg_assets.py` 全项通过；不进 ZIP |
 | Plugin Check（2.1.0，zip 解压后扫描） | **0 ERROR / 1 WARNING** |
 | 干净站安装 | 15 / 0：设置项、版本记录、四个短代码、积分链路、幂等唯一索引、后台菜单 |
 | 卸载（`delete_data=1`，含旧前缀数据） | Free 自有 options / usermeta / 表 **全部归零**；Pro 的 3 项选项按设计保留 |
