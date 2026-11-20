@@ -3,7 +3,7 @@ Contributors: x361611074
 Tags: user profile, login, registration, avatar, user center
 Requires at least: 5.8
 Tested up to: 7.1
-Stable tag: 2.7.4
+Stable tag: 2.7.5
 Requires PHP: 7.4
 License: GPL-2.0-or-later
 License URI: https://www.gnu.org/licenses/gpl-2.0.html
@@ -115,6 +115,28 @@ Yes. Styles are namespaced and inherit the theme wherever possible, and any temp
 
 No. This plugin contains no telemetry, analytics, licence server or update server and sends nothing to the author. The separately distributed Pro add-on is a different plugin: it contacts https://www.at8.fun for licence activation, periodic validation and update checks, sending the product identifier, site URL, plugin version, WordPress version and licence key. It never sends visitor data, account details, post content, points ledger rows or order records. See the author's privacy policy at https://www.at8.fun/privacy-policy/ and terms of service at https://www.at8.fun/terms-of-service/.
 
+== Privacy ==
+
+This plugin stores what the forms collect and nothing else. It performs no analytics, no telemetry and no tracking, and it embeds no third-party trackers.
+
+**What is stored**
+
+* Account: the username, e-mail address and password you submit. The password is stored only as a one-way hash and is never readable by this site or by the plugin.
+* Profile: display name, nickname, first and last name, website address, biography and phone number, when you fill them in.
+* Avatar: the identifier of the library image you selected. Users cannot upload files.
+* Membership and orders: the level held, its expiry, and the orders created when one is bought, with the amount, the gateway and the transaction reference.
+* Points: a ledger row for every movement, the balance derived from those rows, and the reason recorded for each movement.
+* Custom profile fields, when the administrator defines them.
+* Social login: the provider account identifier, so the next sign-in recognises you. Provider tokens and API responses are never stored.
+
+**Cookies**
+
+Signing in uses the standard WordPress session cookies. A social-login attempt also sets three short-lived cookies of its own: a one-time state value that protects the callback against cross-site request forgery (10 minutes), the "stay signed in" choice (10 minutes), and a refusal notice carried back to the login form (5 minutes). All three are readable only by this site and are removed when the attempt finishes. There are no advertising, analytics or preference cookies.
+
+**Your data**
+
+The plugin registers a personal-data exporter and eraser with the WordPress privacy tools, so an account's stored data can be exported or erased from Tools → Export Personal Data and Tools → Erase Personal Data. Suggested privacy-policy wording is added to Settings → Privacy. Deleting the plugin removes its data only when "Delete data on uninstall" is enabled; WordPress user accounts, posts and comments are always left alone.
+
 == External services ==
 
 This plugin talks to two kinds of external service: **Gravatar**, which supplies a profile picture when an account has not chosen one from the site's own avatar library, and the **social-login providers** the administrator chooses to enable. Both are described below.
@@ -206,6 +228,14 @@ No user is ever created with a role chosen by the visitor: new accounts receive 
 4. The front-end login form.
 
 == Changelog ==
+
+= 2.7.5 =
+Documentation release. The only code change is the privacy wording this plugin suggests to site owners.
+
+* Privacy: the suggested privacy-policy text said the plugin uses "no cookies of its own". That was wrong — a social-login attempt sets three short-lived cookies (the CSRF state value, the "stay signed in" choice and a refusal notice). The text now describes each one, its lifetime and its scope.
+* readme.txt: a new "Privacy" section lists exactly what is stored, which cookies are set, and how a user's data can be exported or erased. The External services section pointed at a privacy section that did not exist; it does now.
+
+No settings change is needed.
 
 = 2.7.4 =
 Security and disclosure release.
