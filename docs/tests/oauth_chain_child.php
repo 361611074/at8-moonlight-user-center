@@ -27,6 +27,12 @@ $GLOBALS['pm_log'] = array(
 	'payload'           => '',
 	'user_id'           => 0,
 	'registered'        => 0,
+	// 2.7.3 binding-order probes, filled in by the shutdown writer.
+	'probe_key'         => '',
+	'probe_val'         => '',
+	'probe_result'      => 0,
+	'caller_meta'       => '',
+	'registered_wechat_meta' => '',
 );
 
 $pm_out = (string) getenv( 'PM_OUT' );
@@ -43,6 +49,36 @@ register_shutdown_function(
 	function () use ( $pm_out ) {
 		foreach ( $GLOBALS['pm_restore'] as $name => $value ) {
 			update_option( $name, $value );
+		}
+
+		// 2.7.3: record the binding state so the assertion process (which has
+		// no database) can verify what was actually written.
+		global $wpdb;
+
+		$probe_key = (string) $GLOBALS['pm_log']['probe_key'];
+
+		if ( '' !== $probe_key ) {
+			$GLOBALS['pm_log']['probe_result'] = (int) $wpdb->get_var(
+				$wpdb->prepare(
+					"SELECT user_id FROM {$wpdb->usermeta} WHERE meta_key = %s AND meta_value = %s LIMIT 1",
+					$probe_key,
+					(string) $GLOBALS['pm_log']['probe_val']
+				)
+			);
+		}
+
+		$caller = (int) $GLOBALS['pm_log']['user_id'];
+
+		if ( ! $caller && (int) $GLOBALS['pm_log']['registered'] ) {
+			$caller = (int) $GLOBALS['pm_log']['registered'];
+		}
+
+		if ( $caller ) {
+			$GLOBALS['pm_log']['caller_meta'] = (string) get_user_meta( $caller, 'at8mluc_oauth_github_id', true );
+		}
+
+		if ( (int) $GLOBALS['pm_log']['registered'] ) {
+			$GLOBALS['pm_log']['registered_wechat_meta'] = (string) get_user_meta( (int) $GLOBALS['pm_log']['registered'], 'at8mluc_oauth_wechat_id', true );
 		}
 
 		file_put_contents( $pm_out, json_encode( $GLOBALS['pm_log'] ) ); // phpcs:ignore WordPress.WP.AlternativeFunctions.file_system_operations_file_put_contents -- Standalone test harness, not plugin code.
@@ -79,6 +115,19 @@ add_action(
 	'wp_login_failed',
 	function () {
 		$GLOBALS['pm_log']['login_failed']++;
+	}
+);
+
+/*
+ * Every scenario in this suite runs from one IP, so the per-IP buckets would
+ * fill up across repeated runs and a later run would fail for a reason that
+ * has nothing to do with the chain under test. No scenario asserts the
+ * throttle itself, so it is switched off for the whole process.
+ */
+add_filter(
+	'at8mluc_rate_limit',
+	function () {
+		return 0;
 	}
 );
 
@@ -140,6 +189,37 @@ function pm_child_user() {
 }
 
 /**
+ * Remove any leftover binding for a fixture identity before a scenario runs.
+ *
+ * The scenarios that create an account through the OAuth register path leave
+ * a user whose login is `ml<provider>_<hash>`, which the shell cleanup cannot
+ * recognise by prefix. Without this scrub a previous run's account would be
+ * found first, the scenario would take the "reuse an existing account" branch
+ * and the assertions about account creation would silently invert.
+ *
+ * @param string $meta_key Provider binding meta key.
+ * @param string $meta_val Fixture identity value.
+ * @return void
+ */
+function pm_child_scrub_identity( $meta_key, $meta_val ) {
+	global $wpdb;
+
+	$ids = $wpdb->get_col(
+		$wpdb->prepare(
+			"SELECT DISTINCT user_id FROM {$wpdb->usermeta} WHERE meta_key = %s AND meta_value = %s",
+			(string) $meta_key,
+			(string) $meta_val
+		)
+	);
+
+	foreach ( array_unique( array_map( 'intval', (array) $ids ) ) as $id ) {
+		if ( $id > 0 && get_userdata( $id ) ) {
+			wp_delete_user( $id );
+		}
+	}
+}
+
+/**
  * Call the private OAuth sign-in routine the way the callback would.
  *
  * @param int    $user_id  User to sign in.
@@ -147,7 +227,7 @@ function pm_child_user() {
  * @param string $redirect Same-site return URL.
  * @return void
  */
-function pm_child_oauth_login( $user_id, $remember = false, $redirect = '' ) {
+function pm_child_oauth_login( $user_id, $remember = false, $redirect = '', $bind = '', $provider_id = 'pm-fixture' ) {
 	$method = new ReflectionMethod( 'AT8MLUC_OAuth', 'do_login' );
 	$method->setAccessible( true );
 
@@ -156,16 +236,76 @@ function pm_child_oauth_login( $user_id, $remember = false, $redirect = '' ) {
 	$method->invoke(
 		$oauth,
 		$user_id,
-		array(
-			'provider'    => 'github',
-			'provider_id' => 'pm-fixture',
-			'email'       => '',
-			'name'        => 'PM fixture',
-			'avatar'      => '',
-		),
+		pm_child_oauth_profile( 'github', $provider_id ),
 		$redirect,
-		$remember
+		$remember,
+		$bind
 	);
+}
+
+/**
+ * A normalised provider profile for the fixtures.
+ *
+ * @param string $provider       Provider slug.
+ * @param string $provider_id    Third-party identity.
+ * @param string $email          Provider e-mail, empty when it has none.
+ * @param bool   $email_verified Whether the provider verified the address.
+ * @return array
+ */
+function pm_child_oauth_profile( $provider, $provider_id, $email = '', $email_verified = true ) {
+	return array(
+		'provider'       => $provider,
+		'provider_id'    => $provider_id,
+		'email'          => $email,
+		'email_verified' => $email_verified,
+		'name'           => 'PM fixture',
+		'avatar'         => '',
+	);
+}
+
+/**
+ * Call the private login-or-register routine the way the callback would.
+ *
+ * @param string $provider Provider slug.
+ * @param array  $profile  Normalised profile.
+ * @return void
+ */
+function pm_child_oauth_register( $provider, $profile ) {
+	$method = new ReflectionMethod( 'AT8MLUC_OAuth', 'login_or_register' );
+	$method->setAccessible( true );
+
+	$method->invoke( AT8MLUC_OAuth::get_instance(), $provider, $profile, '', false );
+}
+
+/**
+ * Drive maybe_handle_callback() with a given state/code pair.
+ *
+ * @param string $state Pre-minted state token.
+ * @param string $code  Authorization code to present.
+ * @return void
+ */
+function pm_child_oauth_callback( $state, $code, $mint = true ) {
+	if ( $mint ) {
+		set_transient(
+			'at8mluc_oauth_state_' . $state,
+			array(
+				'provider'  => 'github',
+				'redirect'  => '',
+				'remember'  => 0,
+				'init_user' => 0,
+			),
+			600
+		);
+	}
+
+	$_GET    = array(
+		'at8mluc_oauth' => 'github',
+		'code'          => $code,
+		'state'         => $state,
+	);
+	$_COOKIE = array( 'at8mluc_oauth_state' => $state );
+
+	AT8MLUC_OAuth::get_instance()->maybe_handle_callback();
 }
 
 $scenario = (string) getenv( 'PM_SCENARIO' );
@@ -295,6 +435,130 @@ if ( 'oauth_remember' === $scenario ) {
 	pm_child_oauth_login( $uid, true );
 }
 
+// ---- 2.7.3: binding must happen after authentication passes, never before.
+
+// A successful sign-in that also links the provider writes the binding.
+if ( 'bind_ok' === $scenario ) {
+	$uid = pm_child_user();
+	$GLOBALS['pm_log']['user_id']  = $uid;
+	$GLOBALS['pm_log']['probe_key'] = 'at8mluc_oauth_github_id';
+	$GLOBALS['pm_log']['probe_val'] = 'pm-bind-fixture1';
+
+	pm_child_oauth_login( $uid, false, '', 'at8mluc_oauth_github_id', 'pm-bind-fixture1' );
+}
+
+// The provider identity is already linked to another local account: refuse,
+// keep the other binding, write nothing, set no cookie.
+if ( 'bind_taken' === $scenario ) {
+	$owner = pm_child_user();
+	$uid   = pm_child_user();
+	update_user_meta( $owner, 'at8mluc_oauth_github_id', 'pm-bind-fixture2' );
+	$GLOBALS['pm_log']['user_id']   = $uid;
+	$GLOBALS['pm_log']['probe_key'] = 'at8mluc_oauth_github_id';
+	$GLOBALS['pm_log']['probe_val'] = 'pm-bind-fixture2';
+	wp_set_current_user( $uid );
+
+	pm_child_oauth_login( $uid, false, '', 'at8mluc_oauth_github_id', 'pm-bind-fixture2' );
+}
+
+// The local account already links a different identity of the same provider:
+// refuse instead of silently overwriting it.
+if ( 'bind_conflict' === $scenario ) {
+	$uid = pm_child_user();
+	update_user_meta( $uid, 'at8mluc_oauth_github_id', 'pm-old-identity' );
+	$GLOBALS['pm_log']['user_id']   = $uid;
+	$GLOBALS['pm_log']['probe_key'] = 'at8mluc_oauth_github_id';
+	$GLOBALS['pm_log']['probe_val'] = 'pm-bind-fixture3';
+
+	pm_child_oauth_login( $uid, false, '', 'at8mluc_oauth_github_id', 'pm-bind-fixture3' );
+}
+
+// A security plugin refuses the sign-in: the pending binding must not be
+// written even though the account itself matched.
+if ( 'bind_after_veto' === $scenario ) {
+	$uid = pm_child_user();
+	$GLOBALS['pm_log']['user_id']   = $uid;
+	$GLOBALS['pm_log']['probe_key'] = 'at8mluc_oauth_github_id';
+	$GLOBALS['pm_log']['probe_val'] = 'pm-bind-fixture4';
+
+	add_filter(
+		'at8mluc_oauth_authenticate_user',
+		function () {
+			return new WP_Error( 'pm_blocked', 'blocked by the fixture' );
+		}
+	);
+
+	pm_child_oauth_login( $uid, false, '', 'at8mluc_oauth_github_id', 'pm-bind-fixture4' );
+}
+
+// Step 1 of the register-retry flow: a first-time sign-up is created but the
+// login policy refuses it. The account stays, unlinked and sessionless.
+if ( 'bind_retry_register_step1' === $scenario ) {
+	pm_child_scrub_identity( 'at8mluc_oauth_wechat_id', 'pm-retry-fixture' );
+	$GLOBALS['pm_restore']['users_can_register'] = get_option( 'users_can_register' );
+	update_option( 'users_can_register', 1 );
+
+	add_filter(
+		'at8mluc_oauth_authenticate_user',
+		function () {
+			return new WP_Error( 'pm_blocked', 'blocked by the fixture' );
+		}
+	);
+
+	$GLOBALS['pm_log']['probe_key'] = 'at8mluc_oauth_wechat_id';
+	$GLOBALS['pm_log']['probe_val'] = 'pm-retry-fixture';
+
+	pm_child_oauth_register( 'wechat', pm_child_oauth_profile( 'wechat', 'pm-retry-fixture' ) );
+}
+
+// Step 2: the same visitor comes back after the policy issue was fixed. The
+// existing unlinked account must be reused, not duplicated, and the binding
+// is written once authentication passes.
+if ( 'bind_retry_register_step2' === $scenario ) {
+	$GLOBALS['pm_restore']['users_can_register'] = get_option( 'users_can_register' );
+	update_option( 'users_can_register', 1 );
+
+	$GLOBALS['pm_log']['probe_key'] = 'at8mluc_oauth_wechat_id';
+	$GLOBALS['pm_log']['probe_val'] = 'pm-retry-fixture';
+
+	pm_child_oauth_register( 'wechat', pm_child_oauth_profile( 'wechat', 'pm-retry-fixture' ) );
+}
+
+// An unverified provider e-mail must never be used to claim an existing
+// account, not even through the register-retry path.
+if ( 'email_unverified_no_hijack' === $scenario ) {
+	pm_child_scrub_identity( 'at8mluc_oauth_github_id', 'pm-unverified-id' );
+	$owner = pm_child_user();
+	$mail  = (string) get_userdata( $owner )->user_email;
+	$GLOBALS['pm_restore']['users_can_register'] = get_option( 'users_can_register' );
+	update_option( 'users_can_register', 1 );
+	$GLOBALS['pm_log']['user_id']   = $owner;
+	$GLOBALS['pm_log']['probe_key'] = 'at8mluc_oauth_github_id';
+	$GLOBALS['pm_log']['probe_val'] = 'pm-unverified-id';
+
+	pm_child_oauth_register( 'github', pm_child_oauth_profile( 'github', 'pm-unverified-id', $mail, false ) );
+}
+
+// A state token is consumed by the first callback even when the token
+// exchange fails afterwards.
+if ( 'state_consume' === $scenario ) {
+	add_filter(
+		'pre_http_request',
+		function () {
+			return new WP_Error( 'http_request_failed', 'offline fixture' );
+		}
+	);
+
+	pm_child_oauth_callback( 'pmreplaystate00000000000000000001', 'pm-code-1' );
+}
+
+// The same state replayed afterwards is refused before anything else runs.
+if ( 'state_replay' === $scenario ) {
+	// The state was consumed (and deleted) by the first callback, so it is
+	// not minted again here: this is exactly what a replay looks like.
+	pm_child_oauth_callback( 'pmreplaystate00000000000000000001', 'pm-code-2', false );
+}
+
 if ( 'form_login' === $scenario ) {
 	$uid  = pm_child_user();
 	$pass = (string) get_user_meta( $uid, 'pm_child_pass', true );
@@ -345,15 +609,6 @@ if ( 'register' === $scenario ) {
 
 	$GLOBALS['pm_restore']['users_can_register'] = get_option( 'users_can_register' );
 	$GLOBALS['pm_restore']['at8mluc_options']    = get_option( 'at8mluc_options' );
-
-	// Repeated runs of this suite share one IP; disable only the throttle in
-	// this throwaway process so the assertion is about the auth chain.
-	add_filter(
-		'at8mluc_rate_limit',
-		function () {
-			return 0;
-		}
-	);
 
 	update_option( 'users_can_register', 1 );
 	update_option( 'at8mluc_options', array_merge( (array) get_option( 'at8mluc_options', array() ), array( 'enable_registration' => 1, 'auto_login' => 1 ) ) );

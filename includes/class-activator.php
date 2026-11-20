@@ -101,6 +101,17 @@ class AT8MLUC_Activator {
 	 * @return void
 	 */
 	public static function deactivate() {
-		// Intentionally empty: nothing to undo on deactivation.
+		/*
+		 * Drop the scheduled event. WordPress keeps cron entries across a
+		 * deactivation, and this hook then has no listener: it would still
+		 * cost an hourly cron run until the plugin is uninstalled.
+		 * register_cpt() schedules it again on the first `init` after the
+		 * plugin is reactivated, so nothing has to be restored here.
+		 *
+		 * The legacy name is cleared as well — the 2.7.0 rename left its
+		 * event behind on sites that upgraded.
+		 */
+		wp_clear_scheduled_hook( 'at8mluc_pay_autoclose' );
+		wp_clear_scheduled_hook( 'at8_mluc_pay_autoclose' );
 	}
 }

@@ -3,7 +3,7 @@ Contributors: x361611074
 Tags: user profile, login, registration, avatar, user center
 Requires at least: 5.8
 Tested up to: 7.1
-Stable tag: 2.7.5
+Stable tag: 2.7.6
 Requires PHP: 7.4
 License: GPL-2.0-or-later
 License URI: https://www.gnu.org/licenses/gpl-2.0.html
@@ -12,68 +12,38 @@ Front-end user center: login, registration, account dashboard, avatars, social l
 
 == Description ==
 
-AT8 Moonlight User Center gives a WordPress site a complete front-end account area without touching the WordPress admin. It is deliberately small: it uses the WordPress user system for everything and stores no passwords of its own. It performs no analytics, telemetry or tracking; the only third-party communication is the optional social login (see the External services section).
+AT8 Moonlight User Center adds a complete front-end account area to any theme, without sending users to wp-admin. It builds on the WordPress user system rather than replacing it, with no analytics, telemetry or tracking. The only third-party communication is optional social login, described under External services.
 
 **What it provides**
 
-* Front-end login form
-* Front-end registration that honours the WordPress "Anyone can register" setting
-* Password recovery through the standard WordPress reset email
+* Front-end login, registration (honouring "Anyone can register"), password recovery and password change
 * An account dashboard with overview, profile, avatar and password sections
-* Profile editing for the display name, nickname, first and last name, website address, phone number and biographical info
-* An avatar library: an administrator publishes a set of avatars and each user picks one
-* A password change form that signs the user out of every other device
-* Social login: WeChat, QQ, GitHub, Google and Apple sign-in, configured per provider in the admin
+* An avatar library: publish a set of images and each user picks one
+* Social login with WeChat, QQ, GitHub, Google and Apple, configured per provider
+* Custom registration and profile fields (text, textarea, number, date, URL, email, dropdown, radio, checkbox)
 * A hidden-content shortcode that reveals content after login or after an approved comment
-* Custom registration and profile fields (text, textarea, number, date, URL, email, dropdown, radio, checkbox), editable per user from the profile screen
-* A points ledger per user: balance, running history, configurable unit, points earned per currency unit spent, optional welcome bonus, admin adjustments
-* Optional terms-of-service checkbox on registration and a password strength meter
-* Membership levels with no cap on the number of tiers (label, colour, price, validity in days, sort order, point cost); members redeem a level with points or buy it from the account dashboard, and an administrator confirms the bank transfer
-* A paywall for single posts and pages: set a price, pick the membership levels that read it for free, and everyone else buys it through the same order engine
-* Offline payment engine: order records, admin confirmation, automatic expiry of abandoned pending orders, and purchase history in the account dashboard
-* Elementor widgets for the login, registration and account forms
-* A dedicated top-level "User Center" menu in wp-admin, with a card-based settings screen covering general settings, membership levels, offline payments, paywall defaults, points, registration fields, sidebar menu icons, interface text, social login and the avatar library
-
-**Membership, points and paywall**
-
-* Define as many membership levels as you need; there is no artificial cap and nothing is unlocked by a licence
-* Members reach a level by redeeming points (each level has a point cost) or by paying; both flow through the same order engine
-* Paid levels expire on their own and the free base level remains
-* Abandoned pending orders are closed automatically after a configurable number of hours
-* A paywalled post shows a teaser plus an unlock card; members of the chosen levels, or members who bought access, see the full content — and paid content is never served in feeds
-* The separate AT8 Moonlight User Center Pro add-on (not required) contributes online card payments (PayPal, Stripe), tiered upgrade pricing, paywall resources such as videos and downloads, and extra content-gate types. The free plugin is complete on its own.
+* A points ledger per user: balance, history, unit, earn rate and welcome bonus
+* Membership levels with no cap on tiers: label, colour, price, validity, sort order and point cost
+* A per-post paywall with a teaser and an unlock card
+* An offline payment engine: order records, admin confirmation, automatic expiry of abandoned orders and purchase history
+* Elementor widgets and a card-based settings screen
 
 **Shortcodes**
 
-* `[at8mluc_login]` — login form
-* `[at8mluc_register]` — registration form
-* `[at8mluc_lostpassword]` — password recovery form
-* `[at8mluc_account]` — account dashboard
-* `[at8mluc_hide type="logged|reply"]` — hidden content, revealed after login or after an approved comment
-* `[at8mluc_oauth_buttons]` — social login buttons on any page
+* `[at8mluc_login]`, `[at8mluc_register]`, `[at8mluc_lostpassword]`, `[at8mluc_account]`
+* `[at8mluc_hide type="logged|reply"]`, `[at8mluc_oauth_buttons]`
 
-Place each shortcode on its own page, then choose those pages under User Center → Settings. Any page you leave unset falls back to the equivalent WordPress screen.
+Place each on its own page and pick it under User Center → Settings; anything unset falls back to the equivalent WordPress screen.
 
-**Project and author**
+**Membership, points and paywall**
 
-* Source code, issue reports and release packages: https://github.com/361611074/at8-moonlight-user-center
-* Author's website: https://www.at8.fun/
-* Author's privacy policy: https://www.at8.fun/privacy-policy/
-* Author's terms of service: https://www.at8.fun/terms-of-service/
-* This plugin is GPL-2.0-or-later and does not contact the author's website. No account, profile, points, order or login data is transmitted to at8.fun; every outbound request in this plugin goes to a social-login provider chosen by the site administrator, as listed under External services. The separately distributed Pro add-on is a different plugin: it does contact at8.fun for licence activation, validation and update checks. That communication and exactly what it transmits are described in the author's privacy policy.
+Members reach a level by redeeming points or by paying; both use the same order engine. Paid levels expire on their own and the free base level remains. A paywalled post shows a teaser and an unlock card, and paid content is never served in feeds.
 
-**How it handles your data**
+The separate AT8 Moonlight User Center Pro add-on is optional: it adds online card payments, tiered upgrade pricing, paywall resources and extra content-gate types. The free plugin is complete on its own.
 
-* All accounts are created with the WordPress user API. Passwords are hashed by WordPress and are never read, stored, displayed or transmitted by this plugin.
-* Every form submission is protected by a nonce, every action is checked against the user's capabilities, all input is sanitised and all output is escaped.
-* Submission endpoints are rate limited.
-* The plugin embeds no trackers or analytics and loads no third-party scripts or fonts. The only outbound requests happen when a visitor uses social login: the browser is then redirected to the chosen provider and back, and the server exchanges the authorisation code with that provider's API (WeChat, QQ, GitHub, Google or Apple, whichever the administrator enabled). No data is sent anywhere else.
-* It registers a personal data exporter and eraser, so a user's information can be exported or erased through Tools → Export Personal Data and Tools → Erase Personal Data.
-* On uninstall you choose whether the plugin's settings and the profile fields it added are removed. WordPress user accounts, posts and comments are never deleted.
+**About this plugin**
 
-**Theme compatibility**
-
-The plugin ships minimal, namespaced CSS that inherits your theme's colours and typography. Any template can be overridden by copying it into `at8-moonlight-user-center/` inside your theme.
+GPL-2.0-or-later. Source, issues and releases: https://github.com/361611074/at8-moonlight-user-center — author: https://www.at8.fun/. What is stored, which cookies are set and how a user's data can be exported or erased is under Privacy; every outbound request is under External services.
 
 == Installation ==
 
@@ -228,6 +198,15 @@ No user is ever created with a role chosen by the visitor: new accounts receive 
 4. The front-end login form.
 
 == Changelog ==
+
+= 2.7.6 =
+* Points: redeeming a level is charged once, even when the request arrives twice. The deduction now carries an idempotency key built from the user, the level and the day, so a second click replays the balance instead of taking the cost again — the level grant itself was already idempotent. Before this, a visitor whose balance covered two redemptions could pay twice for one level. A later redemption of the same level, after it expired, falls on a different day and is charged normally.
+* Custom fields: the profile hook now ignores a call that did not come from the profile form. The action is public, and a missing key reads as an empty value, so a programmatic caller firing it without the form would otherwise blank every custom field on the account.
+* readme.txt: the description was 5,966 characters and WordPress.org renders only the first 2,500. It now fits in 2,390, so the feature list and the shortcode reference are no longer cut off.
+* Social login: the profile payload no longer carries the provider's avatar URL. Nothing ever read it — the plugin has never imported a remote avatar — so it was collected and discarded. The field is gone from the payload the login filters receive.
+* Housekeeping: the hourly order-autoclose event is now dropped on deactivation and on uninstall, even when the site owner chose to keep their data. WordPress keeps cron entries across a deactivation, so the event kept costing a run for a hook that no longer had a listener. The uninstall path used to clear a hook name no version of this plugin ever scheduled; it now clears the real one, plus the name used before the 2.7.0 rename.
+
+No settings change is needed.
 
 = 2.7.5 =
 Documentation release. The only code change is the privacy wording this plugin suggests to site owners.
@@ -428,6 +407,10 @@ Security and reliability release. Social logins now pass through one authenticat
 * Uninstall option to remove the plugin's data.
 
 == Upgrade Notice ==
+
+= 2.7.6 =
+Maintenance release: redeeming a level can no longer be charged twice, the profile hook ignores calls that did not come from the profile form, and the readme description now fits the 2,500-character limit WordPress.org renders. No settings change is needed.
+
 
 = 2.7.3 =
 Social-login account links are now written only after every login policy has passed, and the points-table migration checks the real table structure before writing anything. No settings change is needed.

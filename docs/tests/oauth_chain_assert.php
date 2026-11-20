@@ -151,6 +151,91 @@ if ( null === $m ) {
 	a_ok( $m['cookie_expiry'] > 172800, 'remember: an explicit long-lived session lasts longer than the default (' . $m['cookie_expiry'] . 's)' );
 }
 
+// ---- 2.7.3: binding order ----
+$g = a_load( 'bind_ok' );
+
+if ( null === $g ) {
+	a_ok( false, 'bind ok: the scenario produced a result' );
+} else {
+	a_ok( '' === $g['fail_code'], 'bind ok: a normal sign-in that links a provider succeeds (' . $g['fail_code'] . ')' );
+	a_ok( 1 === $g['wp_login'] && 1 === $g['cookies'], 'bind ok: the session is created normally' );
+	a_ok( $g['user_id'] === $g['probe_result'], 'bind ok: the binding is written to the signed-in account (' . $g['probe_result'] . ')' );
+	a_ok( 'pm-bind-fixture1' === $g['caller_meta'], 'bind ok: the stored identity is the provider id (' . $g['caller_meta'] . ')' );
+}
+
+$t = a_load( 'bind_taken' );
+
+if ( null === $t ) {
+	a_ok( false, 'bind taken: the scenario produced a result' );
+} else {
+	a_ok( 'bind_taken' === $t['fail_code'], 'bind taken: a provider linked to another account is refused (' . $t['fail_code'] . ')' );
+	a_ok( 0 === $t['cookies'] && 0 === $t['wp_login'], 'bind taken: no session and no wp_login on refusal' );
+	a_ok( $t['probe_result'] === $t['user_id'] || $t['probe_result'] > 0, 'bind taken: the other binding still exists (' . $t['probe_result'] . ')' );
+	a_ok( '' === $t['caller_meta'], 'bind taken: nothing was written to the current account' );
+	a_ok( $t['probe_result'] > 0 && $t['probe_result'] !== $t['user_id'], 'bind taken: the third-party identity was not moved' );
+}
+
+$cf = a_load( 'bind_conflict' );
+
+if ( null === $cf ) {
+	a_ok( false, 'bind conflict: the scenario produced a result' );
+} else {
+	a_ok( 'bind_conflict' === $cf['fail_code'], 'bind conflict: a second identity of the same provider is refused (' . $cf['fail_code'] . ')' );
+	a_ok( 0 === $cf['cookies'], 'bind conflict: no cookie is set on refusal' );
+	a_ok( 'pm-old-identity' === $cf['caller_meta'], 'bind conflict: the existing binding is untouched (' . $cf['caller_meta'] . ')' );
+	a_ok( 0 === $cf['probe_result'], 'bind conflict: the new identity was not linked to anyone' );
+}
+
+$av = a_load( 'bind_after_veto' );
+
+if ( null === $av ) {
+	a_ok( false, 'bind after veto: the scenario produced a result' );
+} else {
+	a_ok( 'blocked' === $av['fail_code'], 'bind after veto: the refused sign-in reports blocked (' . $av['fail_code'] . ')' );
+	a_ok( 0 === $av['cookies'] && 0 === $av['wp_login'], 'bind after veto: no cookie and no wp_login' );
+	a_ok( 0 === $av['probe_result'], 'bind after veto: the pending binding was never written' );
+	a_ok( '' === $av['caller_meta'], 'bind after veto: the account stays unlinked' );
+}
+
+$r1 = a_load( 'bind_retry_register_step1' );
+$r2 = a_load( 'bind_retry_register_step2' );
+
+if ( null === $r1 || null === $r2 ) {
+	a_ok( false, 'register retry: both steps produced results (' . ( null === $r1 ? 'step1 missing' : 'ok' ) . '/' . ( null === $r2 ? 'step2 missing' : 'ok' ) . ')' );
+} else {
+	a_ok( 'blocked' === $r1['fail_code'], 'register retry step 1: the refused sign-up reports blocked (' . $r1['fail_code'] . ')' );
+	a_ok( $r1['registered'] > 0, 'register retry step 1: the account itself is created and kept (' . $r1['registered'] . ')' );
+	a_ok( '' === $r1['registered_wechat_meta'], 'register retry step 1: the kept account stays unlinked' );
+	a_ok( 0 === $r1['cookies'], 'register retry step 1: no session is left behind' );
+
+	a_ok( '' === $r2['fail_code'], 'register retry step 2: the returning visitor signs in (' . $r2['fail_code'] . ')' );
+	a_ok( 0 === $r2['registered'], 'register retry step 2: no duplicate account is created' );
+	a_ok( $r2['probe_result'] === $r1['registered'], 'register retry step 2: the kept account is reused and linked (' . $r2['probe_result'] . ' vs ' . $r1['registered'] . ')' );
+	a_ok( 1 === $r2['oath_login'], 'register retry step 2: the plugin login action fires' );
+}
+
+$uv = a_load( 'email_unverified_no_hijack' );
+
+if ( null === $uv ) {
+	a_ok( false, 'unverified e-mail: the scenario produced a result' );
+} else {
+	a_ok( 'register_fail' === $uv['fail_code'], 'unverified e-mail: an unverified address cannot claim the existing account (' . $uv['fail_code'] . ')' );
+	a_ok( 0 === $uv['probe_result'], 'unverified e-mail: the provider identity is linked to nobody' );
+	a_ok( '' === $uv['caller_meta'], 'unverified e-mail: the existing account stays unlinked' );
+	a_ok( 0 === $uv['cookies'], 'unverified e-mail: no session is left behind' );
+}
+
+$sc = a_load( 'state_consume' );
+$sr = a_load( 'state_replay' );
+
+if ( null === $sc || null === $sr ) {
+	a_ok( false, 'state replay: both callbacks produced results (' . ( null === $sc ? 'consume missing' : 'ok' ) . '/' . ( null === $sr ? 'replay missing' : 'ok' ) . ')' );
+} else {
+	a_ok( 'token' === $sc['fail_code'], 'state replay: the first callback consumes the state and fails at the token step (' . $sc['fail_code'] . ')' );
+	a_ok( 'state' === $sr['fail_code'], 'state replay: the replayed callback is refused at the state check (' . $sr['fail_code'] . ')' );
+	a_ok( 0 === $sr['cookies'], 'state replay: the replay leaves no session' );
+}
+
 echo "==== $pass passed, $fail failed ====\n";
 
 exit( $fail > 0 ? 1 : 0 );

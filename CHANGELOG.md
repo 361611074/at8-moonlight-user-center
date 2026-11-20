@@ -1,7 +1,89 @@
 # Changelog
 
 The WordPress.org `readme.txt` changelog is the authoritative, complete list.
-This file summarises the 2.7.2 delivery for the GitHub repository.
+This file summarises each release for the GitHub repository.
+
+## 2.7.6 — one charge per redemption, no phantom writes (2026-11-13)
+
+### P2 — Points: a redemption is charged once
+- `ajax_redeem()` now passes an idempotency key to `AT8MLUC_Points::adjust()`,
+  built from the user, the level and the current day. A double click, a
+  double submit or a replayed request replays the balance instead of taking
+  the cost again. The level grant was already idempotent, so the two halves
+  now agree. A later redemption of the same level, after it expired, lands
+  on a different day and is charged normally.
+
+### P2 — Custom fields: only the form may write
+- `save_after_profile()` returns early when the profile nonce is absent from
+  the request. The `at8mluc_after_profile_update` action is public, and a
+  missing key reads as an empty value, so a programmatic caller firing it
+  without the form would otherwise blank every custom field on the account.
+
+### Documentation
+- `readme.txt`: the description was 5,966 characters; WordPress.org renders
+  the first 2,500. It is now 2,390, so the feature list and the shortcode
+  reference are no longer cut off. An `== Upgrade Notice ==` entry exists for
+  this version.
+- `readme.txt`: the External services and Privacy sections are new since
+  2.7.4 — see those entries below.
+
+### Removed
+- The OAuth profile payload no longer carries the provider's avatar URL.
+  Nothing read it; the plugin has never imported a remote avatar. It is
+  gone from the array the login filters receive.
+- `uninstall.php` no longer clears `at8mluc_daily_maintenance`, a scheduled
+  event no version of this plugin ever scheduled.
+
+### Fixed — scheduled events outlive the plugin
+- `AT8MLUC_Activator::deactivate()` now clears `at8mluc_pay_autoclose`.
+  WordPress keeps cron entries across a deactivation, so the hourly event
+  kept costing a run for a hook with no listener. `register_cpt()` schedules
+  it again on the first `init` after reactivation.
+- `uninstall.php` clears that hook unconditionally, including the
+  `at8_mluc_pay_autoclose` name from before the 2.7.0 rename. It used to be
+  cleared only when the site owner asked for their data to be deleted.
+
+## 2.7.5 — the privacy text told the wrong story (2026-11-13)
+
+### P2 — Privacy: cookies are disclosed
+- The suggested privacy-policy text claimed the plugin uses "no cookies of
+  its own". A social-login attempt sets three short-lived cookies: the CSRF
+  state value (10 minutes), the "stay signed in" choice (10 minutes) and a
+  refusal notice (5 minutes). The text now names each one, its lifetime and
+  its scope.
+- `readme.txt`: a `== Privacy ==` section lists what is stored per feature,
+  which cookies are set, and how a user's data is exported or erased. The
+  External services section pointed at a privacy section that did not exist.
+
+## 2.7.4 — the WordPress.org pre-review findings (2026-11-13)
+
+### P1 — Social login: the retry path could bypass a site policy
+- `login_or_register()` and the register-retry path now share one decision
+  function, `may_reuse_on_email_collision()`. When a provider profile
+  collides with an existing address, reuse requires both that the site allows
+  e-mail linking and that the provider marked the address verified. Before
+  this, the retry path reached the same account without either condition.
+- The display name from the provider is written only for an account this
+  plugin created, only after authentication and binding have passed, and only
+  while the account still shows its generated login as the display name. It
+  can no longer overwrite a name an administrator set before the account was
+  ever signed into.
+
+### P2 — Output escaping
+- The `at8mluc_hide_cta_html` filter output is passed through
+  `wp_kses_post()`. The two seams that return post content keep it intact on
+  purpose and are annotated: `wp_kses()` has no `iframe`, and the add-on
+  appends video embeds and an inline card script there.
+
+### P2 — Input sanitisation
+- Custom-field choice options are sanitised per line with
+  `sanitize_text_field()` and capped at 100 entries; a nested array in a text
+  slot falls back instead of rendering as "Array".
+
+### Disclosure
+- `readme.txt`: an `== External services ==` section documents Gravatar —
+  the two host families contacted, that only the e-mail hash is sent, when
+  the service is and is not contacted, and its terms and privacy links.
 
 ## 2.7.3 — binding order and migration structure (2026-11-12)
 

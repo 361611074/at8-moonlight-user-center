@@ -719,6 +719,16 @@ class AT8MLUC_Fields {
 	 * @return void
 	 */
 	public function save_after_profile( $user_id, $data ) {
+		/*
+		 * Only a real form submission may write these values. The action is
+		 * public, and an absent key reads as an empty value, so a programmatic
+		 * caller that fires it without the profile form would otherwise blank
+		 * every custom field on the account.
+		 */
+		if ( empty( $_POST[ AT8MLUC_Security::NONCE_FIELD ] ) ) { // phpcs:ignore WordPress.Security.NonceVerification.Missing -- presence only; the profile handler already verified this nonce.
+			return;
+		}
+
 		self::save_from_request( $user_id, self::for_profile(), $_POST ); // phpcs:ignore WordPress.Security.NonceVerification -- the profile handler already verified its own nonce.
 	}
 

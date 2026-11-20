@@ -699,7 +699,7 @@ class AT8MLUC_OAuth
 		$providers = self::providers();
 		$p = $providers[$id];
 		$access_token = $token['access_token'];
-		$profile = array('provider' => $id, 'provider_id' => '', 'email' => '', 'name' => '', 'avatar' => '', 'email_verified' => false);
+		$profile = array('provider' => $id, 'provider_id' => '', 'email' => '', 'name' => '', 'email_verified' => false);
 
 		switch ($p['type']) {
 			case 'wechat':
@@ -712,8 +712,7 @@ class AT8MLUC_OAuth
 					'openid'       => $token['openid'],
 				));
 				if (!is_wp_error($info)) {
-					$profile['name']   = isset($info['nickname']) ? $info['nickname'] : '';
-					$profile['avatar'] = isset($info['headimgurl']) ? $info['headimgurl'] : '';
+					$profile['name'] = isset($info['nickname']) ? $info['nickname'] : '';
 				}
 				break;
 
@@ -733,8 +732,7 @@ class AT8MLUC_OAuth
 					'openid'             => $openid,
 				));
 				if (!is_wp_error($info)) {
-					$profile['name']   = isset($info['nickname']) ? $info['nickname'] : '';
-					$profile['avatar'] = isset($info['figureurl_qq_2']) ? $info['figureurl_qq_2'] : (isset($info['figureurl_qq_1']) ? $info['figureurl_qq_1'] : '');
+					$profile['name'] = isset($info['nickname']) ? $info['nickname'] : '';
 				}
 				break;
 
@@ -745,7 +743,6 @@ class AT8MLUC_OAuth
 				}
 				$profile['provider_id'] = isset($user['id']) ? (string) $user['id'] : '';
 				$profile['name']   = isset($user['name']) ? $user['name'] : (isset($user['login']) ? $user['login'] : '');
-				$profile['avatar'] = isset($user['avatar_url']) ? $user['avatar_url'] : '';
 				$profile['email']  = isset($user['email']) ? $user['email'] : '';
 				// 仅采用已验证邮箱，避免用他人未验证邮箱接管账户
 				$profile['email_verified'] = !empty($user['email']) && !empty($user['email_verified']);
@@ -775,7 +772,6 @@ class AT8MLUC_OAuth
 				$profile['provider_id'] = isset($info['sub']) ? $info['sub'] : '';
 				$profile['email']  = isset($info['email']) ? $info['email'] : '';
 				$profile['name']   = isset($info['name']) ? $info['name'] : '';
-				$profile['avatar'] = isset($info['picture']) ? $info['picture'] : '';
 				// Google 返回 email_verified 声明
 				$profile['email_verified'] = !empty($info['email_verified']) && !empty($info['email']);
 				break;

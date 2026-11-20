@@ -289,6 +289,16 @@ class AT8MLUC_Upgrade_Paths {
 			wp_send_json_error( array( 'message' => __( 'You do not have enough points for that level.', 'at8-moonlight-user-center' ) ) );
 		}
 
+		/*
+		 * The deduction carries an idempotency key built from the user, the
+		 * level and the day. Two clicks, a double submit or a replayed request
+		 * therefore produce one movement: the second call replays the balance
+		 * instead of deducting again, and the grant below is idempotent, so the
+		 * visitor is charged once. A later redemption of the same level — after
+		 * it expired — falls on a different day and is charged normally.
+		 */
+		$redeem_key = sprintf( 'redeem:%d:%s:%s', $user_id, $level, current_time( 'Ymd' ) );
+
 		$spent = AT8MLUC_Points::adjust(
 			$user_id,
 			-$cost,
@@ -297,7 +307,8 @@ class AT8MLUC_Upgrade_Paths {
 				__( 'Redeemed the %s level', 'at8-moonlight-user-center' ),
 				AT8MLUC_Membership::get_level_label( $level )
 			),
-			'redeem'
+			'redeem',
+			$redeem_key
 		);
 
 		if ( is_wp_error( $spent ) ) {

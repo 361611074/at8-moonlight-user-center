@@ -4,7 +4,7 @@ A lightweight, theme-agnostic front-end user center for WordPress. It gives a si
 front-end login, registration, password recovery and a personal account area without
 touching the WordPress admin.
 
-**Version 2.7.5** · GPL-2.0-or-later · PHP 7.4+ · WordPress 5.8+
+**Version 2.7.6** · GPL-2.0-or-later · PHP 7.4+ · WordPress 5.8+
 
 Privacy policy: https://www.at8.fun/privacy-policy/ · Terms of service: https://www.at8.fun/terms-of-service/
 
@@ -103,8 +103,8 @@ installed — License (Pro).
 
 ## Installation
 
-1. Download `at8-moonlight-user-center-2.7.5.zip` from the
-   [2.7.5 release](https://github.com/361611074/at8-moonlight-user-center/releases/tag/2.7.5),
+1. Download `at8-moonlight-user-center-2.7.6.zip` from the
+   [2.7.6 release](https://github.com/361611074/at8-moonlight-user-center/releases/tag/2.7.6),
    or clone this repository into `wp-content/plugins/at8-moonlight-user-center/`.
 2. Activate the plugin under **Plugins**.
 3. Create pages containing the shortcodes listed above.
